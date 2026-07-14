@@ -1,5 +1,4 @@
 import math
-import numpy as np
 from collector.emulator import calculate_stats
 
 
@@ -34,8 +33,9 @@ def test_statistics_engine_math_advanced():
 
     # 2. Population Variance & Standard Deviation
     rssis = [-55, -58, -56, -60, -57]
-    expected_variance = np.var(rssis)
-    expected_std = np.std(rssis)
+    mean = sum(rssis) / len(rssis)
+    expected_variance = sum((r - mean)**2 for r in rssis) / len(rssis)
+    expected_std = math.sqrt(expected_variance)
     
     assert math.isclose(obs["rssi_variance"], expected_variance, abs_tol=0.01)
     assert math.isclose(obs["rssi_std"], expected_std, abs_tol=0.01)
@@ -53,11 +53,10 @@ def test_statistics_engine_math_advanced():
     assert obs["percentile_75"] == -56.0
     
     # 5. Skewness & Kurtosis
-    mean = -57.2
-    std = np.std(rssis)
-    norm_diffs = [(r - mean) / std for r in rssis]
+    norm_diffs = [(r - mean) / expected_std for r in rssis]
     expected_skewness = sum(d**3 for d in norm_diffs) / 5
     expected_kurtosis = sum(d**4 for d in norm_diffs) / 5
+
     
     assert math.isclose(obs["skewness"], expected_skewness, abs_tol=0.001)
     assert math.isclose(obs["kurtosis"], expected_kurtosis, abs_tol=0.001)
