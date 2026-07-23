@@ -1,0 +1,19 @@
+================================================================================
+                    BLE TRACKER — DATASET COLLECTOR INSTRUCTIONS
+================================================================================
+
+HOW TO RUN THE COLLECTOR GUI
+----------------------------
+1. Open PowerShell or Terminal in the project root folder.
+2. Run:
+       py collector/collector.py
+
+3. Connect ESP32, select COM Port, enter distance & obstacle metadata.
+4. Click "▶ START RECORDING" to capture BLE RSSI samples.
+5. All CSV datasets are automatically saved to `collector/data/raw/`.
+
+CSV DATASET COLUMNS
+-------------------
+timestamp,anchor,mac,rssi,name,distance_m,obstacle,obstacle_type
+
+For detailed documentation, troubleshooting, and ground truth setup, see instructions.txt in the root project folder.
