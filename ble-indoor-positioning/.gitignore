@@ -147,3 +147,14 @@ cython_debug/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Collected datasets (CSV)
+datasets/*.csv
+collector/data/
+
+# Trained model artifacts
+models/*.joblib
+models/*.json
+
+# Generated reports / plots
+reports/*.png

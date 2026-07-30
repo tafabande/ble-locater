@@ -905,11 +905,21 @@ class BLECollector:
                 if len(parts) < 5:
                     continue
 
-                timestamp = parts[0]
-                anchor = parts[1]
-                mac = parts[2]
-                rssi = parts[3]
-                name = ",".join(parts[4:])
+                timestamp = parts[0].strip()
+                anchor = parts[1].strip()
+                mac = parts[2].strip()
+                rssi = parts[3].strip()
+                name = ",".join(parts[4:]).strip()
+
+                # Validate timestamp is numeric, MAC format, and RSSI is integer
+                if not timestamp.isdigit():
+                    continue
+                if ":" not in mac or len(mac) < 11:
+                    continue
+                try:
+                    int(rssi)
+                except ValueError:
+                    continue
 
                 # Create populated dataset record
                 row = [

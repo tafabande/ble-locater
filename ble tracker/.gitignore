@@ -76,3 +76,11 @@ Desktop.ini
 *.workspace # General workspace files, can be from various tools
 *.suo       # Visual Studio Solution User Options
 *.sln.docstates # Visual Studio
+
+# Collected datasets (CSV)
+*.csv
+collector/data/
+
+# IDE cache
+.cache/
+.clangd

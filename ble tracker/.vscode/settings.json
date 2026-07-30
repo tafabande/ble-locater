@@ -13,5 +13,6 @@
     "--background-index",
     "--query-driver=**",
     "--compile-commands-dir=c:\\Users\\User\\Desktop\\final year\\ble tracker\\build"
-  ]
+  ],
+  "idf.flashType": "UART"
 }
