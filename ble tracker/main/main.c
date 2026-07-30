@@ -19,6 +19,10 @@ static const char *TAG = "BLE_SCANNER";
 #define ANCHOR_ID "ANCHOR_01"
 #define BLINK_GPIO GPIO_NUM_2
 
+// Target BLE Tag MAC: 52:06:26:03:01:DA
+#define FILTER_TARGET_MAC 1
+static const uint8_t TARGET_MAC[6] = {0xDA, 0x01, 0x03, 0x26, 0x06, 0x52};
+
 static int g_led_state = 0;
 
 static void start_scan(void);
@@ -32,6 +36,11 @@ static void host_task(void *param) {
 static int scan_callback(struct ble_gap_event *event, void *arg) {
 
   if (event->type == BLE_GAP_EVENT_DISC) {
+#if FILTER_TARGET_MAC
+    if (memcmp(event->disc.addr.val, TARGET_MAC, 6) != 0) {
+      return 0;
+    }
+#endif
     char name[128] = "Unknown";
 
     if (event->disc.length_data > 0) {

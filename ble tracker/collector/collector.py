@@ -921,6 +921,11 @@ class BLECollector:
                 except ValueError:
                     continue
 
+                # Optional target MAC filter (default tag: 52:06:26:03:01:DA)
+                target_mac = getattr(self, "target_mac_filter", "52:06:26:03:01:DA")
+                if target_mac and mac.upper() != target_mac.upper():
+                    continue
+
                 # Create populated dataset record
                 row = [
                     timestamp,
