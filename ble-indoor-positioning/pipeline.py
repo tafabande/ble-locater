@@ -91,7 +91,7 @@ def main():
 
     # ── Summary ──────────────────────────────────────────────────────
     print("\n" + "=" * 70)
-    print("  ✅ PIPELINE COMPLETE")
+    print("  [DONE] PIPELINE COMPLETE")
     print("=" * 70)
     print(f"  Engineered dataset : {dataset_path}")
     print(f"  Trained model      : {os.path.join(model_dir, 'distance_estimator.joblib')}")
