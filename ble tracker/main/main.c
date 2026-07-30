@@ -80,6 +80,7 @@ static int scan_callback(struct ble_gap_event *event, void *arg) {
            event->disc.addr.val[2], event->disc.addr.val[1], event->disc.addr.val[0],
            event->disc.rssi,
            name);
+    fflush(stdout);
   } else if (event->type == BLE_GAP_EVENT_DISC_COMPLETE) {
     ESP_LOGI(TAG, "Discovery complete; restarting scan...");
     start_scan();
@@ -98,12 +99,13 @@ static void start_scan(void) {
 
   // Print the CSV header for dataset capture
   printf("timestamp,anchor,mac,rssi,name\n");
+  fflush(stdout);
 
   struct ble_gap_disc_params params = {
-      .itvl = 0x30,
-      .window = 0x30,
+      .itvl = 0x10,      // 10ms scan interval
+      .window = 0x10,    // 10ms scan window (100% continuous duty cycle)
       .filter_duplicates = 0,
-      .passive = 1
+      .passive = 0       // Active scan (requests SCAN_RSP to double packet yield)
   };
 
   rc = ble_gap_disc(own_addr_type, BLE_HS_FOREVER, &params, scan_callback, NULL);
