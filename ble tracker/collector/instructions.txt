@@ -8,9 +8,11 @@ HOW TO RUN THE COLLECTOR GUI
 2. Run:
        py collector/collector.py
 
-3. Connect ESP32, select COM Port, enter distance & obstacle metadata.
-4. Click "▶ START RECORDING" to capture BLE RSSI samples.
-5. All CSV datasets are automatically saved to `collector/data/raw/`.
+3. Connect ESP32, select COM Port.
+4. Click "⚡ Load / Flash ESP32 Code" to automatically upload firmware to the ESP32 (or enable "Auto-Flash on Connect").
+5. Enter distance & obstacle metadata.
+6. Click "▶ START RECORDING" to capture BLE RSSI samples.
+7. All CSV datasets are automatically saved to `collector/data/raw/`.
 
 CSV DATASET COLUMNS
 -------------------

@@ -23,6 +23,13 @@ DEFAULT_BAUD_RATE = 115200
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data", "raw")
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+BUILD_DIR = os.path.join(PROJECT_ROOT, "build")
+
+# ESP32 Firmware Build Binary Paths
+BOOTLOADER_BIN = os.path.join(BUILD_DIR, "bootloader", "bootloader.bin")
+PARTITION_BIN = os.path.join(BUILD_DIR, "partition_table", "partition-table.bin")
+APP_BIN = os.path.join(BUILD_DIR, "ble.bin")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -37,13 +44,24 @@ class BLECollector:
 
         self.root = root
         self.root.title("BLE Tracker - Dataset Collector Studio")
-        self.root.geometry("820x700")
-        self.root.minsize(780, 640)
+        self.root.geometry("880x760")
+        self.root.minsize(820, 680)
 
         # Serial & Threading
         self.serial_connection = None
         self.reader_thread = None
         self.stop_event = threading.Event()
+        self.current_port = None
+        self.current_baud = DEFAULT_BAUD_RATE
+
+        # Port Monitoring State
+        self.known_ports_map = {}  # { 'COM6': 'COM6 - USB-SERIAL CH340' }
+        self.last_esp_port = None
+        self.auto_scan_enabled = True
+
+        # Firmware Flashing State
+        self.flashing = False
+        self.auto_flash_var = tk.BooleanVar(value=False)
 
         # Collection State
         self.collecting = False
@@ -65,11 +83,14 @@ class BLECollector:
         # Build User Interface
         self.build_gui()
 
-        # Queue Processor Loop
+        # Print Initialization & Hardware Discovery Report
+        self.run_initial_port_diagnostic()
+
+        # Queue Processor Loop (50ms)
         self.root.after(50, self.process_queue)
 
-        # Initial Port Enumeration
-        self.refresh_ports()
+        # Auto Port Scanning Loop (1.5s)
+        self.root.after(1500, self.auto_scan_ports_loop)
 
 
     # ========================================================
@@ -82,7 +103,6 @@ class BLECollector:
 
         self.style = ttk.Style()
         
-        # Use clam theme as foundation for custom color control
         try:
             self.style.theme_use("clam")
         except Exception:
@@ -255,15 +275,49 @@ class BLECollector:
         self.port_combo = ttk.Combobox(conn_box, width=32, state="readonly")
         self.port_combo.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
-        refresh_btn = ttk.Button(conn_box, text="🔄 Refresh Ports", style="Secondary.TButton", command=self.refresh_ports)
+        refresh_btn = ttk.Button(conn_box, text="🔄 Scan Ports Now", style="Secondary.TButton", command=self.refresh_ports)
         refresh_btn.grid(row=0, column=2, padx=5, pady=5)
 
+        # Auto Scan Status Indicator
+        self.autoscan_lbl = ttk.Label(conn_box, text="⚡ Auto-Scan: ACTIVE (1.5s)", style="Subtext.TLabel", foreground="#a6e3a1")
+        self.autoscan_lbl.grid(row=0, column=3, padx=(10, 5), pady=5)
+
         # Baud Rate Row
-        ttk.Label(conn_box, text="Baud Rate:").grid(row=0, column=3, sticky="w", padx=(20, 5), pady=5)
+        ttk.Label(conn_box, text="Baud Rate:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
         
         self.baud_combo = ttk.Combobox(conn_box, values=BAUD_RATES, width=12, state="readonly")
         self.baud_combo.set(DEFAULT_BAUD_RATE)
-        self.baud_combo.grid(row=0, column=4, padx=5, pady=5, sticky="w")
+        self.baud_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+        self.device_info_lbl = ttk.Label(conn_box, text="Device: Scanning...", style="Subtext.TLabel", foreground="#89b4fa")
+        self.device_info_lbl.grid(row=1, column=2, columnspan=2, sticky="w", padx=5, pady=5)
+
+        # Firmware Auto-Loader & Flashing Row
+        ttk.Label(conn_box, text="ESP32 Code Loader:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+
+        flash_frame = ttk.Frame(conn_box)
+        flash_frame.grid(row=2, column=1, columnspan=3, sticky="w", padx=5, pady=5)
+
+        self.flash_btn = ttk.Button(
+            flash_frame,
+            text="⚡ Load / Flash ESP32 Code",
+            style="Primary.TButton",
+            command=self.start_flash_firmware
+        )
+        self.flash_btn.pack(side="left", padx=(0, 10))
+
+        self.autoflash_chk = ttk.Checkbutton(
+            flash_frame,
+            text="Auto-Flash on Connect",
+            variable=self.auto_flash_var,
+            command=self.on_autoflash_toggle
+        )
+        self.autoflash_chk.pack(side="left", padx=(0, 15))
+
+        self.firmware_status_lbl = ttk.Label(flash_frame, text="Firmware: Checking...", style="Subtext.TLabel")
+        self.firmware_status_lbl.pack(side="left")
+
+        self.check_firmware_binaries()
 
 
         # --- Section 2: Experiment Metadata Card ---
@@ -363,7 +417,7 @@ class BLECollector:
         status_bar = ttk.Frame(ctrl_box)
         status_bar.pack(fill="x", pady=(10, 0))
 
-        self.status_dot = ttk.Label(status_bar, text="● READY", foreground="#a6e3a1", style="Status.TLabel")
+        self.status_dot = ttk.Label(status_bar, text="● SCANNING PORTS...", foreground="#f9e2af", style="Status.TLabel")
         self.status_dot.pack(side="left")
 
         self.file_info_lbl = ttk.Label(status_bar, text="Target Dir: collector/data/raw/", style="Subtext.TLabel")
@@ -382,6 +436,10 @@ class BLECollector:
         c_toolbar.pack(fill="x", pady=(0, 5))
 
         ttk.Label(c_toolbar, text="Stream Log:", style="Subtext.TLabel").pack(side="left")
+
+        diag_btn = ttk.Button(c_toolbar, text="🔍 Re-run Port Diagnostic", style="Secondary.TButton", command=self.run_initial_port_diagnostic)
+        diag_btn.pack(side="right", padx=(5, 0))
+
         clear_btn = ttk.Button(c_toolbar, text="🗑 Clear Console", style="Secondary.TButton", command=self.clear_console)
         clear_btn.pack(side="right")
 
@@ -413,6 +471,273 @@ class BLECollector:
         self.console.tag_config("WARN", foreground="#f9e2af")
         self.console.tag_config("ERROR", foreground="#f38ba8")
         self.console.tag_config("SYS", foreground="#cba6f7")
+
+
+    # ========================================================
+    # Startup Port Discovery & Diagnostic Report
+    # ========================================================
+
+    def run_initial_port_diagnostic(self):
+
+        self.log("SYS", "=" * 70)
+        self.log("SYS", " HARDWARE DISCOVERY & SERIAL PORT DIAGNOSTIC REPORT")
+        self.log("SYS", "=" * 70)
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.log("SYS", f" Timestamp : {now_str}")
+        self.log("SYS", f" Output Dir: {DATA_DIR}")
+        self.log("SYS", " Searching for connected USB / Serial devices...")
+
+        ports = list(serial.tools.list_ports.comports())
+        self.known_ports_map = {}
+        esp_port_info = None
+
+        if not ports:
+            self.log("WARN", " [✖] No active serial COM ports detected on this system.")
+            self.log("WARN", "     Please connect your ESP32 via USB data cable.")
+            self.log("SYS", " Status: Auto-port scanner ACTIVE (scanning every 1.5s).")
+            self.port_combo["values"] = []
+            self.port_combo.set("No COM ports found")
+            self.device_info_lbl.config(text="Device: None detected", foreground="#f38ba8")
+            self.status_dot.config(text="● NO ESP32 DETECTED — Waiting for USB connection...", foreground="#f38ba8")
+        else:
+            port_list_display = []
+            for p in ports:
+                device_str = p.device
+                desc = p.description
+                hwid = p.hwid or "N/A"
+                mfg = getattr(p, 'manufacturer', None) or "Unknown Manufacturer"
+                
+                full_display = f"{device_str} - {desc}"
+                port_list_display.append(full_display)
+                self.known_ports_map[device_str] = full_display
+
+                # Check for ESP32 UART bridge chips
+                desc_lower = desc.lower()
+                is_esp = any(k in desc_lower for k in ["ch340", "cp210", "ftdi", "uart", "esp32", "usb-serial"])
+
+                self.log("INFO", f" [✔] Port Detected: {device_str}")
+                self.log("INFO", f"     • Description : {desc}")
+                self.log("INFO", f"     • Manufacturer: {mfg}")
+                self.log("INFO", f"     • Hardware ID : {hwid}")
+                
+                if is_esp:
+                    self.log("SYS", f"     • Detection   : ★ Recognized ESP32 USB-UART Serial Bridge!")
+                    if not esp_port_info:
+                        esp_port_info = (device_str, full_display, desc)
+
+            self.port_combo["values"] = port_list_display
+
+            if esp_port_info:
+                dev_code, dev_disp, dev_desc = esp_port_info
+                self.port_combo.set(dev_disp)
+                self.last_esp_port = dev_code
+                self.device_info_lbl.config(text=f"Detected: {dev_desc}", foreground="#a6e3a1")
+                self.status_dot.config(text=f"● ESP32 READY on {dev_code}", foreground="#a6e3a1")
+                self.log("SYS", f" Result: Auto-selected target port {dev_code}")
+            else:
+                self.port_combo.current(0)
+                selected_dev = port_list_display[0].split(" - ")[0]
+                self.device_info_lbl.config(text=f"Selected: {port_list_display[0]}", foreground="#89b4fa")
+                self.status_dot.config(text=f"● READY on {selected_dev}", foreground="#a6e3a1")
+                self.log("INFO", f" Result: Selected default port {selected_dev}")
+
+        self.log("SYS", "=" * 70)
+
+
+    # ========================================================
+    # Auto Port Scanner Loop (Hot-plug & Disconnect Monitoring)
+    # ========================================================
+
+    def auto_scan_ports_loop(self):
+        if self.auto_scan_enabled:
+            try:
+                current_ports = list(serial.tools.list_ports.comports())
+                current_map = {p.device: f"{p.device} - {p.description}" for p in current_ports}
+
+                # 1. Detect Newly Added Ports (Hot-Plug)
+                added_ports = set(current_map.keys()) - set(self.known_ports_map.keys())
+                if added_ports:
+                    for new_p in added_ports:
+                        desc = current_map[new_p]
+                        self.log("SYS", f"⚡ HOT-PLUG EVENT: New device connected on {new_p} ({desc})")
+                        
+                        desc_lower = desc.lower()
+                        if any(k in desc_lower for k in ["ch340", "cp210", "ftdi", "uart", "esp32", "usb-serial"]):
+                            self.log("SYS", f"★ Auto-detected ESP32 on {new_p}! Updating port selection.")
+                            self.last_esp_port = new_p
+                            if not self.collecting and not self.flashing:
+                                self.port_combo.set(desc)
+                                self.device_info_lbl.config(text=f"Detected: {desc.split(' - ')[1]}", foreground="#a6e3a1")
+                                self.status_dot.config(text=f"● ESP32 READY on {new_p}", foreground="#a6e3a1")
+
+                                if self.auto_flash_var.get():
+                                    self.log("SYS", f"⚡ Auto-Flash trigger for newly connected ESP32 on {new_p}...")
+                                    self.root.after(500, lambda p=new_p: self.start_flash_firmware(p))
+
+                # 2. Detect Removed Ports (Disconnect)
+                removed_ports = set(self.known_ports_map.keys()) - set(current_map.keys())
+                if removed_ports:
+                    for rem_p in removed_ports:
+                        self.log("WARN", f"⚠️ DISCONNECT EVENT: Serial device removed from {rem_p}")
+                        
+                        # Active port removed while collecting?
+                        if self.collecting and self.current_port == rem_p:
+                            self.log("ERROR", f"CRITICAL: Active ESP32 serial port {rem_p} was physically disconnected!")
+                            self.data_queue.put(("PORT_DISCONNECTED", rem_p))
+
+                # Update state map & combo values if ports changed
+                if added_ports or removed_ports:
+                    self.known_ports_map = current_map
+                    port_values = list(current_map.values())
+                    self.port_combo["values"] = port_values
+
+                    if not port_values and not self.collecting:
+                        self.port_combo.set("No COM ports found")
+                        self.device_info_lbl.config(text="Device: None detected", foreground="#f38ba8")
+                        self.status_dot.config(text="● NO ESP32 DETECTED — Connect via USB", foreground="#f38ba8")
+
+            except Exception as e:
+                pass
+
+        # Reschedule scanner loop (1.5s)
+        self.root.after(1500, self.auto_scan_ports_loop)
+
+
+    # ========================================================
+    # Manual Port Scan Trigger
+    # ========================================================
+
+    def refresh_ports(self):
+        self.log("INFO", "Manual port scan requested...")
+        self.run_initial_port_diagnostic()
+        self.check_firmware_binaries()
+
+
+    # ========================================================
+    # Firmware Binary Verification & Flashing Engine
+    # ========================================================
+
+    def get_firmware_status(self):
+        missing = []
+        if not os.path.exists(BOOTLOADER_BIN):
+            missing.append("bootloader.bin")
+        if not os.path.exists(PARTITION_BIN):
+            missing.append("partition-table.bin")
+        if not os.path.exists(APP_BIN):
+            missing.append("ble.bin")
+        return len(missing) == 0, missing
+
+    def check_firmware_binaries(self):
+        ready, missing = self.get_firmware_status()
+        if ready:
+            self.firmware_status_lbl.config(text="Firmware: READY (ble.bin)", foreground="#a6e3a1")
+        else:
+            self.firmware_status_lbl.config(text=f"Firmware: Missing ({', '.join(missing)})", foreground="#f38ba8")
+
+    def on_autoflash_toggle(self):
+        if self.auto_flash_var.get():
+            self.log("SYS", "⚡ Auto-Flash on Connect feature ENABLED")
+        else:
+            self.log("SYS", "Auto-Flash on Connect feature DISABLED")
+
+    def start_flash_firmware(self, target_port=None):
+        if self.flashing:
+            messagebox.showinfo("Flashing in Progress", "Firmware flashing is already running.")
+            return
+
+        if self.collecting:
+            if not messagebox.askyesno("Stop Collection", "Active data collection must be stopped to flash firmware. Proceed?"):
+                return
+            self.stop_collection()
+
+        selected_port_str = target_port or self.port_combo.get()
+        if not selected_port_str or "No COM ports" in selected_port_str:
+            messagebox.showerror("Connection Error", "Please connect and select a valid ESP32 COM port first.")
+            return
+
+        port = selected_port_str.split(" - ")[0]
+
+        ready, missing = self.get_firmware_status()
+        if not ready:
+            err_msg = f"Cannot load firmware! Required build binaries missing in:\n{BUILD_DIR}\n\nMissing files: {', '.join(missing)}\n\nPlease build the ESP32 code using 'idf.py build' first."
+            self.log("ERROR", err_msg)
+            messagebox.showerror("Firmware Missing", err_msg)
+            return
+
+        # Safely release serial connection before flashing
+        if self.serial_connection:
+            try:
+                self.serial_connection.close()
+            except Exception:
+                pass
+            self.serial_connection = None
+
+        self.flashing = True
+        self.flash_btn.config(state="disabled", text="⚡ FLASHING ESP32...")
+        self.lock_inputs(True)
+        self.status_dot.config(text=f"⚡ FLASHING FIRMWARE to {port}...", foreground="#f9e2af")
+
+        threading.Thread(target=self.flash_worker, args=(port,), daemon=True).start()
+
+    def flash_worker(self, port):
+        self.data_queue.put(("FLASH_LOG", "=" * 70))
+        self.data_queue.put(("FLASH_LOG", "⚡ ESP32 FIRMWARE AUTO-LOADER & FLASHER"))
+        self.data_queue.put(("FLASH_LOG", "=" * 70))
+        self.data_queue.put(("FLASH_LOG", f" Target Port : {port}"))
+        self.data_queue.put(("FLASH_LOG", f" Bootloader  : {BOOTLOADER_BIN} (0x1000)"))
+        self.data_queue.put(("FLASH_LOG", f" Partition   : {PARTITION_BIN} (0x8000)"))
+        self.data_queue.put(("FLASH_LOG", f" App Binary  : {APP_BIN} (0x10000)"))
+        self.data_queue.put(("FLASH_LOG", " Invoking esptool flashing utility..."))
+
+        # Use 115200 baud rate and flash-size detect for 100% hardware compatibility & noise immunity
+        cmd = [
+            sys.executable, "-m", "esptool",
+            "--chip", "esp32",
+            "--port", port,
+            "--baud", "115200",
+            "--before", "default-reset",
+            "--after", "hard-reset",
+            "write-flash",
+            "--flash-mode", "dio",
+            "--flash-freq", "40m",
+            "--flash-size", "detect",
+            "0x1000", BOOTLOADER_BIN,
+            "0x8000", PARTITION_BIN,
+            "0x10000", APP_BIN
+        ]
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    clean_line = line.rstrip()
+                    self.data_queue.put(("FLASH_LOG", f" [esptool] {clean_line}"))
+
+            process.stdout.close()
+            return_code = process.wait()
+
+            if return_code == 0:
+                self.data_queue.put(("FLASH_LOG", "★ FIRMWARE FLASHED SUCCESSFULLY! ESP32 reset triggered."))
+                self.data_queue.put(("FLASH_COMPLETE", True, port, "Firmware code was successfully loaded onto ESP32!"))
+            else:
+                self.data_queue.put(("FLASH_LOG", f"[✖] Flashing failed with exit code: {return_code}"))
+                self.data_queue.put(("FLASH_LOG", "💡 Troubleshooting Tips:"))
+                self.data_queue.put(("FLASH_LOG", "   1. Press & hold the BOOT (IO0) button on your ESP32 board for 2 seconds while flashing starts."))
+                self.data_queue.put(("FLASH_LOG", "   2. Ensure your USB cable supports high-speed data transfer."))
+                self.data_queue.put(("FLASH_LOG", "   3. Disconnect external sensors or peripherals attached to ESP32 GPIO pins."))
+                self.data_queue.put(("FLASH_COMPLETE", False, port, f"Flashing failed (Exit code: {return_code}).\n\nTry holding the BOOT button on your ESP32 board while clicking Flash."))
+
+        except Exception as e:
+            self.data_queue.put(("FLASH_LOG", f"[✖] Flashing error: {str(e)}"))
+            self.data_queue.put(("FLASH_COMPLETE", False, port, f"Flashing exception: {str(e)}"))
 
 
     # ========================================================
@@ -451,36 +776,6 @@ class BLECollector:
 
 
     # ========================================================
-    # COM Port Enumeration
-    # ========================================================
-
-    def refresh_ports(self):
-        ports = serial.tools.list_ports.comports()
-        port_list = []
-        esp_index = -1
-
-        for idx, port in enumerate(ports):
-            desc = f"{port.device} - {port.description}"
-            port_list.append(desc)
-            # Auto-detect ESP32 serial bridge chips
-            p_desc_lower = port.description.lower()
-            if any(k in p_desc_lower for k in ["ch340", "cp210", "ftdi", "uart", "esp32", "usb-serial"]):
-                esp_index = idx
-
-        self.port_combo["values"] = port_list
-
-        if port_list:
-            if esp_index >= 0:
-                self.port_combo.current(esp_index)
-            else:
-                self.port_combo.current(0)
-            self.log("INFO", f"Detected {len(port_list)} available COM port(s).")
-        else:
-            self.port_combo.set("No COM ports found")
-            self.log("WARN", "No COM ports detected. Connect ESP32 via USB and click Refresh.")
-
-
-    # ========================================================
     # Start Collection Flow
     # ========================================================
 
@@ -503,16 +798,18 @@ class BLECollector:
         # 2. Validate Port
         selected_port_str = self.port_combo.get()
         if not selected_port_str or "No COM ports" in selected_port_str:
-            messagebox.showerror("Connection Error", "Please select a valid ESP32 COM port.")
+            messagebox.showerror("Connection Error", "Please connect a valid ESP32 COM port.")
             return
 
         port = selected_port_str.split(" - ")[0]
+        self.current_port = port
 
         # 3. Validate Baud Rate
         try:
             baud_rate = int(self.baud_combo.get())
         except ValueError:
             baud_rate = DEFAULT_BAUD_RATE
+        self.current_baud = baud_rate
 
         # 4. Metadata Settings
         obstacle = self.obstacle_combo.get()
@@ -566,7 +863,7 @@ class BLECollector:
             self.rate_lbl.config(text="0.0 Hz")
 
             self.log("SYS", f"Started session logging to: {filename}")
-            self.log("SYS", f"Params → Distance: {distance}m | Obstacle: {obstacle} ({obstacle_type}) | Baud: {baud_rate}")
+            self.log("SYS", f"Params → Port: {port} @ {baud_rate} baud | Dist: {distance}m | Obstacle: {obstacle} ({obstacle_type})")
 
             # Start Reader Worker Thread
             self.reader_thread = threading.Thread(
@@ -628,6 +925,9 @@ class BLECollector:
 
                 self.data_queue.put(row)
 
+            except serial.SerialException as se:
+                self.data_queue.put(("PORT_DISCONNECTED", str(se)))
+                break
             except Exception as e:
                 self.data_queue.put(("ERROR", str(e)))
                 break
@@ -642,8 +942,37 @@ class BLECollector:
             while True:
                 item = self.data_queue.get_nowait()
 
+                # Event: Flashing Process Log
+                if isinstance(item, tuple) and item[0] == "FLASH_LOG":
+                    self.log("SYS", item[1])
+                    continue
+
+                # Event: Flashing Complete
+                if isinstance(item, tuple) and item[0] == "FLASH_COMPLETE":
+                    success, port, msg = item[1], item[2], item[3]
+                    self.flashing = False
+                    self.flash_btn.config(state="normal", text="⚡ Load / Flash ESP32 Code")
+                    self.lock_inputs(False)
+                    if success:
+                        self.status_dot.config(text=f"● ESP32 FLASHED & READY on {port}", foreground="#a6e3a1")
+                        messagebox.showinfo("Firmware Loaded", f"Success!\n\n{msg}\n\nESP32 is now loaded with the RSSI collection firmware.")
+                    else:
+                        self.status_dot.config(text=f"🔴 FLASH FAILED on {port}", foreground="#f38ba8")
+                        messagebox.showerror("Flash Error", f"Failed to load firmware:\n\n{msg}")
+                    continue
+
+                # Event: Serial Port Disconnected Event
+                if isinstance(item, tuple) and item[0] == "PORT_DISCONNECTED":
+                    self.log("ERROR", f"CRITICAL: Serial Port disconnect error ({item[1]})")
+                    self.status_dot.config(text=f"🔴 DISCONNECTED ({self.current_port}) — Re-plug ESP32 USB", foreground="#f38ba8")
+                    self.paused = True
+                    self.pause_button.config(text="▶ RESUME (When Re-connected)")
+                    messagebox.showwarning("Device Disconnected", f"ESP32 on {self.current_port} was unplugged or lost power!\n\nCollection is PAUSED. Re-plug USB and click RESUME or STOP.")
+                    continue
+
+                # Event: General Error
                 if isinstance(item, tuple) and item[0] == "ERROR":
-                    self.log("ERROR", f"Serial Thread Exception: {item[1]}")
+                    self.log("ERROR", f"Serial Exception: {item[1]}")
                     continue
 
                 if self.paused:
@@ -693,7 +1022,7 @@ class BLECollector:
             self.log("WARN", "Data collection paused. Incoming samples will be discarded.")
         else:
             self.pause_button.config(text="⏸ PAUSE")
-            self.status_dot.config(text=f"● COLLECTING | {self.port_combo.get().split(' - ')[0]}", foreground="#a6e3a1")
+            self.status_dot.config(text=f"● COLLECTING | {self.current_port}", foreground="#a6e3a1")
             self.log("SYS", "Data collection resumed.")
 
 

@@ -6,6 +6,7 @@
 
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "driver/gpio.h"
 
 #include "host/ble_gap.h"
 #include "host/ble_hs.h"
@@ -16,6 +17,9 @@
 static const char *TAG = "BLE_SCANNER";
 
 #define ANCHOR_ID "ANCHOR_01"
+#define BLINK_GPIO GPIO_NUM_2
+
+static int g_led_state = 0;
 
 static void host_task(void *param) {
   nimble_port_run();
@@ -56,6 +60,10 @@ static int scan_callback(struct ble_gap_event *event, void *arg) {
         strcpy(name, "Unknown");
       }
 
+      // Flash / toggle onboard LED to signal active data packet collection
+      g_led_state = !g_led_state;
+      gpio_set_level(BLINK_GPIO, g_led_state);
+
       printf("%lu,%s,%02X:%02X:%02X:%02X:%02X:%02X,%d,%s\n",
              (unsigned long)esp_log_timestamp(),
              ANCHOR_ID,
@@ -91,6 +99,11 @@ static void ble_on_sync(void) {
 }
 
 void app_main(void) {
+
+  // Configure Onboard Status LED (GPIO 2)
+  gpio_reset_pin(BLINK_GPIO);
+  gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
+  gpio_set_level(BLINK_GPIO, 0); // Off during initialization / standby
 
   ESP_ERROR_CHECK(nvs_flash_init());
 
