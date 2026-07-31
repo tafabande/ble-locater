@@ -2,14 +2,16 @@
 BLE Indoor Positioning — Ultra-Verbose Super Learner Tournament & Trainer
 ==========================================================================
 
-Trains a Multi-Model Super Learner Tournament benchmarking 6 distinct algorithms
-(Random Forest, Extra Trees, Gradient Boosting, HistGradient Boosting, Support Vector Regression,
-and Stacking Super Learner) across 30 engineered features. Automatically selects and saves the champion model.
+Trains a Multi-Model Super Learner Tournament benchmarking candidate algorithms
+across 30 engineered features. Automatically selects and saves the champion model.
+Updated with crash-proof safeguards for dataset stratification, individual candidate training,
+and plot generation.
 """
 
 import os
 import sys
 import json
+import logging
 import argparse
 import datetime
 import numpy as np
@@ -27,7 +29,7 @@ from sklearn.ensemble import (
 )
 from sklearn.svm import SVR
 from sklearn.linear_model import RidgeCV
-from sklearn.model_selection import train_test_split, cross_val_score, RepeatedKFold
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     mean_absolute_error,
     mean_squared_error,
@@ -38,6 +40,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.preprocessing import StandardScaler
 import joblib
 
+logger = logging.getLogger("TRAINING_TOURNAMENT")
 
 # ──────────────────────────────────────────────────────────────────────
 #  30 ADVANCED FEATURE COLUMNS
@@ -66,7 +69,10 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
     if not os.path.exists(dataset_path):
         raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
 
-    df = pd.read_csv(dataset_path)
+    try:
+        df = pd.read_csv(dataset_path)
+    except Exception as e:
+        raise ValueError(f"Failed to read dataset CSV: {e}")
 
     required = set(FEATURE_COLUMNS + [TARGET_COLUMN])
     missing = required - set(df.columns)
@@ -74,6 +80,9 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
         raise ValueError(f"Missing required columns in dataset: {missing}")
 
     df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN], inplace=True)
+
+    if df.empty:
+        raise ValueError(f"Dataset at {dataset_path} contains 0 valid clean rows after dropping NaNs.")
 
     print(f"\n{'='*75}")
     print(f"  [DATASET TELEMETRY AUDIT & SPECTRUM]")
@@ -97,10 +106,10 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
 
 def instantiate_candidates() -> dict:
     """Instantiate candidate models for tournament comparison."""
-    rf = RandomForestRegressor(n_estimators=500, max_depth=20, min_samples_split=2, random_state=RANDOM_STATE, n_jobs=-1)
-    et = ExtraTreesRegressor(n_estimators=500, max_depth=20, min_samples_split=2, random_state=RANDOM_STATE, n_jobs=-1)
-    gb = GradientBoostingRegressor(n_estimators=300, learning_rate=0.05, max_depth=5, subsample=0.8, random_state=RANDOM_STATE)
-    hgb = HistGradientBoostingRegressor(max_iter=300, learning_rate=0.05, max_depth=6, random_state=RANDOM_STATE)
+    rf = RandomForestRegressor(n_estimators=300, max_depth=20, min_samples_split=2, random_state=RANDOM_STATE, n_jobs=-1)
+    et = ExtraTreesRegressor(n_estimators=300, max_depth=20, min_samples_split=2, random_state=RANDOM_STATE, n_jobs=-1)
+    gb = GradientBoostingRegressor(n_estimators=200, learning_rate=0.05, max_depth=5, subsample=0.8, random_state=RANDOM_STATE)
+    hgb = HistGradientBoostingRegressor(max_iter=200, learning_rate=0.05, max_depth=6, random_state=RANDOM_STATE)
     svr = SVR(C=10.0, epsilon=0.05, kernel="rbf")
 
     stacking = StackingRegressor(
@@ -111,8 +120,8 @@ def instantiate_candidates() -> dict:
 
     return {
         "Stacking Super Learner": stacking,
-        "Random Forest (500 Trees)": rf,
-        "Extra Trees (500 Trees)": et,
+        "Random Forest (300 Trees)": rf,
+        "Extra Trees (300 Trees)": et,
         "Gradient Boosting": gb,
         "Hist Gradient Boosting": hgb,
         "Support Vector Regressor (RBF)": svr,
@@ -121,29 +130,44 @@ def instantiate_candidates() -> dict:
 
 def evaluate_error_tolerances(y_true, y_pred) -> dict:
     """Compute percentage of predictions within strict distance error thresholds."""
-    errors = np.abs(y_true - y_pred)
-    total = len(errors)
-    return {
-        "within_10cm": round((np.sum(errors <= 0.10) / total) * 100, 2),
-        "within_25cm": round((np.sum(errors <= 0.25) / total) * 100, 2),
-        "within_50cm": round((np.sum(errors <= 0.50) / total) * 100, 2),
-        "within_100cm": round((np.sum(errors <= 1.00) / total) * 100, 2),
-    }
+    try:
+        errors = np.abs(y_true - y_pred)
+        total = max(1, len(errors))
+        return {
+            "within_10cm": round((np.sum(errors <= 0.10) / total) * 100, 2),
+            "within_25cm": round((np.sum(errors <= 0.25) / total) * 100, 2),
+            "within_50cm": round((np.sum(errors <= 0.50) / total) * 100, 2),
+            "within_100cm": round((np.sum(errors <= 1.00) / total) * 100, 2),
+        }
+    except Exception:
+        return {"within_10cm": 0.0, "within_25cm": 0.0, "within_50cm": 0.0, "within_100cm": 0.0}
 
 
 def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bool = False) -> dict:
-    """Run Super Learner Tournament across candidates and select champion."""
+    """Run Super Learner Tournament across candidates and select champion safely."""
     X = df[FEATURE_COLUMNS].values
     y = df[TARGET_COLUMN].values
 
-    y_bins = pd.qcut(y, q=min(5, len(np.unique(y))), labels=False, duplicates="drop")
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y_bins
-    )
+    # Stratification safeguard
+    try:
+        n_uniques = len(np.unique(y))
+        if n_uniques > 1 and len(df) >= 10:
+            y_bins = pd.qcut(y, q=min(5, n_uniques), labels=False, duplicates="drop")
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y_bins
+            )
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE
+            )
+    except Exception:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE
+        )
 
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled  = scaler.transform(X_test)
+    X_test_scaled = scaler.transform(X_test)
 
     candidates = instantiate_candidates()
 
@@ -156,25 +180,47 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
 
     for name, model in candidates.items():
         print(f"\n[TOURNAMENT] Training Candidate: {name}...")
-        model.fit(X_train_scaled, y_train)
-        y_pred = model.predict(X_test_scaled)
+        try:
+            model.fit(X_train_scaled, y_train)
+            y_pred = model.predict(X_test_scaled)
 
-        mae  = mean_absolute_error(y_test, y_pred)
-        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-        r2   = r2_score(y_test, y_pred)
-        med  = median_absolute_error(y_test, y_pred)
+            mae = float(mean_absolute_error(y_test, y_pred))
+            rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+            r2 = float(r2_score(y_test, y_pred))
+            med = float(median_absolute_error(y_test, y_pred))
 
+            tols = evaluate_error_tolerances(y_test, y_pred)
+
+            print(f"  -> Test MAE: {mae:.4f}m | RMSE: {rmse:.4f}m | R2: {r2:.4f} | <=25cm Acc: {tols['within_25cm']}%")
+
+            trained_models[name] = model
+            tournament_results.append({
+                "name": name,
+                "mae": mae,
+                "rmse": rmse,
+                "r2": r2,
+                "med_ae": med,
+                "tolerances": tols,
+                "y_pred": y_pred
+            })
+        except Exception as e:
+            logger.error(f"Candidate {name} failed training: {e}")
+            print(f"  [!] Candidate {name} failed: {e}")
+
+    if not tournament_results:
+        # Emergency Fallback to simple Random Forest
+        rf_fallback = RandomForestRegressor(n_estimators=100, random_state=RANDOM_STATE)
+        rf_fallback.fit(X_train_scaled, y_train)
+        y_pred = rf_fallback.predict(X_test_scaled)
+        mae = float(mean_absolute_error(y_test, y_pred))
         tols = evaluate_error_tolerances(y_test, y_pred)
-
-        print(f"  -> Test MAE: {mae:.4f}m | RMSE: {rmse:.4f}m | R2: {r2:.4f} | <=25cm Acc: {tols['within_25cm']}%")
-
-        trained_models[name] = model
+        trained_models["Fallback RF"] = rf_fallback
         tournament_results.append({
-            "name": name,
+            "name": "Fallback RF",
             "mae": mae,
-            "rmse": rmse,
-            "r2": r2,
-            "med_ae": med,
+            "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
+            "r2": float(r2_score(y_test, y_pred)),
+            "med_ae": float(median_absolute_error(y_test, y_pred)),
             "tolerances": tols,
             "y_pred": y_pred
         })
@@ -196,38 +242,42 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
     print(f"  Error <= 50cm Acc    : {champion['tolerances']['within_50cm']}%")
 
     # Permutation Feature Importance Analysis for Champion
-    print(f"\n[SENSITIVITY] Computing Permutation Feature Importances for Champion...")
-    perm_res = permutation_importance(champion_model, X_test_scaled, y_test, n_repeats=10, random_state=RANDOM_STATE, n_jobs=-1)
-    perm_importances = dict(zip(FEATURE_COLUMNS, perm_res.importances_mean))
-    perm_importances = dict(sorted(perm_importances.items(), key=lambda x: x[1], reverse=True))
+    perm_importances = {}
+    try:
+        print(f"\n[SENSITIVITY] Computing Permutation Feature Importances for Champion...")
+        perm_res = permutation_importance(champion_model, X_test_scaled, y_test, n_repeats=10, random_state=RANDOM_STATE, n_jobs=-1)
+        perm_importances = dict(zip(FEATURE_COLUMNS, perm_res.importances_mean))
+        perm_importances = dict(sorted(perm_importances.items(), key=lambda x: x[1], reverse=True))
 
-    print(f"\n  Top 10 Feature Sensitivities:")
-    for feat, imp in list(perm_importances.items())[:10]:
-        bar = "#" * max(0, int(imp * 50))
-        print(f"    {feat:24s} {imp:.4f}  {bar}")
-    print(f"{'='*75}\n")
+        print(f"\n  Top 10 Feature Sensitivities:")
+        for feat, imp in list(perm_importances.items())[:10]:
+            bar = "#" * max(0, int(imp * 50))
+            print(f"    {feat:24s} {imp:.4f}  {bar}")
+        print(f"{'='*75}\n")
+    except Exception as e:
+        logger.warning(f"Permutation importance calculation warning: {e}")
 
     metrics = {
-        "train_mae":      round(mean_absolute_error(y_train, champion_model.predict(X_train_scaled)), 4),
-        "test_mae":       round(champion["mae"], 4),
-        "test_rmse":      round(champion["rmse"], 4),
-        "test_r2":        round(champion["r2"], 4),
+        "train_mae": round(float(mean_absolute_error(y_train, champion_model.predict(X_train_scaled))), 4),
+        "test_mae": round(champion["mae"], 4),
+        "test_rmse": round(champion["rmse"], 4),
+        "test_r2": round(champion["r2"], 4),
         "test_median_ae": round(champion["med_ae"], 4),
-        "tolerances":     champion["tolerances"],
-        "champion_name":  champion_name,
+        "tolerances": champion["tolerances"],
+        "champion_name": champion_name,
     }
 
     return {
-        "model":         champion_model,
-        "scaler":        scaler,
-        "metrics":       metrics,
-        "importances":   perm_importances,
-        "y_test":        y_test,
-        "y_pred_test":   champion["y_pred"],
-        "y_train":       y_train,
-        "feature_cols":  FEATURE_COLUMNS,
-        "model_type":    champion_name,
-        "tournament":    [{k: v for k, v in res.items() if k != "y_pred"} for res in tournament_results]
+        "model": champion_model,
+        "scaler": scaler,
+        "metrics": metrics,
+        "importances": perm_importances,
+        "y_test": y_test,
+        "y_pred_test": champion["y_pred"],
+        "y_train": y_train,
+        "feature_cols": FEATURE_COLUMNS,
+        "model_type": champion_name,
+        "tournament": [{k: v for k, v in res.items() if k != "y_pred"} for res in tournament_results]
     }
 
 
@@ -236,88 +286,97 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
 # ──────────────────────────────────────────────────────────────────────
 
 def generate_plots(result: dict, output_dir: str):
-    """Generate comprehensive 4-panel diagnostic plot grid."""
-    os.makedirs(output_dir, exist_ok=True)
+    """Generate comprehensive 4-panel diagnostic plot grid safely."""
+    try:
+        os.makedirs(output_dir, exist_ok=True)
 
-    y_test      = result["y_test"]
-    y_pred_test = result["y_pred_test"]
-    importances = result["importances"]
+        y_test = result.get("y_test")
+        y_pred_test = result.get("y_pred_test")
+        importances = result.get("importances", {})
 
-    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
-    fig.suptitle(f"BLE Champion Model: {result['model_type']} — Diagnostics", fontsize=16, fontweight="bold")
+        if y_test is None or y_pred_test is None:
+            return
 
-    # 1. Predicted vs Actual
-    ax = axes[0, 0]
-    ax.scatter(y_test, y_pred_test, alpha=0.6, edgecolors="k", linewidths=0.5, s=45, color="#89b4fa")
-    lims = [min(y_test.min(), y_pred_test.min()) - 0.5, max(y_test.max(), y_pred_test.max()) + 0.5]
-    ax.plot(lims, lims, "r--", linewidth=2, label="Ideal 1:1 prediction")
-    ax.set_xlabel("Actual Distance (m)")
-    ax.set_ylabel("Predicted Distance (m)")
-    ax.set_title("Predicted vs Actual Distance")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+        fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+        fig.suptitle(f"BLE Champion Model: {result.get('model_type', 'Ensemble')} — Diagnostics", fontsize=16, fontweight="bold")
 
-    # 2. Residual Error Distribution
-    ax = axes[0, 1]
-    residuals = y_pred_test - y_test
-    ax.hist(residuals, bins=30, edgecolor="black", alpha=0.75, color="#a6e3a1")
-    ax.axvline(x=0, color="red", linestyle="--", linewidth=2)
-    ax.set_xlabel("Prediction Error (m)")
-    ax.set_ylabel("Frequency")
-    ax.set_title(f"Residual Error (MAE={result['metrics']['test_mae']:.3f}m)")
-    ax.grid(True, alpha=0.3)
+        # 1. Predicted vs Actual
+        ax = axes[0, 0]
+        ax.scatter(y_test, y_pred_test, alpha=0.6, edgecolors="k", linewidths=0.5, s=45, color="#89b4fa")
+        lims = [min(y_test.min(), y_pred_test.min()) - 0.5, max(y_test.max(), y_pred_test.max()) + 0.5]
+        ax.plot(lims, lims, "r--", linewidth=2, label="Ideal 1:1 prediction")
+        ax.set_xlabel("Actual Distance (m)")
+        ax.set_ylabel("Predicted Distance (m)")
+        ax.set_title("Predicted vs Actual Distance")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
 
-    # 3. Top 10 Permutation Feature Importance
-    ax = axes[1, 0]
-    if importances:
-        top_feats = list(importances.keys())[:10]
-        top_vals  = [max(0, v) for v in list(importances.values())[:10]]
-        ax.barh(top_feats[::-1], top_vals[::-1], color="#cba6f7", edgecolor="black")
-        ax.set_xlabel("Permutation Sensitivity Score")
-        ax.set_title("Top 10 Feature Importances")
-        ax.grid(True, alpha=0.3, axis="x")
+        # 2. Residual Error Distribution
+        ax = axes[0, 1]
+        residuals = y_pred_test - y_test
+        ax.hist(residuals, bins=30, edgecolor="black", alpha=0.75, color="#a6e3a1")
+        ax.axvline(x=0, color="red", linestyle="--", linewidth=2)
+        ax.set_xlabel("Prediction Error (m)")
+        ax.set_ylabel("Frequency")
+        ax.set_title(f"Residual Error (MAE={result['metrics']['test_mae']:.3f}m)")
+        ax.grid(True, alpha=0.3)
 
-    # 4. Error Tolerance Spectrum Bar Chart
-    ax = axes[1, 1]
-    tols = result["metrics"]["tolerances"]
-    labels = ["<=10cm", "<=25cm", "<=50cm", "<=100cm"]
-    vals   = [tols["within_10cm"], tols["within_25cm"], tols["within_50cm"], tols["within_100cm"]]
-    bars = ax.bar(labels, vals, color="#f9e2af", edgecolor="black")
-    ax.set_ylabel("Accuracy (%)")
-    ax.set_ylim(0, 105)
-    ax.set_title("Prediction Error Tolerance Spectrum")
-    ax.grid(True, alpha=0.3, axis="y")
-    for bar in bars:
-        yval = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2.0, yval + 1.5, f"{yval:.1f}%", ha='center', va='bottom', fontweight='bold')
+        # 3. Top 10 Permutation Feature Importance
+        ax = axes[1, 0]
+        if importances:
+            top_feats = list(importances.keys())[:10]
+            top_vals = [max(0, float(v)) for v in list(importances.values())[:10]]
+            ax.barh(top_feats[::-1], top_vals[::-1], color="#cba6f7", edgecolor="black")
+            ax.set_xlabel("Permutation Sensitivity Score")
+            ax.set_title("Top 10 Feature Importances")
+            ax.grid(True, alpha=0.3, axis="x")
 
-    plt.tight_layout()
-    plot_path = os.path.join(output_dir, "model_diagnostics.png")
-    fig.savefig(plot_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"[PLOT] Diagnostic plots saved: {plot_path}")
+        # 4. Error Tolerance Spectrum Bar Chart
+        ax = axes[1, 1]
+        tols = result["metrics"]["tolerances"]
+        labels = ["<=10cm", "<=25cm", "<=50cm", "<=100cm"]
+        vals = [tols["within_10cm"], tols["within_25cm"], tols["within_50cm"], tols["within_100cm"]]
+        bars = ax.bar(labels, vals, color="#f9e2af", edgecolor="black")
+        ax.set_ylabel("Accuracy (%)")
+        ax.set_ylim(0, 105)
+        ax.set_title("Prediction Error Tolerance Spectrum")
+        ax.grid(True, alpha=0.3, axis="y")
+        for bar in bars:
+            yval = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2.0, yval + 1.5, f"{yval:.1f}%", ha='center', va='bottom', fontweight='bold')
+
+        plt.tight_layout()
+        plot_path = os.path.join(output_dir, "model_diagnostics.png")
+        fig.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        print(f"[PLOT] Diagnostic plots saved: {plot_path}")
+    except Exception as e:
+        logger.error(f"Failed to generate diagnostic plots: {e}")
 
 
 def save_model(result: dict, output_dir: str):
     """Save model, scaler, and rich metadata."""
-    os.makedirs(output_dir, exist_ok=True)
+    try:
+        os.makedirs(output_dir, exist_ok=True)
 
-    joblib.dump(result["model"], os.path.join(output_dir, "distance_estimator.joblib"))
-    joblib.dump(result["scaler"], os.path.join(output_dir, "scaler.joblib"))
+        joblib.dump(result["model"], os.path.join(output_dir, "distance_estimator.joblib"))
+        joblib.dump(result["scaler"], os.path.join(output_dir, "scaler.joblib"))
 
-    metadata = {
-        "champion_model": result["model_type"],
-        "feature_cols":   result["feature_cols"],
-        "metrics":        result["metrics"],
-        "importances":    {k: round(float(v), 6) for k, v in result["importances"].items()},
-        "tournament":     result["tournament"],
-        "trained_at":     datetime.datetime.now().isoformat(),
-        "train_samples":  len(result["y_train"]),
-        "test_samples":   len(result["y_test"]),
-    }
-    with open(os.path.join(output_dir, "model_metadata.json"), "w") as f:
-        json.dump(metadata, f, indent=2)
-    print(f"[SAVE] Champion model & scaler saved to {output_dir}")
+        metadata = {
+            "champion_model": result["model_type"],
+            "feature_cols": result["feature_cols"],
+            "metrics": result["metrics"],
+            "importances": {k: round(float(v), 6) for k, v in result["importances"].items()},
+            "tournament": result["tournament"],
+            "trained_at": datetime.datetime.now().isoformat(),
+            "train_samples": len(result["y_train"]),
+            "test_samples": len(result["y_test"]),
+        }
+        with open(os.path.join(output_dir, "model_metadata.json"), "w") as f:
+            json.dump(metadata, f, indent=2)
+        print(f"[SAVE] Champion model & scaler saved to {output_dir}")
+    except Exception as e:
+        logger.error(f"Failed to save model assets: {e}")
 
 
 def main():

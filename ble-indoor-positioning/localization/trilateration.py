@@ -3,13 +3,17 @@ BLE Indoor Positioning — Localization & Filtering Engine
 ==========================================================
 
 Implements:
-  1. 2D Weighted Least-Squares Trilateration
-  2. 2D Kalman Filter for trajectory smoothing
+  1. 2D Weighted Least-Squares Trilateration (with crash-proof safeguards)
+  2. 2D Kalman Filter for trajectory smoothing (with matrix singularity protection)
   3. Geometric Dilution of Precision (GDOP) / uncertainty estimation
 """
 
+import math
+import logging
 import numpy as np
 from scipy.optimize import least_squares
+
+logger = logging.getLogger("TRILATERATION")
 
 
 class TrilaterationEngine:
@@ -21,9 +25,17 @@ class TrilaterationEngine:
             Dictionary mapping anchor_id to coordinates (x, y) in meters.
             Example: {"ANCHOR_01": (0.0, 0.0), "ANCHOR_02": (5.0, 0.0), "ANCHOR_03": (2.5, 4.33)}
         """
-        self.anchors = {k: np.array(v, dtype=float) for k, v in anchors_config.items()}
+        self.anchors = {}
+        if isinstance(anchors_config, dict):
+            for k, v in anchors_config.items():
+                try:
+                    arr = np.array(v, dtype=float)
+                    if arr.shape == (2,) and np.all(np.isfinite(arr)):
+                        self.anchors[str(k)] = arr
+                except Exception as e:
+                    logger.warning(f"Invalid coordinate configuration for anchor {k}: {v}. Error: {e}")
 
-    def estimate_position(self, distances: dict) -> tuple:
+    def estimate_position(self, distances: dict, raise_on_insufficient: bool = False) -> tuple:
         """
         Estimate 2D coordinates (x, y) from predicted distances using Non-linear Least Squares.
 
@@ -31,6 +43,9 @@ class TrilaterationEngine:
         ----------
         distances : dict
             Dictionary mapping anchor_id to estimated distance in meters.
+        raise_on_insufficient : bool, default=False
+            If True, raises ValueError when < 2 active anchors exist.
+            If False, returns a safe default fallback position without crashing.
 
         Returns
         -------
@@ -41,125 +56,168 @@ class TrilaterationEngine:
         active_coords = []
         active_dists = []
 
-        for anchor_id, dist in distances.items():
-            if anchor_id in self.anchors and dist is not None:
-                active_anchors.append(anchor_id)
-                active_coords.append(self.anchors[anchor_id])
-                active_dists.append(float(dist))
+        if isinstance(distances, dict):
+            for anchor_id, dist in distances.items():
+                if str(anchor_id) in self.anchors and dist is not None:
+                    try:
+                        d_val = float(dist)
+                        if np.isfinite(d_val) and d_val >= 0:
+                            active_anchors.append(str(anchor_id))
+                            active_coords.append(self.anchors[str(anchor_id)])
+                            active_dists.append(d_val)
+                    except (ValueError, TypeError):
+                        continue
 
         n_anchors = len(active_anchors)
         if n_anchors < 2:
-            raise ValueError(f"At least 2 active anchors required for trilateration. Found: {n_anchors}")
+            if raise_on_insufficient:
+                raise ValueError(f"At least 2 active anchors required for trilateration. Found: {n_anchors}")
+
+            # Safe centroid fallback
+            if n_anchors == 1:
+                cx, cy = float(active_coords[0][0]), float(active_coords[0][1])
+            elif len(self.anchors) > 0:
+                all_coords = np.array(list(self.anchors.values()))
+                cx, cy = float(np.mean(all_coords[:, 0])), float(np.mean(all_coords[:, 1]))
+            else:
+                cx, cy = 0.0, 0.0
+
+            return (cx, cy), 99.9, 99.9
 
         active_coords = np.array(active_coords)
         active_dists = np.array(active_dists)
 
         # 1. Initial guess: centroid of active anchors
         x0 = np.mean(active_coords, axis=0)
+        estimated_pos = x0.copy()
 
-        # 2. Residual function to minimize: sum((dist_calculated - dist_measured)^2)
+        # 2. Residual function to minimize
         def residuals(pos):
-            return np.linalg.norm(active_coords - pos, axis=1) - active_dists
+            diffs = active_coords - pos
+            calculated_dists = np.linalg.norm(diffs, axis=1)
+            return calculated_dists - active_dists
 
         # 3. Solve using Levenberg-Marquardt least-squares optimization
-        res = least_squares(residuals, x0, method="lm")
-        estimated_pos = res.x
+        try:
+            res = least_squares(residuals, x0, method="lm")
+            if res.success and np.all(np.isfinite(res.x)):
+                estimated_pos = res.x
+            else:
+                logger.warning("Least-squares optimization did not converge cleanly. Using centroid fallback.")
+        except Exception as e:
+            logger.error(f"Trilateration optimization error: {e}. Falling back to centroid.")
+            estimated_pos = x0
 
         # 4. Uncertainty Estimation (GDOP proxy & Standard Errors)
-        # Jacobian matrix J represents rate of change of distances w.r.t coordinates
-        # J_i = [(x - x_i)/d_i, (y - y_i)/d_i]
+        gdop = 99.9
+        uncertainty_radius = 5.0
         try:
             diffs = estimated_pos - active_coords
             norms = np.linalg.norm(diffs, axis=1)[:, np.newaxis]
-            # Prevent division by zero
             norms[norms == 0] = 1e-5
             J = diffs / norms
 
-            # Covariance matrix: Cov = sigma^2 * (J^T * J)^-1
-            # Assuming distance prediction standard error (sigma) is ~0.35m (matching MAE)
             sigma = 0.35
-            JTJ_inv = np.linalg.inv(J.T @ J)
-            cov = (sigma ** 2) * JTJ_inv
+            JTJ = J.T @ J
+            JTJ_inv = np.linalg.inv(JTJ)
 
-            # GDOP = sqrt(trace((J^T * J)^-1))
-            gdop = float(np.sqrt(np.trace(JTJ_inv)))
-            uncertainty_radius = float(np.sqrt(np.trace(cov)))
-        except (np.linalg.LinAlgError, ZeroDivisionError):
+            trace_inv = np.trace(JTJ_inv)
+            if trace_inv > 0 and np.isfinite(trace_inv):
+                gdop = float(np.sqrt(trace_inv))
+                cov = (sigma ** 2) * JTJ_inv
+                uncertainty_radius = float(np.sqrt(np.trace(cov)))
+        except (np.linalg.LinAlgError, ZeroDivisionError, ValueError, OverflowError):
             gdop = 99.9
-            uncertainty_radius = 2.0  # Fallback uncertainty radius
+            uncertainty_radius = 5.0
 
-        return (float(estimated_pos[0]), float(estimated_pos[1])), round(uncertainty_radius, 3), round(gdop, 2)
+        est_x = float(estimated_pos[0]) if np.isfinite(estimated_pos[0]) else 0.0
+        est_y = float(estimated_pos[1]) if np.isfinite(estimated_pos[1]) else 0.0
+
+        return (est_x, est_y), round(uncertainty_radius, 3), round(gdop, 2)
 
 
 class KalmanFilter2D:
     def __init__(self, dt: float = 1.0, process_noise: float = 0.1, measurement_noise: float = 0.35):
         """
         2D Constant Velocity Kalman Filter to smooth location estimates.
-
         State vector x = [pos_x, pos_y, vel_x, vel_y]^T
         """
-        self.dt = dt
+        self.dt = float(dt) if np.isfinite(dt) and dt > 0 else 1.0
         self.initialized = False
 
-        # State transition matrix F
         self.F = np.array([
-            [1, 0, dt,  0],
-            [0, 1,  0, dt],
-            [0, 0,  1,  0],
-            [0, 0,  0,  1]
+            [1, 0, self.dt, 0],
+            [0, 1, 0, self.dt],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
         ], dtype=float)
 
-        # Measurement matrix H (we only measure position, not velocity)
         self.H = np.array([
             [1, 0, 0, 0],
             [0, 1, 0, 0]
         ], dtype=float)
 
-        # Process covariance matrix Q (system model uncertainty)
-        self.Q = np.eye(4) * process_noise
+        p_noise = float(process_noise) if np.isfinite(process_noise) and process_noise >= 0 else 0.1
+        m_noise = float(measurement_noise) if np.isfinite(measurement_noise) and measurement_noise >= 0 else 0.35
 
-        # Measurement covariance matrix R (sensor noise)
-        self.R = np.eye(2) * measurement_noise
-
-        # Initial state covariance P
+        self.Q = np.eye(4) * p_noise
+        self.R = np.eye(2) * m_noise
         self.P = np.eye(4) * 1.0
-
-        # State vector x
-        self.x = np.zeros(4)
+        self.x = np.zeros(4, dtype=float)
 
     def initialize(self, x0: float, y0: float):
-        self.x = np.array([x0, y0, 0.0, 0.0], dtype=float)
-        self.P = np.eye(4) * 1.0
-        self.initialized = True
+        try:
+            x_val = float(x0) if np.isfinite(x0) else 0.0
+            y_val = float(y0) if np.isfinite(y0) else 0.0
+            self.x = np.array([x_val, y_val, 0.0, 0.0], dtype=float)
+            self.P = np.eye(4) * 1.0
+            self.initialized = True
+        except Exception:
+            self.x = np.zeros(4, dtype=float)
+            self.P = np.eye(4) * 1.0
+            self.initialized = True
 
     def predict(self):
         """Predict the next state."""
-        self.x = self.F @ self.x
-        self.P = self.F @ self.P @ self.F.T + self.Q
+        try:
+            self.x = self.F @ self.x
+            self.P = self.F @ self.P @ self.F.T + self.Q
+        except Exception as e:
+            logger.error(f"Kalman prediction error: {e}")
 
     def update(self, zx: float, zy: float):
-        """Update the state with a new position measurement."""
-        z = np.array([zx, zy])
+        """Update state with measurement."""
+        try:
+            if not (np.isfinite(zx) and np.isfinite(zy)):
+                return
 
-        # Innovation
-        y = z - self.H @ self.x
+            z = np.array([float(zx), float(zy)])
+            y = z - self.H @ self.x
+            S = self.H @ self.P @ self.H.T + self.R
 
-        # Innovation covariance
-        S = self.H @ self.P @ self.H.T + self.R
-
-        # Kalman Gain
-        K = self.P @ self.H.T @ np.linalg.inv(S)
-
-        # Update state and covariance
-        self.x = self.x + K @ y
-        self.P = (np.eye(4) - K @ self.H) @ self.P
+            K = self.P @ self.H.T @ np.linalg.inv(S)
+            self.x = self.x + K @ y
+            self.P = (np.eye(4) - K @ self.H) @ self.P
+        except np.linalg.LinAlgError:
+            logger.warning("Kalman gain matrix inversion failed (singular matrix). Skipping measurement update.")
+        except Exception as e:
+            logger.error(f"Kalman update error: {e}")
 
     def filter(self, x_meas: float, y_meas: float) -> tuple:
         """Runs one predict-update step and returns smoothed (x, y)."""
-        if not self.initialized:
-            self.initialize(x_meas, y_meas)
-            return x_meas, y_meas
+        try:
+            if not (np.isfinite(x_meas) and np.isfinite(y_meas)):
+                if self.initialized:
+                    return float(self.x[0]), float(self.x[1])
+                return 0.0, 0.0
 
-        self.predict()
-        self.update(x_meas, y_meas)
-        return float(self.x[0]), float(self.x[1])
+            if not self.initialized:
+                self.initialize(x_meas, y_meas)
+                return float(x_meas), float(y_meas)
+
+            self.predict()
+            self.update(x_meas, y_meas)
+            return float(self.x[0]), float(self.x[1])
+        except Exception as e:
+            logger.error(f"Kalman filter execution error: {e}")
+            return float(x_meas) if np.isfinite(x_meas) else 0.0, float(y_meas) if np.isfinite(y_meas) else 0.0

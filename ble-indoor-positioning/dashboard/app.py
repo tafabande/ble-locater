@@ -3,6 +3,7 @@ BLE Indoor Positioning — Live Visualization & Control Dashboard
 ================================================================
 A premium, modern Streamlit UI displaying real-time tracking coordinates,
 smoothed Kalman trajectories, distance prediction charts, and system diagnostic telemetry.
+Now updated with crash-proof request timeouts and resilient chart handling.
 """
 
 import os
@@ -85,9 +86,9 @@ a3_y = st.sidebar.number_input("Anchor 03 Y:", value=4.33, step=0.5)
 # Update Server Configuration Button
 if st.sidebar.button("💾 Apply Coordinates"):
     try:
-        r1 = requests.post(f"{backend_url}/api/config/anchors", json={"anchor_id": "ANCHOR_01", "x": a1_x, "y": a1_y})
-        r2 = requests.post(f"{backend_url}/api/config/anchors", json={"anchor_id": "ANCHOR_02", "x": a2_x, "y": a2_y})
-        r3 = requests.post(f"{backend_url}/api/config/anchors", json={"anchor_id": "ANCHOR_03", "x": a3_x, "y": a3_y})
+        r1 = requests.post(f"{backend_url}/api/config/anchors", json={"anchor_id": "ANCHOR_01", "x": a1_x, "y": a1_y}, timeout=3.0)
+        r2 = requests.post(f"{backend_url}/api/config/anchors", json={"anchor_id": "ANCHOR_02", "x": a2_x, "y": a2_y}, timeout=3.0)
+        r3 = requests.post(f"{backend_url}/api/config/anchors", json={"anchor_id": "ANCHOR_03", "x": a3_x, "y": a3_y}, timeout=3.0)
         if r1.status_code == 200 and r2.status_code == 200 and r3.status_code == 200:
             st.sidebar.success("✅ Anchor coordinates updated on server!")
         else:
@@ -112,16 +113,15 @@ st.markdown("<h1 style='color:#89b4fa;'>⚡ BLE Indoor Positioning Studio</h1>",
 st.write("Real-time location coordinate estimations smoothed with a 2D Constant Velocity Kalman Filter.")
 
 # Fetch state from FastAPI backend
+server_state = None
 try:
-    response = requests.get(f"{backend_url}/api/state")
+    response = requests.get(f"{backend_url}/api/state", timeout=3.0)
     if response.status_code == 200:
         server_state = response.json()
     else:
-        st.error("⚠️ Server returned non-200 status code. Make sure FastAPI server is running.")
-        server_state = None
+        st.error(f"⚠️ Backend returned status code {response.status_code}.")
 except Exception as e:
-    st.error(f"⚠️ Failed to connect to FastAPI positioning backend server at {backend_url}. Verify backend status. (Error: {e})")
-    server_state = None
+    st.info(f"💡 Waiting for connection to FastAPI backend server at {backend_url}. (Status: Offline)")
 
 
 if server_state:
@@ -137,7 +137,7 @@ if server_state:
         st.markdown(
             f"<div class='metric-card'>"
             f"<div class='metric-title'>📍 Estimated Position (X, Y)</div>"
-            f"<div class='metric-val'>({position['x']:.2f}, {position['y']:.2f}) m</div>"
+            f"<div class='metric-val'>({position.get('x', 0.0):.2f}, {position.get('y', 0.0):.2f}) m</div>"
             f"<div class='metric-sub'>Kalman filter ACTIVE</div>"
             f"</div>",
             unsafe_allow_html=True
@@ -147,7 +147,7 @@ if server_state:
         st.markdown(
             f"<div class='metric-card'>"
             f"<div class='metric-title'>🎯 Position Uncertainty (Error Radius)</div>"
-            f"<div class='metric-val'>± {position['uncertainty']:.2f} m</div>"
+            f"<div class='metric-val'>± {position.get('uncertainty', 0.0):.2f} m</div>"
             f"<div class='metric-sub'>Target MAE: 0.35m</div>"
             f"</div>",
             unsafe_allow_html=True
@@ -167,7 +167,7 @@ if server_state:
         st.markdown(
             f"<div class='metric-card'>"
             f"<div class='metric-title'>📉 Dilution of Precision (GDOP)</div>"
-            f"<div class='metric-val'>{position['gdop']:.2f}</div>"
+            f"<div class='metric-val'>{position.get('gdop', 0.0):.2f}</div>"
             f"<div class='metric-sub'>Values < 3.0 are optimal</div>"
             f"</div>",
             unsafe_allow_html=True
@@ -179,29 +179,30 @@ if server_state:
     with col_plot:
         st.subheader("🗺️ Live Location Coordinate Map")
 
-        # Create Plotly room chart
         fig = go.Figure()
 
         # 1. Plot anchors
-        anchor_x = [coord[0] for coord in anchors.values()]
-        anchor_y = [coord[1] for coord in anchors.values()]
-        anchor_names = list(anchors.keys())
+        if anchors:
+            anchor_x = [coord[0] for coord in anchors.values() if isinstance(coord, (list, tuple)) and len(coord) >= 2]
+            anchor_y = [coord[1] for coord in anchors.values() if isinstance(coord, (list, tuple)) and len(coord) >= 2]
+            anchor_names = list(anchors.keys())
 
-        fig.add_trace(go.Scatter(
-            x=anchor_x,
-            y=anchor_y,
-            mode="markers+text",
-            marker=dict(size=14, color="#f38ba8", symbol="triangle-up", line=dict(width=2, color="#1e1e2e")),
-            text=anchor_names,
-            textposition="top center",
-            name="Anchors",
-            hoverinfo="text"
-        ))
+            if anchor_x and anchor_y:
+                fig.add_trace(go.Scatter(
+                    x=anchor_x,
+                    y=anchor_y,
+                    mode="markers+text",
+                    marker=dict(size=14, color="#f38ba8", symbol="triangle-up", line=dict(width=2, color="#1e1e2e")),
+                    text=anchor_names,
+                    textposition="top center",
+                    name="Anchors",
+                    hoverinfo="text"
+                ))
 
         # 2. Draw trajectory history
         if history:
-            hist_x = [h["x"] for h in history]
-            hist_y = [h["y"] for h in history]
+            hist_x = [h.get("x", 0.0) for h in history]
+            hist_y = [h.get("y", 0.0) for h in history]
             fig.add_trace(go.Scatter(
                 x=hist_x,
                 y=hist_y,
@@ -211,11 +212,12 @@ if server_state:
             ))
 
         # 3. Draw current location estimate with Uncertainty Circle
-        # Uncertainty circle coordinate arrays
         theta = np.linspace(0, 2*np.pi, 100)
-        u_radius = max(0.2, position["uncertainty"])
-        circle_x = position["x"] + u_radius * np.cos(theta)
-        circle_y = position["y"] + u_radius * np.sin(theta)
+        u_radius = max(0.2, float(position.get("uncertainty", 0.5)))
+        pos_x = float(position.get("x", 0.0))
+        pos_y = float(position.get("y", 0.0))
+        circle_x = pos_x + u_radius * np.cos(theta)
+        circle_y = pos_y + u_radius * np.sin(theta)
 
         fig.add_trace(go.Scatter(
             x=circle_x,
@@ -228,8 +230,8 @@ if server_state:
         ))
 
         fig.add_trace(go.Scatter(
-            x=[position["x"]],
-            y=[position["y"]],
+            x=[pos_x],
+            y=[pos_y],
             mode="markers",
             marker=dict(size=16, color="#89b4fa", symbol="circle", line=dict(width=2, color="#11111b")),
             name="Tag Position Estimate",
@@ -237,11 +239,14 @@ if server_state:
         ))
 
         # Room chart properties
+        max_x = max(anchor_x) if anchors and 'anchor_x' in locals() and anchor_x else 6.0
+        max_y = max(anchor_y) if anchors and 'anchor_y' in locals() and anchor_y else 6.0
+
         fig.update_layout(
             paper_bgcolor="#181825",
             plot_bgcolor="#181825",
-            xaxis=dict(gridcolor="#313244", title="X Coordinate (meters)", range=[-1, max(anchor_x)+2]),
-            yaxis=dict(gridcolor="#313244", title="Y Coordinate (meters)", range=[-1, max(anchor_y)+2]),
+            xaxis=dict(gridcolor="#313244", title="X Coordinate (meters)", range=[-1, max_x + 2]),
+            yaxis=dict(gridcolor="#313244", title="Y Coordinate (meters)", range=[-1, max_y + 2]),
             height=500,
             margin=dict(l=20, r=20, t=20, b=20),
             legend=dict(font=dict(color="#cdd6f4"))
@@ -254,31 +259,31 @@ if server_state:
 
         # Construct distances display dataframe
         records = []
-        for anchor_name in anchors.keys():
-            coord = anchors[anchor_name]
+        for anchor_name, coord in anchors.items():
             dist = distances.get(anchor_name, None)
             dist_str = f"{dist:.2f} m" if dist is not None else "OFFLINE"
+            coord_str = f"({coord[0]:.1f}, {coord[1]:.1f})" if isinstance(coord, (list, tuple)) and len(coord) >= 2 else "(0.0, 0.0)"
             records.append({
                 "Anchor ID": anchor_name,
-                "Coordinates (X,Y)": f"({coord[0]:.1f}, {coord[1]:.1f})",
+                "Coordinates (X,Y)": coord_str,
                 "Estimated Distance": dist_str
             })
 
         df_dist = pd.DataFrame(records)
         st.table(df_dist)
 
-        # Signal level / path loss advice box
+        # Signal level advice box
         st.markdown("<div style='background-color:#181825; padding: 15px; border-radius:8px; border:1px solid #313244;'>", unsafe_allow_html=True)
         st.markdown("**🛡️ System Health & Multipath Indicators**")
         st.write(
-            f"Current model in use: **Stacking Ensemble**. "
+            "Current model in use: **Stacking Ensemble**. "
             "System matches RSSI signal envelopes against 30 statistical moments to compensate for multipath noise. "
             "If tag moves out of range, estimated distances fallback automatically to the physical path-loss model."
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Autorefresh script logic
+    # Refresh
     time.sleep(1.0)
     st.rerun()
 else:
-    st.info("💡 Start your FastAPI real-time backend server (`py server/app.py`) to visualize live data.")
+    st.info("💡 Start your FastAPI real-time backend server (`python server/app.py`) to visualize live data.")
