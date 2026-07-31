@@ -2,8 +2,8 @@
 Feature Engineering: Raw BLE Packets → 1-Second Observation Windows
 ===================================================================
 
-Takes raw per-packet CSV files from the collector and aggregates them
-into 1-second observation windows with 20 advanced physical and statistical RSSI features.
+Extracts 30 state-of-the-art physical, statistical, and interaction features
+per 1-second observation window for maximum localization precision.
 """
 
 import os
@@ -18,20 +18,17 @@ from scipy import stats
 #  CONFIGURATION
 # ──────────────────────────────────────────────────────────────────────
 
-# 1-second window size in milliseconds
 WINDOW_SIZE_MS = 1000
-
-# Minimum packets in a window to keep (1 packet per second for 1Hz beacon)
 MIN_PACKETS_PER_WINDOW = 1
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  CORE FEATURE EXTRACTION (20 FEATURES)
+#  CORE FEATURE EXTRACTION (30 FEATURES)
 # ──────────────────────────────────────────────────────────────────────
 
 def compute_window_features(group: pd.DataFrame) -> dict:
     """
-    Compute 20 advanced statistical & physical signal features for a window.
+    Compute 30 advanced physical, statistical, and interaction features.
     """
     rssi_values = group["rssi"].values.astype(float)
     timestamps  = group["timestamp"].values.astype(float)
@@ -39,7 +36,7 @@ def compute_window_features(group: pd.DataFrame) -> dict:
     packet_count     = len(rssi_values)
     scan_duration_ms = float(timestamps[-1] - timestamps[0]) if packet_count > 1 else 0.0
 
-    # Primary Statistical Moments
+    # 1. Primary Statistical Moments
     rssi_mean   = float(np.mean(rssi_values))
     rssi_median = float(np.median(rssi_values))
     rssi_min    = float(np.min(rssi_values))
@@ -47,15 +44,22 @@ def compute_window_features(group: pd.DataFrame) -> dict:
     rssi_std    = float(np.std(rssi_values, ddof=1)) if packet_count > 1 else 0.0
     rssi_var    = float(np.var(rssi_values, ddof=1)) if packet_count > 1 else 0.0
 
-    # Percentiles & Dispersion
+    # 2. Percentile Spectrum & Quantiles
+    rssi_p05 = float(np.percentile(rssi_values, 5))
     rssi_p10 = float(np.percentile(rssi_values, 10))
     rssi_p25 = float(np.percentile(rssi_values, 25))
     rssi_p75 = float(np.percentile(rssi_values, 75))
     rssi_p90 = float(np.percentile(rssi_values, 90))
-    rssi_iqr = rssi_p75 - rssi_p25
-    rssi_mad = float(np.median(np.abs(rssi_values - rssi_median)))
+    rssi_p95 = float(np.percentile(rssi_values, 95))
 
-    # Higher Order Moments (Skewness & Kurtosis)
+    # 3. Dispersion & Spread Measures
+    rssi_range = rssi_max - rssi_min
+    rssi_iqr   = rssi_p75 - rssi_p25
+    rssi_p90_10_range = rssi_p90 - rssi_p10
+    rssi_mad   = float(np.median(np.abs(rssi_values - rssi_median)))
+    rssi_snr   = abs(rssi_mean) / (rssi_std + 1e-5)  # Signal-to-Noise ratio proxy
+
+    # 4. Shape & Higher Order Moments
     if packet_count > 2 and rssi_std > 0:
         rssi_skew = float(stats.skew(rssi_values))
         rssi_kurt = float(stats.kurtosis(rssi_values))
@@ -63,24 +67,35 @@ def compute_window_features(group: pd.DataFrame) -> dict:
         rssi_skew = 0.0
         rssi_kurt = 0.0
 
-    # Packet Interval & Delta Features
+    # 5. Dynamics & Temporal Deltas
     if packet_count > 1:
         deltas = np.abs(np.diff(rssi_values))
         rssi_delta_mean = float(np.mean(deltas))
         rssi_delta_std  = float(np.std(deltas, ddof=1)) if len(deltas) > 1 else 0.0
+        rssi_delta_max  = float(np.max(deltas))
 
         time_deltas = np.diff(timestamps)
         observed_adv_interval = float(np.mean(time_deltas))
+        adv_interval_std      = float(np.std(time_deltas, ddof=1)) if len(time_deltas) > 1 else 0.0
     else:
         rssi_delta_mean = 0.0
-        rssi_delta_std = 0.0
+        rssi_delta_std  = 0.0
+        rssi_delta_max  = 0.0
         observed_adv_interval = 0.0
+        adv_interval_std      = 0.0
 
-    # Log-distance Path Loss Heuristic Feature: d = 10^((-60 - mean_rssi)/(10*n))
-    # Serves as a physical prior feature for tree models
-    n_path_loss = 2.5
-    path_loss_est = 10.0 ** ((-60.0 - rssi_mean) / (10.0 * n_path_loss))
-    path_loss_est = min(20.0, max(0.1, path_loss_est))
+    # 6. Physical Path Loss Priors & Feature Interactions
+    n_free_space = 2.0
+    n_indoor_obs = 3.0
+    path_loss_free_space = 10.0 ** ((-60.0 - rssi_mean) / (10.0 * n_free_space))
+    path_loss_indoor     = 10.0 ** ((-60.0 - rssi_mean) / (10.0 * n_indoor_obs))
+
+    path_loss_free_space = min(25.0, max(0.1, path_loss_free_space))
+    path_loss_indoor     = min(25.0, max(0.1, path_loss_indoor))
+
+    # Nonlinear interaction terms
+    rssi_mean_to_std_ratio = rssi_mean / (rssi_std + 1.0)
+    rssi_median_mean_diff = rssi_median - rssi_mean
 
     return {
         "packet_count":          packet_count,
@@ -91,27 +106,37 @@ def compute_window_features(group: pd.DataFrame) -> dict:
         "rssi_max":              rssi_max,
         "rssi_std":              round(rssi_std, 4),
         "rssi_variance":         round(rssi_var, 4),
+        "rssi_range":            round(rssi_range, 4),
+        "rssi_p05":              round(rssi_p05, 4),
         "rssi_p10":              round(rssi_p10, 4),
         "rssi_p25":              round(rssi_p25, 4),
         "rssi_p75":              round(rssi_p75, 4),
         "rssi_p90":              round(rssi_p90, 4),
+        "rssi_p95":              round(rssi_p95, 4),
         "rssi_iqr":              round(rssi_iqr, 4),
+        "rssi_p90_10_range":     round(rssi_p90_10_range, 4),
         "rssi_mad":              round(rssi_mad, 4),
+        "rssi_snr":              round(rssi_snr, 4),
         "rssi_skewness":         round(rssi_skew, 4),
         "rssi_kurtosis":         round(rssi_kurt, 4),
         "rssi_delta_mean":       round(rssi_delta_mean, 4),
         "rssi_delta_std":        round(rssi_delta_std, 4),
+        "rssi_delta_max":        round(rssi_delta_max, 4),
         "observed_adv_interval": round(observed_adv_interval, 4),
-        "path_loss_est":         round(path_loss_est, 4),
+        "adv_interval_std":      round(adv_interval_std, 4),
+        "path_loss_free_space":  round(path_loss_free_space, 4),
+        "path_loss_indoor":      round(path_loss_indoor, 4),
+        "rssi_mean_to_std_ratio":round(rssi_mean_to_std_ratio, 4),
+        "rssi_median_mean_diff": round(rssi_median_mean_diff, 4),
     }
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  PIPELINE: RAW CSV → OBSERVATION WINDOWS
+#  PIPELINE PROCESSING
 # ──────────────────────────────────────────────────────────────────────
 
 def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
-    """Load a raw CSV and transform it into observation-window features."""
+    """Load a raw CSV and transform it into 30 observation-window features."""
     df = pd.read_csv(filepath)
 
     required_cols = {"timestamp", "anchor", "mac", "rssi", "distance_m"}
@@ -155,16 +180,11 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
 
     result = pd.DataFrame(rows)
 
-    col_order = [
-        "window_start", "anchor_id", "packet_count", "scan_duration_ms",
-        "rssi_mean", "rssi_median", "rssi_min", "rssi_max", "rssi_std", "rssi_variance",
-        "rssi_p10", "rssi_p25", "rssi_p75", "rssi_p90", "rssi_iqr", "rssi_mad",
-        "rssi_skewness", "rssi_kurtosis", "rssi_delta_mean", "rssi_delta_std",
-        "observed_adv_interval", "path_loss_est",
-        "distance_m", "obstacle", "obstacle_type"
-    ]
-    result = result[[c for c in col_order if c in result.columns]]
-    return result
+    meta_cols = ["window_start", "anchor_id", "distance_m", "obstacle", "obstacle_type"]
+    feat_cols = [c for c in result.columns if c not in meta_cols]
+    col_order = ["window_start", "anchor_id"] + feat_cols + ["distance_m", "obstacle", "obstacle_type"]
+
+    return result[col_order]
 
 
 def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None) -> pd.DataFrame:
@@ -174,9 +194,9 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
     if not csv_files:
         raise FileNotFoundError(f"No raw CSV files found in {raw_dir}")
 
-    print(f"Found {len(csv_files)} raw CSV file(s) in {raw_dir}")
+    print(f"[AUDIT] Scanning {len(csv_files)} raw CSV file(s) in {raw_dir}")
     if target_mac:
-        print(f"Filtering for target MAC: {target_mac}")
+        print(f"[FILTER] Target MAC lock: {target_mac}")
 
     all_windows = []
     for fpath in csv_files:
@@ -185,7 +205,7 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
         if df.empty:
             print(f"  [SKIP] {fname} -> 0 windows (skipped)")
         else:
-            print(f"  [OK] {fname} -> {len(df)} observation windows")
+            print(f"  [OK] {fname} -> {len(df)} observation windows (30 features)")
             all_windows.append(df)
 
     if not all_windows:
@@ -196,15 +216,15 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     merged.to_csv(output_path, index=False)
     print(f"\n[DONE] Engineered dataset saved: {output_path}")
-    print(f"   Total observation windows: {len(merged)}")
-    print(f"   Distance coverage: {sorted(merged['distance_m'].unique())} m")
-    print(f"   Total Features: {len(merged.columns) - 4}")
+    print(f"   Total Observation Windows: {len(merged)}")
+    print(f"   Distance Presets: {sorted(merged['distance_m'].unique())} m")
+    print(f"   Extracted Features Count: {len(merged.columns) - 5}")
 
     return merged
 
 
 def main():
-    parser = argparse.ArgumentParser(description="BLE Expanded Feature Engineering")
+    parser = argparse.ArgumentParser(description="BLE 30-Feature Engineering Pipeline")
     parser.add_argument("--raw-dir", type=str, required=True)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--target-mac", type=str, default=None)
