@@ -322,14 +322,18 @@ def save_model(result: dict, output_dir: str):
 
 def main():
     parser = argparse.ArgumentParser(description="BLE Super Learner Tournament")
-    parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument("--dataset", type=str, default=None)
     parser.add_argument("--output-dir", type=str, default=None)
     parser.add_argument("--model-type", type=str, default="auto")
     parser.add_argument("--tune", action="store_true")
     args = parser.parse_args()
 
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    if args.dataset is None:
+        args.dataset = os.path.join(project_root, "datasets", "observations.csv")
+
     if args.output_dir is None:
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         args.output_dir = os.path.join(project_root, "models")
 
     df = load_dataset(args.dataset)

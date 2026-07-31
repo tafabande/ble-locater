@@ -1000,6 +1000,25 @@ class BLECollector:
                     self.csv_writer.writerow(row)
                     self.csv_file.flush()
 
+                # Stream to real-time positioning server if active (FastAPI on http://localhost:8000)
+                try:
+                    def stream_packet(r):
+                        try:
+                            import requests
+                            packet_json = {
+                                "timestamp": int(r[0]),
+                                "anchor": r[1],
+                                "mac": r[2],
+                                "rssi": int(r[3]),
+                                "name": r[4]
+                            }
+                            requests.post("http://localhost:8000/api/observation", json=packet_json, timeout=0.15)
+                        except Exception:
+                            pass
+                    threading.Thread(target=stream_packet, args=(row,), daemon=True).start()
+                except Exception:
+                    pass
+
                 self.samples_count += 1
 
                 # Update Stats Labels
