@@ -106,7 +106,7 @@ except Exception:
 logger = logging.getLogger("TRAINING_TOURNAMENT")
 
 # ──────────────────────────────────────────────────────────────────────
-#  38 ADVANCED FEATURE COLUMNS (backward-compatible with 30)
+#  50 ADVANCED FEATURE COLUMNS (backward-compatible with 30/39)
 # ──────────────────────────────────────────────────────────────────────
 
 # Original 30 features
@@ -119,18 +119,28 @@ BASE_FEATURE_COLUMNS = [
     "path_loss_indoor", "rssi_mean_to_std_ratio", "rssi_median_mean_diff"
 ]
 
-# New temporal/behavioral features (8 new)
+# Intra-window temporal/behavioral features (8)
 TEMPORAL_FEATURE_COLUMNS = [
     "rssi_slope", "rssi_trend_strength", "rssi_ema_diff",
     "rssi_first_half_mean", "rssi_second_half_mean", "rssi_half_diff",
     "rssi_autocorrelation", "rssi_energy"
 ]
 
+# V2: Cross-window temporal features (15 new)
+CROSS_WINDOW_FEATURE_COLUMNS = [
+    "rssi_mean_delta", "rssi_mean_slope_3w", "rssi_mean_slope_5w",
+    "rssi_rolling_mean_3w", "rssi_rolling_std_3w",
+    "rssi_rolling_mean_5w", "rssi_rolling_std_5w",
+    "rssi_ema_cross_window", "rssi_velocity", "rssi_acceleration",
+    "signal_stability_index", "rssi_rolling_mean_10w", "rssi_rolling_std_10w",
+    "rssi_motion_direction", "rssi_snr_rolling_5w"
+]
+
 # Physical metadata features (height elevation)
 PHYSICAL_METADATA_COLUMNS = ["height_m"]
 
-# Full set = 39
-ALL_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + PHYSICAL_METADATA_COLUMNS
+# Full set = 50 (30 base + 8 temporal + 11 cross-window + 1 height)
+ALL_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + CROSS_WINDOW_FEATURE_COLUMNS + PHYSICAL_METADATA_COLUMNS
 
 TARGET_COLUMN = "distance_m"
 TEST_SIZE = 0.2
@@ -153,15 +163,19 @@ def detect_available_features(df: pd.DataFrame) -> list:
     available = [col for col in ALL_FEATURE_COLUMNS if col in df.columns]
     n_base = sum(1 for c in BASE_FEATURE_COLUMNS if c in available)
     n_temporal = sum(1 for c in TEMPORAL_FEATURE_COLUMNS if c in available)
-    print(f"\n[FEATURE DETECTION] Found {len(available)} features: {n_base} base + {n_temporal} temporal")
+    n_cross_window = sum(1 for c in CROSS_WINDOW_FEATURE_COLUMNS if c in available)
+    print(f"\n[FEATURE DETECTION] Found {len(available)} features: {n_base} base + {n_temporal} temporal + {n_cross_window} cross-window")
     if n_temporal == 0:
         print("  [INFO] No temporal features detected — using legacy 30-feature mode.")
-        print("  [TIP]  Re-run feature engineering to generate the 8 new temporal features.")
-    elif n_temporal < len(TEMPORAL_FEATURE_COLUMNS):
-        missing = [c for c in TEMPORAL_FEATURE_COLUMNS if c not in available]
-        print(f"  [WARN] Partial temporal features. Missing: {missing}")
+        print("  [TIP]  Re-run feature engineering to generate the 8 temporal features.")
+    if n_cross_window == 0:
+        print("  [INFO] No cross-window features detected — V1 mode (no motion awareness).")
+        print("  [TIP]  Re-run feature engineering to generate the 11 V2 cross-window features.")
+    elif n_cross_window < len(CROSS_WINDOW_FEATURE_COLUMNS):
+        missing = [c for c in CROSS_WINDOW_FEATURE_COLUMNS if c not in available]
+        print(f"  [WARN] Partial cross-window features. Missing: {missing}")
     else:
-        print("  [OK] Full 38-feature mode active (including temporal/behavioral features).")
+        print("  [OK] Full V2 feature mode active (50 features including cross-window temporal).")
     return available
 
 
@@ -288,6 +302,14 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
             pct = (count / len(df)) * 100
             bar = "#" * int(pct / 2)
             print(f"    {h_val:4.1f}m : {count:4d} windows ({pct:5.1f}%)  {bar}")
+
+    # V2: Motion Label breakdown
+    if "motion" in df.columns:
+        print(f"\n  Motion Label Breakdown:")
+        for motion_val, count in df.groupby("motion").size().items():
+            pct = (count / len(df)) * 100
+            bar = "#" * int(pct / 2)
+            print(f"    {str(motion_val):16s} : {count:4d} windows ({pct:5.1f}%)  {bar}")
 
     # Environmental & Dirty Data breakdown preview
     if "obstacle_type" in df.columns:
@@ -474,10 +496,57 @@ def evaluate_error_tolerances(y_true, y_pred) -> dict:
             "within_10cm": round((np.sum(errors <= 0.10) / total) * 100, 2),
             "within_25cm": round((np.sum(errors <= 0.25) / total) * 100, 2),
             "within_50cm": round((np.sum(errors <= 0.50) / total) * 100, 2),
+            "within_75cm": round((np.sum(errors <= 0.75) / total) * 100, 2),
             "within_100cm": round((np.sum(errors <= 1.00) / total) * 100, 2),
+            "within_150cm": round((np.sum(errors <= 1.50) / total) * 100, 2),
         }
     except Exception:
-        return {"within_10cm": 0.0, "within_25cm": 0.0, "within_50cm": 0.0, "within_100cm": 0.0}
+        return {"within_10cm": 0.0, "within_25cm": 0.0, "within_50cm": 0.0,
+                "within_75cm": 0.0, "within_100cm": 0.0, "within_150cm": 0.0}
+
+
+def evaluate_extended_metrics(y_true, y_pred) -> dict:
+    """Compute extended metrics for dissertation-quality reporting."""
+    try:
+        errors = np.abs(y_true - y_pred)
+
+        # MAPE — guarded against division by zero
+        nonzero_mask = np.abs(y_true) > 0.01
+        if np.sum(nonzero_mask) > 0:
+            mape = float(np.mean(np.abs((y_true[nonzero_mask] - y_pred[nonzero_mask]) / y_true[nonzero_mask])) * 100)
+        else:
+            mape = 0.0
+
+        # Max Error
+        max_error = float(np.max(errors))
+
+        # 95th Percentile Error
+        p95_error = float(np.percentile(errors, 95))
+
+        # Explained Variance Score
+        ss_res = np.sum((y_true - y_pred) ** 2)
+        ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+        explained_var = float(1.0 - ss_res / (ss_tot + 1e-10)) if ss_tot > 0 else 0.0
+
+        # Per-Distance MAE
+        unique_dists = sorted(np.unique(np.round(y_true, 1)))
+        per_distance_mae = {}
+        for dist in unique_dists:
+            mask = np.abs(y_true - dist) < 0.05  # tolerance for float comparison
+            if np.sum(mask) > 0:
+                per_distance_mae[f"{dist:.1f}m"] = round(float(np.mean(np.abs(y_true[mask] - y_pred[mask]))), 4)
+
+        return {
+            "mape": round(mape, 2),
+            "max_error": round(max_error, 4),
+            "p95_error": round(p95_error, 4),
+            "explained_variance": round(explained_var, 4),
+            "per_distance_mae": per_distance_mae,
+        }
+    except Exception as e:
+        logger.warning(f"Extended metrics computation failed: {e}")
+        return {"mape": 0.0, "max_error": 0.0, "p95_error": 0.0,
+                "explained_variance": 0.0, "per_distance_mae": {}}
 
 
 def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int = CV_FOLDS) -> dict:
@@ -656,10 +725,24 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
     print(f"  <= 10cm Acc : {champion['tolerances']['within_10cm']}%")
     print(f"  <= 25cm Acc : {champion['tolerances']['within_25cm']}%")
     print(f"  <= 50cm Acc : {champion['tolerances']['within_50cm']}%")
+    print(f"  <= 75cm Acc : {champion['tolerances']['within_75cm']}%")
     print(f"  <= 100cm Acc: {champion['tolerances']['within_100cm']}%")
+    print(f"  <= 150cm Acc: {champion['tolerances']['within_150cm']}%")
     if champion.get("cv"):
         print(f"  CV MAE      : {champion['cv']['cv_mae_mean']:.4f} +/- {champion['cv']['cv_mae_std']:.4f}")
         print(f"  CV R2       : {champion['cv']['cv_r2_mean']:.4f} +/- {champion['cv']['cv_r2_std']:.4f}")
+
+    # V2: Extended metrics (dissertation-quality)
+    ext_metrics = evaluate_extended_metrics(y_test, champion["y_pred"])
+    print(f"\n  [V2 EXTENDED METRICS]")
+    print(f"  MAPE           : {ext_metrics['mape']:.2f}%")
+    print(f"  Max Error      : {ext_metrics['max_error']:.4f} m")
+    print(f"  95th Pctl Error: {ext_metrics['p95_error']:.4f} m  (95% of predictions within this)")
+    print(f"  Explained Var  : {ext_metrics['explained_variance']:.4f}")
+    if ext_metrics.get('per_distance_mae'):
+        print(f"  Per-Distance MAE:")
+        for dist_key, dist_mae in ext_metrics['per_distance_mae'].items():
+            print(f"    {dist_key:8s} : {dist_mae:.4f} m")
 
     # ── Permutation Feature Importance ───────────────────────────────
     perm_importances = {}
@@ -687,6 +770,7 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
         "test_r2": round(champion["r2"], 4),
         "test_median_ae": round(champion["med_ae"], 4),
         "tolerances": champion["tolerances"],
+        "extended": ext_metrics,
         "champion_name": champion_name,
         "cv_metrics": champion.get("cv", {}),
         "n_outliers_removed": n_outliers,
@@ -916,7 +1000,7 @@ def train_zone_classifier(df: pd.DataFrame) -> dict:
 # ──────────────────────────────────────────────────────────────────────
 
 def generate_plots(result: dict, output_dir: str, zone_result: dict = None):
-    """Generate comprehensive diagnostic plot grid (4-panel or 6-panel if zones included)."""
+    """Generate comprehensive V2 diagnostic plot grid with extended analysis panels."""
     try:
         os.makedirs(output_dir, exist_ok=True)
 
@@ -929,12 +1013,10 @@ def generate_plots(result: dict, output_dir: str, zone_result: dict = None):
 
         has_zones = zone_result and zone_result.get("confusion_matrix") is not None and zone_result["confusion_matrix"].size > 0
 
-        if has_zones:
-            fig, axes = plt.subplots(3, 2, figsize=(16, 20))
-        else:
-            fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+        # V2: Always 4 rows (8 panels) for richer analysis
+        fig, axes = plt.subplots(4, 2, figsize=(16, 26))
 
-        fig.suptitle(f"BLE Champion: {result.get('model_type', 'Ensemble')} — Diagnostics", fontsize=16, fontweight="bold")
+        fig.suptitle(f"BLE Champion: {result.get('model_type', 'Ensemble')} — V2 Diagnostics", fontsize=16, fontweight="bold")
 
         # 1. Predicted vs Actual
         ax = axes[0, 0]
@@ -967,24 +1049,70 @@ def generate_plots(result: dict, output_dir: str, zone_result: dict = None):
             ax.set_title("Top 15 Feature Importances")
             ax.grid(True, alpha=0.3, axis="x")
 
-        # 4. Error Tolerance Spectrum
+        # 4. Error Tolerance Spectrum (V2: extended thresholds)
         ax = axes[1, 1]
         tols = result["metrics"]["tolerances"]
-        labels = ["≤10cm", "≤25cm", "≤50cm", "≤100cm"]
-        vals = [tols["within_10cm"], tols["within_25cm"], tols["within_50cm"], tols["within_100cm"]]
+        labels = ["\u226410cm", "\u226425cm", "\u226450cm", "\u226475cm", "\u22641m", "\u22641.5m"]
+        vals = [
+            tols.get("within_10cm", 0), tols.get("within_25cm", 0),
+            tols.get("within_50cm", 0), tols.get("within_75cm", 0),
+            tols.get("within_100cm", 0), tols.get("within_150cm", 0)
+        ]
         bars = ax.bar(labels, vals, color="#f9e2af", edgecolor="black")
         ax.set_ylabel("Accuracy (%)")
         ax.set_ylim(0, 105)
-        ax.set_title("Prediction Error Tolerance Spectrum")
+        ax.set_title("Cumulative Error Tolerance Spectrum")
         ax.grid(True, alpha=0.3, axis="y")
         for bar in bars:
             yval = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2.0, yval + 1.5, f"{yval:.1f}%", ha='center', va='bottom', fontweight='bold')
+            ax.text(bar.get_x() + bar.get_width()/2.0, yval + 1.5, f"{yval:.1f}%", ha='center', va='bottom', fontweight='bold', fontsize=8)
 
-        # 5 & 6. Zone Classification panels (if available)
+        # 5. V2: Cumulative Error Distribution Curve
+        ax = axes[2, 0]
+        errors = np.abs(y_test - y_pred_test)
+        sorted_errors = np.sort(errors)
+        cumulative_pct = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors) * 100
+        ax.plot(sorted_errors, cumulative_pct, color="#89b4fa", linewidth=2.5)
+        ax.axhline(y=95, color="#f38ba8", linestyle="--", linewidth=1.5, label="95th percentile")
+        ax.axhline(y=50, color="#f9e2af", linestyle="--", linewidth=1.5, label="50th percentile")
+        # Mark key thresholds
+        for thresh, label in [(0.25, "25cm"), (0.50, "50cm"), (1.0, "1m")]:
+            pct = float(np.sum(errors <= thresh)) / len(errors) * 100
+            ax.axvline(x=thresh, color="#a6adc8", linestyle=":", alpha=0.7)
+            ax.text(thresh + 0.02, 5, f"{label}\n{pct:.0f}%", fontsize=7, color="#a6adc8")
+        ax.set_xlabel("Absolute Error (m)")
+        ax.set_ylabel("Cumulative Percentage (%)")
+        ax.set_title("Cumulative Error Distribution (CDF)")
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(0, max(sorted_errors[-1] * 1.05, 2.0))
+
+        # 6. V2: Per-Distance MAE Bar Chart
+        ax = axes[2, 1]
+        ext_metrics = result.get("metrics", {}).get("extended", {})
+        per_dist_mae = ext_metrics.get("per_distance_mae", {})
+        if per_dist_mae:
+            dist_labels = list(per_dist_mae.keys())
+            dist_vals = list(per_dist_mae.values())
+            colors_dist = ["#89b4fa", "#a6e3a1", "#f9e2af", "#fab387", "#f38ba8", "#cba6f7", "#94e2d5"]
+            bar_colors = [colors_dist[i % len(colors_dist)] for i in range(len(dist_labels))]
+            bars = ax.bar(dist_labels, dist_vals, color=bar_colors, edgecolor="black")
+            ax.axhline(y=result["metrics"]["test_mae"], color="red", linestyle="--", linewidth=1.5, label=f"Overall MAE ({result['metrics']['test_mae']:.3f}m)")
+            ax.set_ylabel("MAE (metres)")
+            ax.set_title("Per-Distance MAE Breakdown")
+            ax.grid(True, alpha=0.3, axis="y")
+            ax.legend(fontsize=8)
+            for bar in bars:
+                yval = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2.0, yval + 0.01, f"{yval:.3f}", ha='center', va='bottom', fontweight='bold', fontsize=8)
+        else:
+            ax.text(0.5, 0.5, "Per-distance MAE\nnot available", ha='center', va='center', transform=ax.transAxes, fontsize=12, color="#a6adc8")
+            ax.set_title("Per-Distance MAE")
+
+        # 7 & 8. Zone Classification panels (if available)
         if has_zones:
-            # 5. Confusion Matrix
-            ax = axes[2, 0]
+            # 7. Confusion Matrix
+            ax = axes[3, 0]
             cm = zone_result["confusion_matrix"]
             zone_labels = zone_result["zone_labels"]
             n_zones = min(len(zone_labels), cm.shape[0])
@@ -1006,8 +1134,8 @@ def generate_plots(result: dict, output_dir: str, zone_result: dict = None):
                     ax.text(j, i, str(val), ha="center", va="center", color=color, fontweight="bold")
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
-            # 6. Zone Accuracy Bar Chart
-            ax = axes[2, 1]
+            # 8. Zone Accuracy Bar Chart
+            ax = axes[3, 1]
             y_test_labels = zone_result["y_test_labels"]
             y_pred_labels = zone_result["y_pred_labels"]
             zone_accs = []
@@ -1029,12 +1157,16 @@ def generate_plots(result: dict, output_dir: str, zone_result: dict = None):
             for bar in bars:
                 yval = bar.get_height()
                 ax.text(bar.get_x() + bar.get_width()/2.0, yval + 1.5, f"{yval:.1f}%", ha='center', va='bottom', fontweight='bold', fontsize=8)
+        else:
+            # No zones — hide bottom row
+            axes[3, 0].axis("off")
+            axes[3, 1].axis("off")
 
         plt.tight_layout()
         plot_path = os.path.join(output_dir, "model_diagnostics.png")
         fig.savefig(plot_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
-        print(f"[PLOT] Diagnostic plots saved: {plot_path}")
+        print(f"[PLOT] V2 diagnostic plots saved: {plot_path}")
     except Exception as e:
         logger.error(f"Failed to generate diagnostic plots: {e}")
 
@@ -1058,7 +1190,9 @@ def save_model(result: dict, output_dir: str, zone_result: dict = None):
             "trained_at": datetime.datetime.now().isoformat(),
             "train_samples": len(result["y_train"]),
             "test_samples": len(result["y_test"]),
-            "pipeline_version": "2.0-ultra-robust",
+            "pipeline_version": "2.0-motion-aware",
+            "has_cross_window_features": any(c in result["feature_cols"] for c in CROSS_WINDOW_FEATURE_COLUMNS),
+            "n_cross_window_features": sum(1 for c in result["feature_cols"] if c in CROSS_WINDOW_FEATURE_COLUMNS),
         }
 
         # Save zone classification results

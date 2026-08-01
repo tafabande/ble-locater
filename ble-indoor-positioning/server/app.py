@@ -31,7 +31,7 @@ import joblib
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-from feature_engineering.engineer import compute_window_features
+from feature_engineering.engineer import compute_window_features, compute_cross_window_features
 from localization.trilateration import TrilaterationEngine, KalmanFilter2D
 
 # Logger config
@@ -56,7 +56,9 @@ state = {
     "trilateration_engine": TrilaterationEngine(DEFAULT_ANCHORS_CONFIG),
     "kalman_filter": KalmanFilter2D(dt=1.0, process_noise=0.15, measurement_noise=0.35),
     "last_raw_packets": defaultdict(list),  # anchor -> list of (timestamp, rssi)
+    "anchor_window_history": defaultdict(list), # anchor -> list of feature dicts for cross-window computation
     "estimated_distances": {},  # anchor -> estimated_dist
+    "estimated_motions": {},    # anchor -> estimated_motion
     "last_position": {"x": 0.0, "y": 0.0, "uncertainty": 0.0, "gdop": 0.0},
     "history": [],  # list of {"timestamp": t, "x": x, "y": y}
     "active_connections": []
@@ -122,7 +124,7 @@ class ConfigUpdate(BaseModel):
 # ──────────────────────────────────────────────────────────────────────
 
 def predict_distance_for_anchor(anchor_id: str, rssi_list: List[int], timestamps: List[int]) -> Optional[float]:
-    """Helper to perform feature engineering and predict distance."""
+    """Helper to perform feature engineering, cross-window computation, and predict distance."""
     if not rssi_list or len(rssi_list) < 1:
         return None
 
@@ -133,13 +135,25 @@ def predict_distance_for_anchor(anchor_id: str, rssi_list: List[int], timestamps
         })
 
         features = compute_window_features(group)
+        features["window_start"] = int(timestamps[0]) if timestamps else int(time.time() * 1000)
+
+        # Maintain a rolling history buffer of up to 10 windows per anchor
+        history = state["anchor_window_history"][anchor_id]
+        history.append(features)
+        if len(history) > 10:
+            history.pop(0)
+
+        # Compute cross-window features if history is available
+        hist_df = pd.DataFrame(history)
+        hist_df = compute_cross_window_features(hist_df)
+        latest_features = hist_df.iloc[-1].to_dict()
 
         # 1. Model Inference (if model is loaded)
         if state["model"] is not None and state["scaler"] is not None and state["model_metadata"] is not None:
             try:
                 feature_cols = state["model_metadata"].get("feature_cols", [])
-                if feature_cols and all(col in features for col in feature_cols):
-                    X = np.array([[features[col] for col in feature_cols]], dtype=float)
+                if feature_cols and all(col in latest_features for col in feature_cols):
+                    X = np.array([[latest_features[col] for col in feature_cols]], dtype=float)
                     if np.all(np.isfinite(X)):
                         X_scaled = state["scaler"].transform(X)
                         pred = float(state["model"].predict(X_scaled)[0])

@@ -5,6 +5,9 @@ Feature Engineering: Raw BLE Packets → 1-Second Observation Windows
 Extracts 38 state-of-the-art physical, statistical, temporal, and interaction
 features per 1-second observation window for maximum localization precision.
 Includes 8 temporal/behavioral RSSI features for signal dynamics analysis.
+
+V2.0: Adds 11 cross-window temporal features computed across consecutive
+observation windows for motion-aware distance estimation. Total: up to 50 features.
 Now updated with crash-proof safeguards against NaN/Inf values.
 """
 
@@ -271,11 +274,201 @@ def compute_window_features(group: pd.DataFrame) -> dict:
 
 
 # ──────────────────────────────────────────────────────────────────────
+#  V2: CROSS-WINDOW TEMPORAL FEATURES (11 NEW FEATURES)
+# ──────────────────────────────────────────────────────────────────────
+
+def compute_cross_window_features(window_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute 11 cross-window temporal features from a DataFrame of consecutive
+    observation windows (sorted by window_start).
+
+    These features capture how the BLE signal evolves ACROSS consecutive
+    1-second windows, enabling motion-aware distance estimation.
+
+    Features added:
+        1.  rssi_mean_delta         — current_mean - previous_mean
+        2.  rssi_mean_slope_3w      — linear slope over last 3 windows
+        3.  rssi_mean_slope_5w      — linear slope over last 5 windows
+        4.  rssi_rolling_mean_3w    — rolling mean of rssi_mean over 3 windows
+        5.  rssi_rolling_std_3w     — rolling std of rssi_mean over 3 windows
+        6.  rssi_rolling_mean_5w    — rolling mean over 5 windows
+        7.  rssi_rolling_std_5w     — rolling std over 5 windows
+        8.  rssi_ema_cross_window   — exponential moving average (α=0.3)
+        9.  rssi_velocity           — ΔRSSI_mean / Δtime between windows
+        10. rssi_acceleration       — change in velocity between windows
+        11. signal_stability_index  — fraction of last 5 windows where |delta| < 2 dB
+    """
+    if window_df is None or window_df.empty or "rssi_mean" not in window_df.columns:
+        return window_df
+
+    df = window_df.copy()
+    n = len(df)
+
+    rssi_means = df["rssi_mean"].values.astype(float)
+    window_starts = df["window_start"].values.astype(float) if "window_start" in df.columns else np.arange(n) * 1000.0
+
+    # 1. RSSI mean delta (current - previous)
+    rssi_mean_delta = np.zeros(n)
+    rssi_mean_delta[1:] = np.diff(rssi_means)
+    df["rssi_mean_delta"] = np.round(rssi_mean_delta, 4)
+
+    # 2 & 3. Linear slope over last 3 and 5 windows
+    for window_size, col_name in [(3, "rssi_mean_slope_3w"), (5, "rssi_mean_slope_5w")]:
+        slopes = np.zeros(n)
+        for i in range(n):
+            start_idx = max(0, i - window_size + 1)
+            segment = rssi_means[start_idx:i + 1]
+            if len(segment) >= 2:
+                try:
+                    x = np.arange(len(segment), dtype=float)
+                    coeffs = np.polyfit(x, segment, 1)
+                    slopes[i] = coeffs[0]
+                except Exception:
+                    slopes[i] = 0.0
+            else:
+                slopes[i] = 0.0
+        df[col_name] = np.round(slopes, 4)
+
+    # 4 & 5. Rolling mean and std over 3 windows
+    df["rssi_rolling_mean_3w"] = df["rssi_mean"].rolling(window=3, min_periods=1).mean().round(4)
+    df["rssi_rolling_std_3w"] = df["rssi_mean"].rolling(window=3, min_periods=1).std().fillna(0.0).round(4)
+
+    # 6 & 7. Rolling mean and std over 5 windows
+    df["rssi_rolling_mean_5w"] = df["rssi_mean"].rolling(window=5, min_periods=1).mean().round(4)
+    df["rssi_rolling_std_5w"] = df["rssi_mean"].rolling(window=5, min_periods=1).std().fillna(0.0).round(4)
+
+    # 8. Exponential moving average across windows (α=0.3)
+    alpha = 0.3
+    ema_vals = np.zeros(n)
+    ema_vals[0] = rssi_means[0]
+    for i in range(1, n):
+        ema_vals[i] = alpha * rssi_means[i] + (1 - alpha) * ema_vals[i - 1]
+    df["rssi_ema_cross_window"] = np.round(ema_vals, 4)
+
+    # 9. RSSI velocity (ΔRSSI / Δtime in seconds)
+    velocities = np.zeros(n)
+    for i in range(1, n):
+        dt = (window_starts[i] - window_starts[i - 1]) / 1000.0  # convert ms to seconds
+        if dt > 0:
+            velocities[i] = rssi_mean_delta[i] / dt
+        else:
+            velocities[i] = 0.0
+    df["rssi_velocity"] = np.round(velocities, 4)
+
+    # 10. RSSI acceleration (change in velocity)
+    accelerations = np.zeros(n)
+    accelerations[1:] = np.diff(velocities)
+    df["rssi_acceleration"] = np.round(accelerations, 4)
+
+    # 11. Signal stability index (fraction of last 5 windows where |delta| < 2 dB)
+    stability = np.zeros(n)
+    for i in range(n):
+        start_idx = max(0, i - 4)  # last 5 windows including current
+        deltas_window = np.abs(rssi_mean_delta[start_idx:i + 1])
+        if len(deltas_window) > 0:
+            stability[i] = float(np.sum(deltas_window < 2.0)) / len(deltas_window)
+        else:
+            stability[i] = 1.0
+    df["signal_stability_index"] = np.round(stability, 4)
+
+    # 12 & 13. Multi-window memory (10-window rolling mean and std)
+    df["rssi_rolling_mean_10w"] = df["rssi_mean"].rolling(window=10, min_periods=1).mean().round(4)
+    df["rssi_rolling_std_10w"] = df["rssi_mean"].rolling(window=10, min_periods=1).std().fillna(0.0).round(4)
+
+    # 14. Motion direction indicator (+1 = approaching/rising signal, -1 = moving away/falling signal, 0 = stationary)
+    slopes_5w = df["rssi_mean_slope_5w"].values
+    motion_dir = np.zeros(n)
+    for i in range(n):
+        if slopes_5w[i] > 0.3:
+            motion_dir[i] = 1.0   # Approaching (RSSI getting stronger)
+        elif slopes_5w[i] < -0.3:
+            motion_dir[i] = -1.0  # Moving away (RSSI getting weaker)
+        else:
+            motion_dir[i] = 0.0   # Stationary
+    df["rssi_motion_direction"] = motion_dir
+
+    # 15. Signal Quality Metric: Rolling SNR over 5 windows
+    if "rssi_snr" in df.columns:
+        df["rssi_snr_rolling_5w"] = df["rssi_snr"].rolling(window=5, min_periods=1).mean().round(4)
+    else:
+        df["rssi_snr_rolling_5w"] = 0.0
+
+    # Final NaN/Inf sanitization pass on new columns
+    cross_window_cols = [
+        "rssi_mean_delta", "rssi_mean_slope_3w", "rssi_mean_slope_5w",
+        "rssi_rolling_mean_3w", "rssi_rolling_std_3w",
+        "rssi_rolling_mean_5w", "rssi_rolling_std_5w",
+        "rssi_ema_cross_window", "rssi_velocity", "rssi_acceleration",
+        "signal_stability_index", "rssi_rolling_mean_10w", "rssi_rolling_std_10w",
+        "rssi_motion_direction", "rssi_snr_rolling_5w"
+    ]
+    for col in cross_window_cols:
+        if col in df.columns:
+            df[col] = df[col].fillna(0.0)
+            df[col] = df[col].replace([np.inf, -np.inf], 0.0)
+
+    return df
+
+
+def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Comprehensive Data Normalization & Sanitization Pipeline:
+      1. Distance Normalization: Rounds floats to 2 decimal places so 0.9 and 0.90 yield identical 0.9 (different from 0.92).
+      2. String Trimming & Case Normalization:
+         - anchor_id -> UPPERCASE stripped (e.g. 'anchor_01 ' -> 'ANCHOR_01')
+         - obstacle_type -> Title Case stripped (e.g. 'tape', 'Tape', 'TAPE ' -> 'Tape')
+         - obstacle -> Capitalized stripped ('yes ' -> 'Yes', 'no' -> 'No')
+         - motion -> lowercase stripped ('STATIONARY ' -> 'stationary')
+      3. Deduplication: Removes duplicate observation windows.
+      4. Numerical Sanitization: Replaces NaN/Inf values.
+    """
+    if df is None or df.empty:
+        return df
+
+    df = df.copy()
+
+    # 1. Distance Normalization (0.9 and 0.90 become identical 0.9; 0.92 remains 0.92)
+    if "distance_m" in df.columns:
+        df["distance_m"] = pd.to_numeric(df["distance_m"], errors="coerce")
+        df["distance_m"] = df["distance_m"].apply(lambda v: round(float(v), 2) if np.isfinite(v) else v)
+
+    # 2. String Trimming & Case Normalization
+    if "anchor_id" in df.columns:
+        df["anchor_id"] = df["anchor_id"].astype(str).str.strip().str.upper()
+    if "obstacle" in df.columns:
+        df["obstacle"] = df["obstacle"].astype(str).str.strip().str.capitalize()
+    if "obstacle_type" in df.columns:
+        df["obstacle_type"] = df["obstacle_type"].astype(str).str.strip().str.title()
+        # Clean up empty or missing obstacle type variants
+        df["obstacle_type"] = df["obstacle_type"].replace({"Nan": "None", "None": "None", "": "None", "N/A": "None"})
+    if "motion" in df.columns:
+        df["motion"] = df["motion"].astype(str).str.strip().str.lower()
+        df["motion"] = df["motion"].replace({"nan": "stationary", "": "stationary"})
+
+    # 3. Deduplication
+    dedup_cols = [c for c in ["window_start", "anchor_id"] if c in df.columns]
+    if len(dedup_cols) == 2:
+        before_count = len(df)
+        df.drop_duplicates(subset=dedup_cols, keep="first", inplace=True)
+        after_count = len(df)
+        if before_count > after_count:
+            logger.info(f"Deduplication: removed {before_count - after_count} duplicate window records.")
+
+    # 4. Numerical Sanitization across all float/int columns
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    for col in numeric_cols:
+        df[col] = df[col].fillna(0.0)
+        df[col] = df[col].replace([np.inf, -np.inf], 0.0)
+
+    return df
+
+
+# ──────────────────────────────────────────────────────────────────────
 #  PIPELINE PROCESSING
 # ──────────────────────────────────────────────────────────────────────
 
 def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
-    """Load a raw CSV and transform it into 38 observation-window features."""
+    """Load a raw CSV and transform it into observation-window features."""
     if not os.path.exists(filepath):
         logger.warning(f"File not found: {filepath}")
         return pd.DataFrame()
@@ -301,7 +494,7 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
         return pd.DataFrame()
 
     if target_mac:
-        df = df[df["mac"].astype(str).str.upper() == target_mac.upper()].copy()
+        df = df[df["mac"].astype(str).str.strip().str.upper() == target_mac.strip().upper()].copy()
         if df.empty:
             print(f"  [!] No packets for MAC {target_mac} in {os.path.basename(filepath)}")
             return pd.DataFrame()
@@ -311,6 +504,9 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
     t_min = df["timestamp"].min()
     df["window_id"] = ((df["timestamp"] - t_min) // WINDOW_SIZE_MS).astype(int)
 
+    # Detect motion column (V2 feature — defaults to 'stationary' for legacy data)
+    has_motion = "motion" in df.columns
+
     rows = []
     for (anchor, window_id), group in df.groupby(["anchor", "window_id"]):
         if len(group) < MIN_PACKETS_PER_WINDOW:
@@ -319,22 +515,45 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
         features = compute_window_features(group)
         first = group.iloc[0]
         features["window_start"] = int(t_min + window_id * WINDOW_SIZE_MS)
-        features["anchor_id"] = str(anchor)
-        features["distance_m"] = float(first["distance_m"])
-        features["height_m"] = float(first.get("height_m", 0.0))
-        features["obstacle"] = str(first.get("obstacle", "No"))
-        features["obstacle_type"] = str(first.get("obstacle_type", "None"))
+        features["anchor_id"] = str(anchor).strip().upper()
+        features["distance_m"] = round(float(first["distance_m"]), 2)
+        features["height_m"] = round(float(first.get("height_m", 0.0)), 2)
+        features["obstacle"] = str(first.get("obstacle", "No")).strip().capitalize()
+        features["obstacle_type"] = str(first.get("obstacle_type", "None")).strip().title()
+
+        # V2: Motion label (defaults to 'stationary' for legacy datasets)
+        if has_motion:
+            motion_val = str(first.get("motion", "stationary")).strip().lower()
+            features["motion"] = motion_val if motion_val in ("stationary", "approaching", "moving_away") else "stationary"
+        else:
+            features["motion"] = "stationary"
 
         rows.append(features)
 
     if not rows:
         return pd.DataFrame()
+        return pd.DataFrame()
 
     result = pd.DataFrame(rows)
 
-    meta_cols = ["window_start", "anchor_id", "distance_m", "height_m", "obstacle", "obstacle_type"]
+    # V2: Compute cross-window temporal features per anchor
+    # Sort by anchor and window_start, then compute features within each anchor group
+    if len(result) > 1:
+        result.sort_values(["anchor_id", "window_start"], inplace=True)
+        cross_window_dfs = []
+        for anchor_id, anchor_group in result.groupby("anchor_id"):
+            anchor_with_cross = compute_cross_window_features(anchor_group)
+            cross_window_dfs.append(anchor_with_cross)
+        result = pd.concat(cross_window_dfs, ignore_index=True)
+    else:
+        # Single window — fill cross-window features with defaults
+        result = compute_cross_window_features(result)
+
+    meta_cols = ["window_start", "anchor_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
     feat_cols = [c for c in result.columns if c not in meta_cols]
-    col_order = ["window_start", "anchor_id"] + feat_cols + ["distance_m", "height_m", "obstacle", "obstacle_type"]
+    col_order = ["window_start", "anchor_id"] + feat_cols + ["distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    # Only include columns that exist
+    col_order = [c for c in col_order if c in result.columns]
 
     return result[col_order]
 
@@ -361,7 +580,8 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
             if df.empty:
                 print(f"  [SKIP] {fname} -> 0 windows (skipped)")
             else:
-                print(f"  [OK] {fname} -> {len(df)} observation windows (38 features)")
+                n_features = len([c for c in df.columns if c not in ["window_start", "anchor_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]])
+                print(f"  [OK] {fname} -> {len(df)} observation windows ({n_features} features)")
                 all_windows.append(df)
         except Exception as e:
             print(f"  [ERROR] Failed processing {fname}: {e}")
@@ -370,19 +590,32 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
         raise ValueError("No valid observation windows were generated from any CSV file.")
 
     merged = pd.concat(all_windows, ignore_index=True)
+    merged = normalize_and_clean_dataframe(merged)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     merged.to_csv(output_path, index=False)
+
+    n_features = len([c for c in merged.columns if c not in ["window_start", "anchor_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]])
+    has_cross_window = "rssi_mean_delta" in merged.columns
+    has_motion_data = "motion" in merged.columns and merged["motion"].nunique() > 1
+
     print(f"\n[DONE] Engineered dataset saved: {output_path}")
     print(f"   Total Observation Windows: {len(merged)}")
     print(f"   Distance Presets: {sorted(merged['distance_m'].unique())} m")
-    print(f"   Extracted Features Count: {len(merged.columns) - 5}")
+    print(f"   Extracted Features Count: {n_features}")
+    if has_cross_window:
+        print(f"   Cross-Window Features: 11 (V2 motion-aware)")
+    if has_motion_data:
+        motion_counts = merged["motion"].value_counts()
+        print(f"   Motion Labels: {dict(motion_counts)}")
+    else:
+        print(f"   Motion Labels: All stationary (V1 legacy data)")
 
     return merged
 
 
 def main():
-    parser = argparse.ArgumentParser(description="BLE 38-Feature Engineering Pipeline")
+    parser = argparse.ArgumentParser(description="BLE Feature Engineering Pipeline (V2 — up to 50 features)")
     parser.add_argument("--raw-dir", type=str, required=True)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--target-mac", type=str, default=None)
