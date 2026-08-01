@@ -221,19 +221,32 @@ class BLECollector:
             foreground=[("active", "#11111b")]
         )
 
-        # Combobox & Entry
-        self.style.configure(
-            "TCombobox",
-            fieldbackground="#313244",
-            background="#313244",
-            foreground=fg_text,
-            arrowcolor=fg_text
-        )
         self.style.configure(
             "TEntry",
             fieldbackground="#313244",
             foreground=fg_text,
             insertcolor=fg_text
+        )
+
+        # Treeview Dark Styling (Section 5 Deficit Audit)
+        self.style.configure(
+            "Treeview",
+            background="#1e1e2e",
+            foreground="#cdd6f4",
+            fieldbackground="#1e1e2e",
+            rowheight=26,
+            font=("Segoe UI", 9)
+        )
+        self.style.configure(
+            "Treeview.Heading",
+            background="#313244",
+            foreground="#89b4fa",
+            font=("Segoe UI", 10, "bold")
+        )
+        self.style.map(
+            "Treeview",
+            background=[("selected", "#45475a")],
+            foreground=[("selected", "#cdd6f4")]
         )
 
 
@@ -243,9 +256,32 @@ class BLECollector:
 
     def build_gui(self):
 
-        # Main Layout Container
-        main_container = ttk.Frame(self.root, padding=15)
-        main_container.pack(fill="both", expand=True)
+        # Main Scrollable Window Frame
+        canvas = tk.Canvas(self.root, bg="#181825", highlightthickness=0)
+        v_scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+        
+        main_container = ttk.Frame(canvas, padding=15)
+        main_container.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas_frame = canvas.create_window((0, 0), window=main_container, anchor="nw")
+        
+        def _on_canvas_configure(event):
+            canvas.itemconfig(canvas_frame, width=event.width)
+            
+        canvas.bind("<Configure>", _on_canvas_configure)
+        canvas.configure(yscrollcommand=v_scrollbar.set)
+
+        v_scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        # Global Mousewheel Scrolling Bindings
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # --- Top Header ---
         header_frame = ttk.Frame(main_container)
@@ -349,7 +385,7 @@ class BLECollector:
 
         rand_btn = ttk.Button(
             dist_input_frame,
-            text="🎲 Random Dist",
+            text="\U0001f3b2 Random Dist",
             style="Secondary.TButton",
             command=self.set_random_distance
         )
@@ -382,8 +418,29 @@ class BLECollector:
             )
             btn.pack(side="left", padx=2)
 
+        # Motion Mode Row (V2: Movement-Aware Data Collection)
+        ttk.Label(exp_box, text="Motion Mode:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+
+        motion_frame = ttk.Frame(exp_box)
+        motion_frame.grid(row=2, column=1, columnspan=3, sticky="w", padx=5, pady=5)
+
+        self.motion_combo = ttk.Combobox(
+            motion_frame,
+            values=["stationary", "approaching", "moving_away"],
+            state="readonly",
+            width=18
+        )
+        self.motion_combo.set("stationary")
+        self.motion_combo.pack(side="left", padx=(0, 10))
+
+        ttk.Label(
+            motion_frame,
+            text="\U0001f6b6 Stationary = still | Approaching = walking toward beacon | Moving Away = walking from beacon",
+            style="Subtext.TLabel"
+        ).pack(side="left")
+
         # Dirty Data Presets Row
-        ttk.Label(exp_box, text="Environment / Dirty Data Mode:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+        ttk.Label(exp_box, text="Environment / Dirty Data Mode:").grid(row=3, column=0, sticky="w", padx=5, pady=5)
 
         self.dirty_mode_combo = ttk.Combobox(
             exp_box,
@@ -401,21 +458,21 @@ class BLECollector:
             width=32
         )
         self.dirty_mode_combo.set("Clean / Direct Line-of-Sight (LOS)")
-        self.dirty_mode_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=5, pady=5)
+        self.dirty_mode_combo.grid(row=3, column=1, columnspan=2, sticky="w", padx=5, pady=5)
         self.dirty_mode_combo.bind("<<ComboboxSelected>>", self.on_dirty_preset_change)
 
         # Obstacle Controls Row
-        ttk.Label(exp_box, text="Is there an obstacle?").grid(row=3, column=0, sticky="w", padx=5, pady=5)
+        ttk.Label(exp_box, text="Is there an obstacle?").grid(row=4, column=0, sticky="w", padx=5, pady=5)
 
         self.obstacle_combo = ttk.Combobox(exp_box, values=["No", "Yes"], state="readonly", width=10)
         self.obstacle_combo.set("No")
-        self.obstacle_combo.grid(row=3, column=1, sticky="w", padx=5, pady=5)
+        self.obstacle_combo.grid(row=4, column=1, sticky="w", padx=5, pady=5)
         self.obstacle_combo.bind("<<ComboboxSelected>>", self.on_obstacle_change)
 
-        ttk.Label(exp_box, text="Obstacle Type / Material:").grid(row=3, column=2, sticky="w", padx=(20, 5), pady=5)
+        ttk.Label(exp_box, text="Obstacle Type / Material:").grid(row=4, column=2, sticky="w", padx=(20, 5), pady=5)
 
         obs_type_frame = ttk.Frame(exp_box)
-        obs_type_frame.grid(row=3, column=3, sticky="w", padx=5, pady=5)
+        obs_type_frame.grid(row=4, column=3, sticky="w", padx=5, pady=5)
 
         self.obstacle_type_combo = ttk.Combobox(
             obs_type_frame,
@@ -432,9 +489,9 @@ class BLECollector:
 
         ttk.Label(
             exp_box,
-            text="💡 Tip: Collecting arbitrary distances, heights, and 'Dirty Data' (WiFi interference, walls) ensures maximum ML robustness.",
+            text="\U0001f4a1 Tip: Collecting arbitrary distances, heights, and 'Dirty Data' (WiFi interference, walls) ensures maximum ML robustness.",
             style="Subtext.TLabel"
-        ).grid(row=4, column=0, columnspan=4, sticky="w", padx=5, pady=(5, 0))
+        ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=(5, 0))
 
 
         # --- Section 3: Live Dashboard & Controls ---
@@ -557,12 +614,21 @@ class BLECollector:
             command=self.refresh_dataset_audit
         ).pack(side="right")
 
+        tree_frame = ttk.Frame(audit_box)
+        tree_frame.pack(fill="x", expand=True)
+
+        tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical")
+        tree_scroll.pack(side="right", fill="y")
+
         self.audit_tree = ttk.Treeview(
-            audit_box,
+            tree_frame,
             columns=("dist", "current_win", "target_win", "missing_win", "est_min", "status"),
             show="headings",
-            height=5
+            height=5,
+            yscrollcommand=tree_scroll.set
         )
+        tree_scroll.config(command=self.audit_tree.yview)
+
         self.audit_tree.heading("dist", text="Distance (m)")
         self.audit_tree.heading("current_win", text="Current Windows")
         self.audit_tree.heading("target_win", text="Target Windows")
@@ -577,7 +643,7 @@ class BLECollector:
         self.audit_tree.column("est_min", width=120, anchor="center")
         self.audit_tree.column("status", width=140, anchor="center")
 
-        self.audit_tree.pack(fill="x", expand=True)
+        self.audit_tree.pack(side="left", fill="both", expand=True)
 
 
     # ========================================================
@@ -1043,7 +1109,10 @@ class BLECollector:
         elif not obstacle_type:
             obstacle_type = "Unspecified"
 
-        # 5. Initialize CSV Dataset File
+        # 5. Capture Motion Mode
+        motion = self.motion_combo.get() if hasattr(self, 'motion_combo') else "stationary"
+
+        # 6. Initialize CSV Dataset File
         timestamp_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         filename = f"dataset_{timestamp_str}.csv"
         self.dataset_path = os.path.join(DATA_DIR, filename)
@@ -1052,7 +1121,7 @@ class BLECollector:
             self.csv_file = open(self.dataset_path, "w", newline="", encoding="utf-8")
             self.csv_writer = csv.writer(self.csv_file)
 
-            # Standard Dataset Header (including height_m)
+            # Standard Dataset Header (including height_m and motion)
             self.csv_writer.writerow([
                 "timestamp",
                 "anchor",
@@ -1062,7 +1131,8 @@ class BLECollector:
                 "distance_m",
                 "obstacle",
                 "obstacle_type",
-                "height_m"
+                "height_m",
+                "motion"
             ])
             self.csv_file.flush()
 
@@ -1088,12 +1158,12 @@ class BLECollector:
             self.rate_lbl.config(text="0.0 Hz")
 
             self.log("SYS", f"Started session logging to: {filename}")
-            self.log("SYS", f"Params → Port: {port} @ {baud_rate} baud | Dist: {distance}m | Height: {height_m}m | Obstacle: {obstacle} ({obstacle_type})")
+            self.log("SYS", f"Params \u2192 Port: {port} @ {baud_rate} baud | Dist: {distance}m | Height: {height_m}m | Motion: {motion} | Obstacle: {obstacle} ({obstacle_type})")
 
             # Start Reader Worker Thread
             self.reader_thread = threading.Thread(
                 target=self.serial_reader,
-                args=(distance, obstacle, obstacle_type, height_m),
+                args=(distance, obstacle, obstacle_type, height_m, motion),
                 daemon=True
             )
             self.reader_thread.start()
@@ -1107,7 +1177,7 @@ class BLECollector:
     # Worker Thread: Serial Reader
     # ========================================================
 
-    def serial_reader(self, distance, obstacle, obstacle_type, height_m=1.0):
+    def serial_reader(self, distance, obstacle, obstacle_type, height_m=1.0, motion="stationary"):
         while not self.stop_event.is_set():
             try:
                 if not self.serial_connection or not self.serial_connection.is_open:
@@ -1151,7 +1221,7 @@ class BLECollector:
                 if target_mac and mac.upper() != target_mac.upper():
                     continue
 
-                # Create populated dataset record (with height_m)
+                # Create populated dataset record (with height_m and motion)
                 row = [
                     timestamp,
                     anchor,
@@ -1161,7 +1231,8 @@ class BLECollector:
                     distance,
                     obstacle,
                     obstacle_type,
-                    height_m
+                    height_m,
+                    motion
                 ]
 
                 self.data_queue.put(row)
@@ -1264,7 +1335,8 @@ class BLECollector:
                 rssi_val = row[3]
                 anchor_id = row[1]
                 mac_addr = row[2]
-                self.log("DATA", f"[{anchor_id}] {mac_addr} | RSSI: {rssi_val} dBm | Dist: {row[5]}m")
+                motion_val = row[9] if len(row) > 9 else "stationary"
+                self.log("DATA", f"[{anchor_id}] {mac_addr} | RSSI: {rssi_val} dBm | Dist: {row[5]}m | Motion: {motion_val}")
 
         except queue.Empty:
             pass
@@ -1347,6 +1419,8 @@ class BLECollector:
         self.baud_combo.config(state=state)
         self.distance_entry.config(state=entry_state)
         self.obstacle_combo.config(state=state)
+        if hasattr(self, 'motion_combo'):
+            self.motion_combo.config(state=state)
         if self.obstacle_combo.get() == "Yes" and not lock:
             self.obstacle_type_combo.config(state="normal")
         else:
