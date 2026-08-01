@@ -59,6 +59,9 @@ retrying==1.4.2
 rpds-py==2026.6.3
 scikit-learn==1.9.0
 scipy==1.18.0
+xgboost>=3.0.0
+catboost>=1.2
+lightgbm>=4.0.0
 setuptools==83.0.0
 six==1.17.0
 smmap==5.0.3

@@ -3,7 +3,9 @@
 BLE INDOOR POSITIONING — AI/ML DATASET & MODEL TRAINING STUDIO GUI
 ===============================================================================
 An interactive GUI for managing BLE dataset collection audits, automated feature
-engineering, machine learning model training, accuracy diagnostics, and live distance testing.
+engineering, machine learning model training (regression + zone classification),
+accuracy diagnostics, and live distance testing.
+Now supports XGBoost, CatBoost, and distance-zone classification mode.
 """
 
 import os
@@ -145,10 +147,22 @@ class MLTrainingStudio:
         )
         self.train_btn.pack(side="left", padx=(0, 15))
 
+        # Training Mode Dropdown
+        mode_frame = ttk.Frame(btn_box, style="Card.TFrame")
+        mode_frame.pack(side="left", padx=10)
+        ttk.Label(mode_frame, text="Mode:", style="Bold.TLabel").pack(side="left", padx=(0, 5))
+        self.mode_var = tk.StringVar(value="both")
+        mode_combo = ttk.Combobox(
+            mode_frame, textvariable=self.mode_var,
+            values=["both", "regression", "classification"],
+            state="readonly", width=14
+        )
+        mode_combo.pack(side="left")
+
         self.tune_var = tk.BooleanVar(value=False)
         tune_chk = ttk.Checkbutton(
             btn_box,
-            text="Enable Hyperparameter Tuning (GridSearch)",
+            text="Enable Hyperparameter Tuning",
             variable=self.tune_var
         )
         tune_chk.pack(side="left", padx=10)
@@ -158,13 +172,16 @@ class MLTrainingStudio:
         self.metrics_frame.pack(side="right")
 
         self.lbl_mae = ttk.Label(self.metrics_frame, text="MAE: -- m", style="Bold.TLabel", foreground=self.colors["green"])
-        self.lbl_mae.pack(side="left", padx=10)
+        self.lbl_mae.pack(side="left", padx=8)
 
-        self.lbl_r2 = ttk.Label(self.metrics_frame, text="R² Score: --", style="Bold.TLabel", foreground=self.colors["accent"])
-        self.lbl_r2.pack(side="left", padx=10)
+        self.lbl_r2 = ttk.Label(self.metrics_frame, text="R²: --", style="Bold.TLabel", foreground=self.colors["accent"])
+        self.lbl_r2.pack(side="left", padx=8)
+
+        self.lbl_zone_acc = ttk.Label(self.metrics_frame, text="Zone: --%", style="Bold.TLabel", foreground=self.colors["purple"])
+        self.lbl_zone_acc.pack(side="left", padx=8)
 
         self.lbl_samples = ttk.Label(self.metrics_frame, text="Windows: --", style="Bold.TLabel", foreground=self.colors["yellow"])
-        self.lbl_samples.pack(side="left", padx=10)
+        self.lbl_samples.pack(side="left", padx=8)
 
         # Progress Bar & Status Text
         progress_box = ttk.Frame(self.tab_train, padding=(0, 5))
@@ -414,7 +431,7 @@ class MLTrainingStudio:
             pipeline_script = os.path.join(PROJECT_ROOT, "pipeline.py")
             python_exe = sys.executable
 
-            cmd = [python_exe, pipeline_script]
+            cmd = [python_exe, pipeline_script, "--mode", self.mode_var.get()]
             if self.tune_var.get():
                 cmd.append("--tune")
 
@@ -479,8 +496,17 @@ class MLTrainingStudio:
                     meta = json.load(f)
                 metrics = meta.get("metrics", {})
                 self.lbl_mae.config(text=f"MAE: {metrics.get('test_mae', '--')} m")
-                self.lbl_r2.config(text=f"R² Score: {metrics.get('test_r2', '--')}")
+                self.lbl_r2.config(text=f"R²: {metrics.get('test_r2', '--')}")
                 self.lbl_samples.config(text=f"Windows: {meta.get('train_samples', 0) + meta.get('test_samples', 0)}")
+
+                # Zone classification metrics
+                zone_meta = meta.get("zone_classification", {})
+                if zone_meta:
+                    zone_acc = zone_meta.get("zone_accuracy", "--")
+                    zone_champ = zone_meta.get("champion_classifier", "")
+                    self.lbl_zone_acc.config(text=f"Zone: {zone_acc}%")
+                else:
+                    self.lbl_zone_acc.config(text=f"Zone: N/A")
             except Exception:
                 pass
 

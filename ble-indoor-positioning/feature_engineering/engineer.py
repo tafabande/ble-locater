@@ -2,8 +2,9 @@
 Feature Engineering: Raw BLE Packets → 1-Second Observation Windows
 ===================================================================
 
-Extracts 30 state-of-the-art physical, statistical, and interaction features
-per 1-second observation window for maximum localization precision.
+Extracts 38 state-of-the-art physical, statistical, temporal, and interaction
+features per 1-second observation window for maximum localization precision.
+Includes 8 temporal/behavioral RSSI features for signal dynamics analysis.
 Now updated with crash-proof safeguards against NaN/Inf values.
 """
 
@@ -37,12 +38,12 @@ def _safe_float(val: float, default: float = 0.0, min_val: float = -1e5, max_val
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  CORE FEATURE EXTRACTION (30 FEATURES)
+#  CORE FEATURE EXTRACTION (38 FEATURES)
 # ──────────────────────────────────────────────────────────────────────
 
 def compute_window_features(group: pd.DataFrame) -> dict:
     """
-    Compute 30 advanced physical, statistical, and interaction features safely.
+    Compute 38 advanced physical, statistical, temporal, and interaction features safely.
     """
     if group is None or group.empty or "rssi" not in group:
         # Fallback dictionary of zeros
@@ -54,7 +55,10 @@ def compute_window_features(group: pd.DataFrame) -> dict:
             "rssi_p90_10_range": 0.0, "rssi_mad": 0.0, "rssi_snr": 0.0, "rssi_skewness": 0.0,
             "rssi_kurtosis": 0.0, "rssi_delta_mean": 0.0, "rssi_delta_std": 0.0, "rssi_delta_max": 0.0,
             "observed_adv_interval": 0.0, "adv_interval_std": 0.0, "path_loss_free_space": 3.16,
-            "path_loss_indoor": 2.15, "rssi_mean_to_std_ratio": -70.0, "rssi_median_mean_diff": 0.0
+            "path_loss_indoor": 2.15, "rssi_mean_to_std_ratio": -70.0, "rssi_median_mean_diff": 0.0,
+            "rssi_slope": 0.0, "rssi_trend_strength": 0.0, "rssi_ema_diff": 0.0,
+            "rssi_first_half_mean": -70.0, "rssi_second_half_mean": -70.0, "rssi_half_diff": 0.0,
+            "rssi_autocorrelation": 0.0, "rssi_energy": 4900.0
         }
 
     try:
@@ -145,6 +149,74 @@ def compute_window_features(group: pd.DataFrame) -> dict:
     rssi_mean_to_std_ratio = rssi_mean / (rssi_std + 1.0)
     rssi_median_mean_diff = rssi_median - rssi_mean
 
+    # 7. Temporal / Behavioral RSSI Features (NEW — signal dynamics)
+    # These capture HOW the signal is behaving, not just WHAT it is.
+
+    # 7a. RSSI Slope — linear regression of RSSI over time within the window
+    if packet_count > 2 and len(timestamps) == len(rssi_values):
+        try:
+            t_norm = timestamps - timestamps[0]
+            t_range = t_norm[-1] - t_norm[0]
+            if t_range > 0:
+                t_scaled = t_norm / t_range  # Normalize to [0, 1]
+                coeffs = np.polyfit(t_scaled, rssi_values, 1)
+                rssi_slope = float(coeffs[0])  # dBm per normalized window
+                # R² of the linear fit (trend strength)
+                rssi_fit = np.polyval(coeffs, t_scaled)
+                ss_res = np.sum((rssi_values - rssi_fit) ** 2)
+                ss_tot = np.sum((rssi_values - rssi_mean) ** 2)
+                rssi_trend_strength = float(1.0 - ss_res / (ss_tot + 1e-10))
+            else:
+                rssi_slope = 0.0
+                rssi_trend_strength = 0.0
+        except Exception:
+            rssi_slope = 0.0
+            rssi_trend_strength = 0.0
+    else:
+        rssi_slope = 0.0
+        rssi_trend_strength = 0.0
+
+    # 7b. EMA diff — Exponential Moving Average vs raw mean
+    if packet_count > 1:
+        try:
+            alpha = 2.0 / (packet_count + 1)
+            ema = rssi_values[0]
+            for val in rssi_values[1:]:
+                ema = alpha * val + (1 - alpha) * ema
+            rssi_ema_diff = float(ema - rssi_mean)
+        except Exception:
+            rssi_ema_diff = 0.0
+    else:
+        rssi_ema_diff = 0.0
+
+    # 7c. Half-window drift — first half mean vs second half mean
+    mid = packet_count // 2
+    if mid > 0 and packet_count > 1:
+        rssi_first_half_mean = float(np.mean(rssi_values[:mid]))
+        rssi_second_half_mean = float(np.mean(rssi_values[mid:]))
+        rssi_half_diff = rssi_second_half_mean - rssi_first_half_mean
+    else:
+        rssi_first_half_mean = rssi_mean
+        rssi_second_half_mean = rssi_mean
+        rssi_half_diff = 0.0
+
+    # 7d. Lag-1 Autocorrelation — signal regularity/stability
+    if packet_count > 2 and rssi_std > 1e-5:
+        try:
+            centered = rssi_values - rssi_mean
+            autocov = float(np.sum(centered[:-1] * centered[1:])) / (packet_count - 1)
+            rssi_autocorrelation = autocov / (rssi_std ** 2 + 1e-10)
+        except Exception:
+            rssi_autocorrelation = 0.0
+    else:
+        rssi_autocorrelation = 0.0
+
+    # 7e. Signal energy — sum of squared RSSI, normalized by packet count
+    try:
+        rssi_energy = float(np.sum(rssi_values ** 2)) / max(1, packet_count)
+    except Exception:
+        rssi_energy = rssi_mean ** 2
+
     features_raw = {
         "packet_count": packet_count,
         "scan_duration_ms": scan_duration_ms,
@@ -176,6 +248,15 @@ def compute_window_features(group: pd.DataFrame) -> dict:
         "path_loss_indoor": path_loss_indoor,
         "rssi_mean_to_std_ratio": rssi_mean_to_std_ratio,
         "rssi_median_mean_diff": rssi_median_mean_diff,
+        # New temporal/behavioral features
+        "rssi_slope": rssi_slope,
+        "rssi_trend_strength": rssi_trend_strength,
+        "rssi_ema_diff": rssi_ema_diff,
+        "rssi_first_half_mean": rssi_first_half_mean,
+        "rssi_second_half_mean": rssi_second_half_mean,
+        "rssi_half_diff": rssi_half_diff,
+        "rssi_autocorrelation": rssi_autocorrelation,
+        "rssi_energy": rssi_energy,
     }
 
     # Final sanitization pass
@@ -194,7 +275,7 @@ def compute_window_features(group: pd.DataFrame) -> dict:
 # ──────────────────────────────────────────────────────────────────────
 
 def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
-    """Load a raw CSV and transform it into 30 observation-window features."""
+    """Load a raw CSV and transform it into 38 observation-window features."""
     if not os.path.exists(filepath):
         logger.warning(f"File not found: {filepath}")
         return pd.DataFrame()
@@ -240,6 +321,7 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
         features["window_start"] = int(t_min + window_id * WINDOW_SIZE_MS)
         features["anchor_id"] = str(anchor)
         features["distance_m"] = float(first["distance_m"])
+        features["height_m"] = float(first.get("height_m", 0.0))
         features["obstacle"] = str(first.get("obstacle", "No"))
         features["obstacle_type"] = str(first.get("obstacle_type", "None"))
 
@@ -250,9 +332,9 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
 
     result = pd.DataFrame(rows)
 
-    meta_cols = ["window_start", "anchor_id", "distance_m", "obstacle", "obstacle_type"]
+    meta_cols = ["window_start", "anchor_id", "distance_m", "height_m", "obstacle", "obstacle_type"]
     feat_cols = [c for c in result.columns if c not in meta_cols]
-    col_order = ["window_start", "anchor_id"] + feat_cols + ["distance_m", "obstacle", "obstacle_type"]
+    col_order = ["window_start", "anchor_id"] + feat_cols + ["distance_m", "height_m", "obstacle", "obstacle_type"]
 
     return result[col_order]
 
@@ -279,7 +361,7 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
             if df.empty:
                 print(f"  [SKIP] {fname} -> 0 windows (skipped)")
             else:
-                print(f"  [OK] {fname} -> {len(df)} observation windows (30 features)")
+                print(f"  [OK] {fname} -> {len(df)} observation windows (38 features)")
                 all_windows.append(df)
         except Exception as e:
             print(f"  [ERROR] Failed processing {fname}: {e}")
@@ -300,7 +382,7 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="BLE 30-Feature Engineering Pipeline")
+    parser = argparse.ArgumentParser(description="BLE 38-Feature Engineering Pipeline")
     parser.add_argument("--raw-dir", type=str, required=True)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--target-mac", type=str, default=None)

@@ -2,6 +2,8 @@ import csv
 import os
 import sys
 import time
+import glob
+import random
 import threading
 import queue
 from datetime import datetime
@@ -328,15 +330,15 @@ class BLECollector:
         ttk.Label(exp_box, text="Physical Distance (meters):").grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
         dist_input_frame = ttk.Frame(exp_box)
-        dist_input_frame.grid(row=0, column=1, columnspan=2, sticky="w", padx=5, pady=5)
+        dist_input_frame.grid(row=0, column=1, columnspan=3, sticky="w", padx=5, pady=5)
 
-        self.distance_entry = ttk.Entry(dist_input_frame, width=12)
+        self.distance_entry = ttk.Entry(dist_input_frame, width=10)
         self.distance_entry.pack(side="left", padx=(0, 10))
         self.distance_entry.insert(0, "1.0")
 
-        ttk.Label(dist_input_frame, text="Quick Presets:", style="Subtext.TLabel").pack(side="left", padx=(0, 5))
+        ttk.Label(dist_input_frame, text="Presets:", style="Subtext.TLabel").pack(side="left", padx=(0, 3))
 
-        for d_val in ["0.5", "1.0", "2.0", "3.0", "5.0"]:
+        for d_val in ["0.1", "0.5", "1.0", "2.0", "3.2", "5.0"]:
             btn = ttk.Button(
                 dist_input_frame,
                 text=f"{d_val}m",
@@ -345,23 +347,84 @@ class BLECollector:
             )
             btn.pack(side="left", padx=2)
 
-        # Obstacle Controls
-        ttk.Label(exp_box, text="Is there an obstacle?").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        rand_btn = ttk.Button(
+            dist_input_frame,
+            text="🎲 Random Dist",
+            style="Secondary.TButton",
+            command=self.set_random_distance
+        )
+        rand_btn.pack(side="left", padx=(8, 0))
+
+        # Height Level / Elevation Row
+        ttk.Label(exp_box, text="Height / Elevation (meters):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+
+        height_frame = ttk.Frame(exp_box)
+        height_frame.grid(row=1, column=1, columnspan=3, sticky="w", padx=5, pady=5)
+
+        self.height_entry = ttk.Entry(height_frame, width=10)
+        self.height_entry.pack(side="left", padx=(0, 10))
+        self.height_entry.insert(0, "1.0")
+
+        ttk.Label(height_frame, text="Presets:", style="Subtext.TLabel").pack(side="left", padx=(0, 3))
+
+        height_presets = [
+            ("Floor (0.0m)", "0.0"),
+            ("Waist (1.0m)", "1.0"),
+            ("Desk (1.4m)", "1.4"),
+            ("Head (1.7m)", "1.7"),
+        ]
+        for label, h_val in height_presets:
+            btn = ttk.Button(
+                height_frame,
+                text=label,
+                style="Pill.TButton",
+                command=lambda val=h_val: self.set_preset_height(val)
+            )
+            btn.pack(side="left", padx=2)
+
+        # Dirty Data Presets Row
+        ttk.Label(exp_box, text="Environment / Dirty Data Mode:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+
+        self.dirty_mode_combo = ttk.Combobox(
+            exp_box,
+            values=[
+                "Clean / Direct Line-of-Sight (LOS)",
+                "WiFi Interference (2.4GHz Heavy)",
+                "Concrete Wall",
+                "WiFi + Concrete Wall",
+                "Human Body Absorption",
+                "Dynamic Movement / Multipath",
+                "Phone Orientation Switch",
+                "Custom / Manual"
+            ],
+            state="readonly",
+            width=32
+        )
+        self.dirty_mode_combo.set("Clean / Direct Line-of-Sight (LOS)")
+        self.dirty_mode_combo.grid(row=2, column=1, columnspan=2, sticky="w", padx=5, pady=5)
+        self.dirty_mode_combo.bind("<<ComboboxSelected>>", self.on_dirty_preset_change)
+
+        # Obstacle Controls Row
+        ttk.Label(exp_box, text="Is there an obstacle?").grid(row=3, column=0, sticky="w", padx=5, pady=5)
 
         self.obstacle_combo = ttk.Combobox(exp_box, values=["No", "Yes"], state="readonly", width=10)
         self.obstacle_combo.set("No")
-        self.obstacle_combo.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        self.obstacle_combo.grid(row=3, column=1, sticky="w", padx=5, pady=5)
         self.obstacle_combo.bind("<<ComboboxSelected>>", self.on_obstacle_change)
 
-        ttk.Label(exp_box, text="Obstacle Type / Material:").grid(row=1, column=2, sticky="w", padx=(20, 5), pady=5)
+        ttk.Label(exp_box, text="Obstacle Type / Material:").grid(row=3, column=2, sticky="w", padx=(20, 5), pady=5)
 
         obs_type_frame = ttk.Frame(exp_box)
-        obs_type_frame.grid(row=1, column=3, sticky="w", padx=5, pady=5)
+        obs_type_frame.grid(row=3, column=3, sticky="w", padx=5, pady=5)
 
         self.obstacle_type_combo = ttk.Combobox(
             obs_type_frame,
-            values=["None", "Human Body", "Wooden Door", "Concrete Wall", "Glass Window", "Metal Shield", "Custom..."],
-            width=18
+            values=[
+                "None", "WiFi Interference", "Concrete Wall", "WiFi + Concrete Wall",
+                "Human Body", "Wooden Door", "Glass Window", "Metal Shield",
+                "Multipath Movement", "Orientation Change", "Custom..."
+            ],
+            width=22
         )
         self.obstacle_type_combo.set("None")
         self.obstacle_type_combo.pack(side="left")
@@ -369,9 +432,9 @@ class BLECollector:
 
         ttk.Label(
             exp_box,
-            text="💡 Tip: Accurate distance and obstacle inputs ensure high-quality dataset training.",
+            text="💡 Tip: Collecting arbitrary distances, heights, and 'Dirty Data' (WiFi interference, walls) ensures maximum ML robustness.",
             style="Subtext.TLabel"
-        ).grid(row=2, column=0, columnspan=4, sticky="w", padx=5, pady=(5, 0))
+        ).grid(row=4, column=0, columnspan=4, sticky="w", padx=5, pady=(5, 0))
 
 
         # --- Section 3: Live Dashboard & Controls ---
@@ -471,6 +534,50 @@ class BLECollector:
         self.console.tag_config("WARN", foreground="#f9e2af")
         self.console.tag_config("ERROR", foreground="#f38ba8")
         self.console.tag_config("SYS", foreground="#cba6f7")
+
+        # --- Section 5: Dataset Health Audit & Deficit Monitor ---
+        audit_box = ttk.LabelFrame(main_container, text="5. Dataset Coverage Audit & Missing Sample Deficit Monitor", style="Card.TLabelframe")
+        audit_box.pack(fill="x", pady=(10, 0))
+
+        audit_top = ttk.Frame(audit_box)
+        audit_top.pack(fill="x", pady=(0, 5))
+
+        self.audit_summary_lbl = ttk.Label(
+            audit_top,
+            text="Scanning raw dataset files for sample coverage...",
+            style="Subtext.TLabel",
+            foreground="#f9e2af"
+        )
+        self.audit_summary_lbl.pack(side="left")
+
+        ttk.Button(
+            audit_top,
+            text="🔄 Refresh Deficit Audit",
+            style="Secondary.TButton",
+            command=self.refresh_dataset_audit
+        ).pack(side="right")
+
+        self.audit_tree = ttk.Treeview(
+            audit_box,
+            columns=("dist", "current_win", "target_win", "missing_win", "est_min", "status"),
+            show="headings",
+            height=5
+        )
+        self.audit_tree.heading("dist", text="Distance (m)")
+        self.audit_tree.heading("current_win", text="Current Windows")
+        self.audit_tree.heading("target_win", text="Target Windows")
+        self.audit_tree.heading("missing_win", text="Missing Windows")
+        self.audit_tree.heading("est_min", text="Est. Mins Needed")
+        self.audit_tree.heading("status", text="Coverage Status")
+
+        self.audit_tree.column("dist", width=90, anchor="center")
+        self.audit_tree.column("current_win", width=120, anchor="center")
+        self.audit_tree.column("target_win", width=110, anchor="center")
+        self.audit_tree.column("missing_win", width=120, anchor="center")
+        self.audit_tree.column("est_min", width=120, anchor="center")
+        self.audit_tree.column("status", width=140, anchor="center")
+
+        self.audit_tree.pack(fill="x", expand=True)
 
 
     # ========================================================
@@ -744,10 +851,119 @@ class BLECollector:
     # Helper Handlers & Presets
     # ========================================================
 
+    def refresh_dataset_audit(self):
+        """Asynchronously scans raw dataset CSV files on a background thread so the GUI never lags."""
+        if hasattr(self, "audit_summary_lbl"):
+            self.audit_summary_lbl.config(text="⚡ Auditing dataset coverage...", foreground="#89b4fa")
+
+        def audit_worker():
+            target_presets = [0.5, 1.0, 2.0, 3.0, 5.0]
+            target_windows = 2500
+            dist_records = {d: 0 for d in target_presets}
+
+            raw_files = sorted(glob.glob(os.path.join(DATA_DIR, "dataset_*.csv")))
+
+            for fpath in raw_files:
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        line_count = 0
+                        first_data_row = None
+                        for i, line in enumerate(f):
+                            line_count += 1
+                            if i == 1 and line.strip():
+                                first_data_row = line.strip().split(",")
+
+                        if line_count > 1 and first_data_row and len(first_data_row) >= 6:
+                            try:
+                                file_dist = float(first_data_row[5])
+                                approx_windows = (line_count - 1) // 10
+                                if file_dist in dist_records:
+                                    dist_records[file_dist] += approx_windows
+                            except ValueError:
+                                pass
+                except Exception:
+                    pass
+
+            self.data_queue.put(("AUDIT_RESULT", dist_records, target_windows))
+
+        threading.Thread(target=audit_worker, daemon=True).start()
+
+    def update_audit_ui(self, dist_records, target_windows):
+        """Updates Section 5 Treeview and summary label on the main GUI thread."""
+        if hasattr(self, "audit_tree"):
+            for item in self.audit_tree.get_children():
+                self.audit_tree.delete(item)
+
+        target_presets = [0.5, 1.0, 2.0, 3.0, 5.0]
+        total_missing = 0
+        critical_missing = []
+
+        for d in target_presets:
+            current = dist_records.get(d, 0)
+            missing = max(0, target_windows - current)
+            total_missing += missing
+            est_mins = round((missing * 1.0) / 60.0, 1)
+
+            if current == 0:
+                status = "🔴 CRITICAL MISSING"
+                critical_missing.append(f"{d}m")
+            elif current < 1000:
+                status = "🟡 LOW SAMPLES"
+                critical_missing.append(f"{d}m")
+            else:
+                status = "✅ GOOD"
+
+            if hasattr(self, "audit_tree"):
+                self.audit_tree.insert(
+                    "", "end",
+                    values=(f"{d} m", f"{current:,} win", f"{target_windows:,} win", f"{missing:,} win", f"~{est_mins} mins", status)
+                )
+
+        if hasattr(self, "audit_summary_lbl"):
+            if critical_missing:
+                msg = f"⚠️ Dataset Deficit: Priority sample collection needed for distance(s): {', '.join(critical_missing)}. Total missing: {total_missing:,} windows."
+                self.audit_summary_lbl.config(text=msg, foreground="#f38ba8")
+            else:
+                msg = "✅ Excellent Coverage: Target dataset size reached across all distance presets!"
+                self.audit_summary_lbl.config(text=msg, foreground="#a6e3a1")
+
     def set_preset_distance(self, value_str):
         if not self.collecting:
             self.distance_entry.delete(0, tk.END)
             self.distance_entry.insert(0, value_str)
+
+    def set_random_distance(self):
+        if not self.collecting:
+            # Pick a random arbitrary distance between 0.1m and 5.0m (1 decimal place)
+            d_rand = round(random.uniform(0.1, 5.0), 1)
+            self.distance_entry.delete(0, tk.END)
+            self.distance_entry.insert(0, str(d_rand))
+
+    def set_preset_height(self, value_str):
+        if not self.collecting:
+            self.height_entry.delete(0, tk.END)
+            self.height_entry.insert(0, value_str)
+
+    def on_dirty_preset_change(self, event=None):
+        mode = self.dirty_mode_combo.get()
+        mapping = {
+            "Clean / Direct Line-of-Sight (LOS)": ("No", "None"),
+            "WiFi Interference (2.4GHz Heavy)": ("Yes", "WiFi Interference"),
+            "Concrete Wall": ("Yes", "Concrete Wall"),
+            "WiFi + Concrete Wall": ("Yes", "WiFi + Concrete Wall"),
+            "Human Body Absorption": ("Yes", "Human Body"),
+            "Dynamic Movement / Multipath": ("Yes", "Multipath Movement"),
+            "Phone Orientation Switch": ("Yes", "Orientation Change"),
+        }
+        if mode in mapping:
+            obs, obs_type = mapping[mode]
+            self.obstacle_combo.set(obs)
+            self.obstacle_type_combo.config(state="normal" if obs == "Yes" else "disabled")
+            self.obstacle_type_combo.set(obs_type)
+        elif mode == "Custom / Manual":
+            self.obstacle_combo.set("Yes")
+            self.obstacle_type_combo.config(state="normal")
+            self.obstacle_type_combo.set("Custom...")
 
     def on_obstacle_change(self, event=None):
         if self.obstacle_combo.get() == "Yes":
@@ -781,7 +997,7 @@ class BLECollector:
 
     def start_collection(self):
 
-        # 1. Validate Distance
+        # 1. Validate Distance & Height
         distance_text = self.distance_entry.get().strip()
         if not distance_text:
             messagebox.showerror("Missing Input", "Please specify a distance in meters.")
@@ -794,6 +1010,14 @@ class BLECollector:
         except ValueError:
             messagebox.showerror("Invalid Input", "Distance must be a positive numeric value (e.g. 1.5).")
             return
+
+        height_text = self.height_entry.get().strip()
+        try:
+            height_m = float(height_text) if height_text else 1.0
+            if height_m < 0:
+                raise ValueError
+        except ValueError:
+            height_m = 1.0
 
         # 2. Validate Port
         selected_port_str = self.port_combo.get()
@@ -828,7 +1052,7 @@ class BLECollector:
             self.csv_file = open(self.dataset_path, "w", newline="", encoding="utf-8")
             self.csv_writer = csv.writer(self.csv_file)
 
-            # Standard Dataset Header
+            # Standard Dataset Header (including height_m)
             self.csv_writer.writerow([
                 "timestamp",
                 "anchor",
@@ -837,7 +1061,8 @@ class BLECollector:
                 "name",
                 "distance_m",
                 "obstacle",
-                "obstacle_type"
+                "obstacle_type",
+                "height_m"
             ])
             self.csv_file.flush()
 
@@ -863,12 +1088,12 @@ class BLECollector:
             self.rate_lbl.config(text="0.0 Hz")
 
             self.log("SYS", f"Started session logging to: {filename}")
-            self.log("SYS", f"Params → Port: {port} @ {baud_rate} baud | Dist: {distance}m | Obstacle: {obstacle} ({obstacle_type})")
+            self.log("SYS", f"Params → Port: {port} @ {baud_rate} baud | Dist: {distance}m | Height: {height_m}m | Obstacle: {obstacle} ({obstacle_type})")
 
             # Start Reader Worker Thread
             self.reader_thread = threading.Thread(
                 target=self.serial_reader,
-                args=(distance, obstacle, obstacle_type),
+                args=(distance, obstacle, obstacle_type, height_m),
                 daemon=True
             )
             self.reader_thread.start()
@@ -882,7 +1107,7 @@ class BLECollector:
     # Worker Thread: Serial Reader
     # ========================================================
 
-    def serial_reader(self, distance, obstacle, obstacle_type):
+    def serial_reader(self, distance, obstacle, obstacle_type, height_m=1.0):
         while not self.stop_event.is_set():
             try:
                 if not self.serial_connection or not self.serial_connection.is_open:
@@ -926,7 +1151,7 @@ class BLECollector:
                 if target_mac and mac.upper() != target_mac.upper():
                     continue
 
-                # Create populated dataset record
+                # Create populated dataset record (with height_m)
                 row = [
                     timestamp,
                     anchor,
@@ -935,7 +1160,8 @@ class BLECollector:
                     name,
                     distance,
                     obstacle,
-                    obstacle_type
+                    obstacle_type,
+                    height_m
                 ]
 
                 self.data_queue.put(row)
@@ -956,6 +1182,12 @@ class BLECollector:
         try:
             while True:
                 item = self.data_queue.get_nowait()
+
+                # Event: Audit Result Ready
+                if isinstance(item, tuple) and item[0] == "AUDIT_RESULT":
+                    dist_records, target_windows = item[1], item[2]
+                    self.update_audit_ui(dist_records, target_windows)
+                    continue
 
                 # Event: Flashing Process Log
                 if isinstance(item, tuple) and item[0] == "FLASH_LOG":
