@@ -1,19 +1,24 @@
 import csv
-import os
-import sys
-import time
 import glob
-import random
-import threading
+import json
+import logging
+import os
 import queue
-from datetime import datetime
+import random
 import subprocess
-
+import sys
+import threading
+import time
+from datetime import datetime
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox, ttk
 
 import serial
 import serial.tools.list_ports
+
+# Logging Setup
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(message)s")
+logger = logging.getLogger("BLECollector")
 
 
 # ============================================================
@@ -25,6 +30,7 @@ DEFAULT_BAUD_RATE = 115200
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data", "raw")
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 BUILD_DIR = os.path.join(PROJECT_ROOT, "build")
 
@@ -36,29 +42,413 @@ APP_BIN = os.path.join(BUILD_DIR, "ble.bin")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
+def get_system_font_families():
+    """Detects available system fonts and returns robust primary and monospace font family candidates."""
+    try:
+        from tkinter import font
+        available = set(font.families())
+    except Exception:
+        available = set()
+
+    sans_candidates = ["Segoe UI", "SF Pro Display", "Helvetica Neue", "Arial", "Liberation Sans", "Ubuntu", "DejaVu Sans", "sans-serif"]
+    primary_font = next((f for f in sans_candidates if f in available), "Segoe UI" if sys.platform == "win32" else "Arial")
+
+    mono_candidates = ["Consolas", "Cascadia Code", "SF Mono", "Courier New", "Liberation Mono", "DejaVu Sans Mono", "monospace"]
+    mono_font = next((f for f in mono_candidates if f in available), "Consolas" if sys.platform == "win32" else "Courier New")
+
+    return primary_font, mono_font
+
+
 # ============================================================
-# BLE Collector Application
+# Manager 1: Configuration Manager (config.json)
+# ============================================================
+
+class ConfigManager:
+    """Manages application settings stored in config.json."""
+
+    DEFAULT_CONFIG = {
+        "baud_rate": DEFAULT_BAUD_RATE,
+        "auto_scan_interval_ms": 1500,
+        "stream_endpoint_url": "http://localhost:8000/api/observation",
+        "stream_enabled": True,
+        "buffer_flush_size": 50,
+        "window_size": 50,
+        "stride": 10,
+        "target_mac_filter": "52:06:26:03:01:DA",
+        "target_windows_goal": 2500,
+    }
+
+    def __init__(self, config_path):
+        self.config_path = config_path
+        self.config = self.load_config()
+
+    def load_config(self):
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    merged = self.DEFAULT_CONFIG.copy()
+                    merged.update(cfg)
+                    return merged
+            except Exception as e:
+                logger.warning(f"Failed to load config from {self.config_path}: {e}")
+        return self.DEFAULT_CONFIG.copy()
+
+    def save_config(self):
+        try:
+            os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self.config, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save config to {self.config_path}: {e}")
+
+    def get(self, key, default=None):
+        return self.config.get(key, default)
+
+    def set(self, key, value):
+        self.config[key] = value
+        self.save_config()
+
+
+# ============================================================
+# Manager 2: Persistent Worker Thread Network Streamer
+# ============================================================
+
+class NetworkStreamer:
+    """Persistent single-thread HTTP streamer for non-blocking packet forwarding."""
+
+    def __init__(self, endpoint_url, enabled=True):
+        self.endpoint_url = endpoint_url
+        self.enabled = enabled
+        self.queue = queue.Queue()
+        self.stop_event = threading.Event()
+        self.worker_thread = None
+
+    def start(self):
+        if self.worker_thread is None or not self.worker_thread.is_alive():
+            self.stop_event.clear()
+            self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+            self.worker_thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+
+    def push(self, row):
+        if self.enabled and not self.stop_event.is_set():
+            self.queue.put(row)
+
+    def _worker_loop(self):
+        import requests
+        session = requests.Session()
+        while not self.stop_event.is_set():
+            try:
+                row = self.queue.get(timeout=0.5)
+                packet_json = {
+                    "timestamp": int(row[0]),
+                    "anchor": row[1],
+                    "mac": row[2],
+                    "rssi": int(row[3]),
+                    "name": row[4]
+                }
+                try:
+                    session.post(self.endpoint_url, json=packet_json, timeout=0.15)
+                except Exception as req_err:
+                    pass
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logger.warning(f"NetworkStreamer worker exception: {e}")
+
+
+# ============================================================
+# Manager 3: Dataset Writer & Metadata Manager (dataset_info.json)
+# ============================================================
+
+class DatasetWriter:
+    """Handles buffered CSV dataset recording and sidecar dataset_info.json metadata generation."""
+
+    def __init__(self, data_dir, buffer_flush_size=50):
+        self.data_dir = data_dir
+        self.buffer_flush_size = buffer_flush_size
+        self.csv_file = None
+        self.csv_writer = None
+        self.dataset_path = None
+        self.metadata_path = None
+        self.unflushed_count = 0
+        self.session_start_time = None
+        self.metadata_info = {}
+
+    def start_session(self, distance, obstacle, obstacle_type, height_m=1.0, motion="stationary", dirty_mode="", target_mac=""):
+        timestamp_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        filename = f"dataset_{timestamp_str}.csv"
+        info_filename = f"dataset_{timestamp_str}_info.json"
+
+        self.dataset_path = os.path.join(self.data_dir, filename)
+        self.metadata_path = os.path.join(self.data_dir, info_filename)
+        self.session_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.unflushed_count = 0
+
+        self.metadata_info = {
+            "session_filename": filename,
+            "start_timestamp": self.session_start_time,
+            "end_timestamp": None,
+            "distance_m": distance,
+            "height_m": height_m,
+            "motion": motion,
+            "obstacle": obstacle,
+            "obstacle_type": obstacle_type,
+            "dirty_environment_mode": dirty_mode,
+            "target_mac": target_mac,
+            "total_samples": 0
+        }
+
+        self.csv_file = open(self.dataset_path, "w", newline="", encoding="utf-8")
+        self.csv_writer = csv.writer(self.csv_file)
+        self.csv_writer.writerow([
+            "timestamp", "anchor", "mac", "rssi", "name",
+            "distance_m", "obstacle", "obstacle_type", "height_m", "motion"
+        ])
+        return filename
+
+    def write_row(self, row):
+        if self.csv_writer and self.csv_file:
+            self.csv_writer.writerow(row)
+            self.unflushed_count += 1
+            self.metadata_info["total_samples"] += 1
+
+            if self.unflushed_count >= self.buffer_flush_size:
+                self.flush()
+
+    def flush(self):
+        if self.csv_file and not self.csv_file.closed:
+            try:
+                self.csv_file.flush()
+                self.unflushed_count = 0
+            except Exception as e:
+                logger.error(f"Error flushing CSV file: {e}")
+
+    def stop_session(self):
+        self.flush()
+        if self.csv_file and not self.csv_file.closed:
+            try:
+                self.csv_file.close()
+            except Exception as e:
+                logger.error(f"Error closing CSV file: {e}")
+            self.csv_file = None
+
+        self.metadata_info["end_timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if self.metadata_path:
+            try:
+                with open(self.metadata_path, "w", encoding="utf-8") as f:
+                    json.dump(self.metadata_info, f, indent=2)
+            except Exception as e:
+                logger.error(f"Error saving dataset_info.json: {e}")
+
+        return self.dataset_path, self.metadata_info["total_samples"]
+
+
+class DatasetAuditor:
+    """Performs true multi-dimensional sliding-window dataset coverage & quality analysis across raw CSV files."""
+
+    def __init__(self, data_dir, target_presets=None, target_windows=2500, window_size=50, stride=10):
+        self.data_dir = data_dir
+        self.target_presets = target_presets or [0.5, 1.0, 2.0, 3.0, 5.0]
+        self.height_presets = [0.0, 1.0, 1.4, 1.7]
+        self.target_windows = target_windows
+        self.window_size = window_size
+        self.stride = stride
+
+    def run_audit(self):
+        dist_samples = {d: 0 for d in self.target_presets}
+        height_samples = {h: 0 for h in self.height_presets}
+        motion_samples = {"stationary": 0, "approaching": 0, "moving_away": 0}
+        obs_samples = {"Clean (LOS)": 0, "Obstacle / Dirty Data": 0}
+        anchor_samples = {}
+
+        total_samples = 0
+        file_durations = []
+
+        raw_files = sorted(glob.glob(os.path.join(self.data_dir, "dataset_*.csv")))
+
+        for fpath in raw_files:
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    header = next(reader, None)
+                    if not header or len(header) < 4:
+                        continue
+
+                    file_ts = []
+                    for row in reader:
+                        if len(row) < 4:
+                            continue
+
+                        # Parse timestamp for empirical Hz calculation
+                        try:
+                            ts = int(row[0])
+                            file_ts.append(ts)
+                        except (ValueError, TypeError):
+                            pass
+
+                        # Anchor Node ID
+                        anchor = row[1].strip() if len(row) > 1 else "Unknown"
+                        anchor_samples[anchor] = anchor_samples.get(anchor, 0) + 1
+
+                        # Distance (col index 5)
+                        if len(row) > 5:
+                            try:
+                                raw_d = float(row[5].strip().lower().replace("m", "").replace(",", "."))
+                                for target in self.target_presets:
+                                    if abs(raw_d - target) < 0.1:
+                                        dist_samples[target] += 1
+                                        break
+                            except (ValueError, TypeError):
+                                pass
+
+                        # Obstacle / Environment (col index 6)
+                        if len(row) > 6:
+                            obs_val = row[6].strip().lower()
+                            has_obs_type = len(row) > 7 and row[7].strip().lower() not in ["none", ""]
+                            if obs_val in ["yes", "1", "true"] or has_obs_type:
+                                obs_samples["Obstacle / Dirty Data"] += 1
+                            else:
+                                obs_samples["Clean (LOS)"] += 1
+
+                        # Height (col index 8)
+                        if len(row) > 8:
+                            try:
+                                raw_h = float(row[8].strip().lower().replace("m", "").replace(",", "."))
+                                for h_target in self.height_presets:
+                                    if abs(raw_h - h_target) < 0.15:
+                                        height_samples[h_target] += 1
+                                        break
+                            except (ValueError, TypeError):
+                                pass
+
+                        # Motion (col index 9)
+                        if len(row) > 9:
+                            m_val = row[9].strip().lower()
+                            if m_val in motion_samples:
+                                motion_samples[m_val] += 1
+
+                        total_samples += 1
+
+                    if len(file_ts) >= 2:
+                        dur_sec = (max(file_ts) - min(file_ts)) / 1000.0
+                        if dur_sec > 0:
+                            file_durations.append((len(file_ts), dur_sec))
+
+            except Exception as e:
+                logger.warning(f"DatasetAuditor error scanning {fpath}: {e}")
+
+        # Empirical Sample Rate (Hz)
+        if file_durations:
+            tot_p = sum(p for p, d in file_durations)
+            tot_d = sum(d for p, d in file_durations)
+            sample_rate_hz = tot_p / max(tot_d, 0.1) if tot_d > 0 else 20.0
+        else:
+            sample_rate_hz = 20.0
+
+        def calc_windows(samples_cnt):
+            return max(0, (samples_cnt - self.window_size) // self.stride + 1) if samples_cnt >= self.window_size else 0
+
+        dist_windows = {d: calc_windows(dist_samples[d]) for d in self.target_presets}
+        height_windows = {h: calc_windows(height_samples[h]) for h in self.height_presets}
+        motion_windows = {m: calc_windows(motion_samples[m]) for m in motion_samples}
+        obs_windows = {k: calc_windows(obs_samples[k]) for k in obs_samples}
+        anchor_windows = {a: calc_windows(anchor_samples[a]) for a in anchor_samples}
+
+        return {
+            "distance": {"records": dist_windows, "target": self.target_windows},
+            "height": {"records": height_windows, "target": 1000},
+            "motion": {"records": motion_windows, "target": 1000},
+            "obstacle": {"records": obs_windows, "target": 1500},
+            "anchor": {"records": anchor_windows, "target": self.target_windows},
+            "sample_rate_hz": round(sample_rate_hz, 1),
+            "total_samples": total_samples,
+            "total_windows": calc_windows(total_samples)
+        }
+
+
+# ============================================================
+# Manager 5: Serial Connection & Hardware Port Manager
+# ============================================================
+
+class SerialManager:
+    """Handles serial COM port diagnostics, hot-plug detection, and serial connection lifecycle."""
+
+    def __init__(self):
+        self.serial_conn = None
+        self.known_ports_map = {}
+        self.last_esp_port = None
+        self.scan_error_count = 0
+
+    def scan_ports(self):
+        start_t = time.time()
+        try:
+            current_ports = list(serial.tools.list_ports.comports())
+            elapsed = time.time() - start_t
+            self.scan_error_count = 0
+            current_map = {p.device: f"{p.device} - {p.description}" for p in current_ports}
+            return current_map, elapsed, None
+        except Exception as e:
+            self.scan_error_count += 1
+            logger.warning(f"Serial port scan exception (attempt {self.scan_error_count}): {e}")
+            return self.known_ports_map, 0.0, e
+
+    def connect(self, port, baud_rate):
+        if self.serial_conn and self.serial_conn.is_open:
+            self.close()
+        self.serial_conn = serial.Serial(port, baud_rate, timeout=1)
+        return self.serial_conn
+
+    def close(self):
+        if self.serial_conn:
+            try:
+                self.serial_conn.close()
+            except Exception as e:
+                logger.warning(f"Error closing serial connection: {e}")
+            self.serial_conn = None
+
+
+# ============================================================
+# BLE Collector Application (Tkinter GUI Controller)
 # ============================================================
 
 class BLECollector:
 
     def __init__(self, root):
-
         self.root = root
         self.root.title("BLE Tracker - Dataset Collector Studio")
         self.root.geometry("880x760")
         self.root.minsize(820, 680)
 
-        # Serial & Threading
-        self.serial_connection = None
+        # Instantiate Manager Classes
+        self.config_mgr = ConfigManager(CONFIG_PATH)
+        self.serial_mgr = SerialManager()
+        self.writer_mgr = DatasetWriter(
+            DATA_DIR,
+            buffer_flush_size=self.config_mgr.get("buffer_flush_size", 50)
+        )
+        self.auditor_mgr = DatasetAuditor(
+            DATA_DIR,
+            target_windows=self.config_mgr.get("target_windows_goal", 2500),
+            window_size=self.config_mgr.get("window_size", 50),
+            stride=self.config_mgr.get("stride", 10)
+        )
+        self.streamer_mgr = NetworkStreamer(
+            endpoint_url=self.config_mgr.get("stream_endpoint_url", "http://localhost:8000/api/observation"),
+            enabled=self.config_mgr.get("stream_enabled", True)
+        )
+        self.streamer_mgr.start()
+
+        # Serial & Threading State
         self.reader_thread = None
         self.stop_event = threading.Event()
         self.current_port = None
-        self.current_baud = DEFAULT_BAUD_RATE
+        self.current_baud = self.config_mgr.get("baud_rate", DEFAULT_BAUD_RATE)
 
         # Port Monitoring State
-        self.known_ports_map = {}  # { 'COM6': 'COM6 - USB-SERIAL CH340' }
-        self.last_esp_port = None
         self.auto_scan_enabled = True
 
         # Firmware Flashing State
@@ -71,11 +461,6 @@ class BLECollector:
         self.start_time = None
         self.samples_count = 0
 
-        # File Handling
-        self.csv_file = None
-        self.csv_writer = None
-        self.dataset_path = None
-
         # Thread Queue
         self.data_queue = queue.Queue()
 
@@ -85,7 +470,7 @@ class BLECollector:
         # Build User Interface
         self.build_gui()
 
-        # Print Initialization & Hardware Discovery Report
+        # Initial Diagnostic Report
         self.run_initial_port_diagnostic()
 
         # Queue Processor Loop (50ms)
@@ -100,17 +485,19 @@ class BLECollector:
     # ========================================================
 
     def setup_styles(self):
-
         self.root.configure(bg="#181825")
-
         self.style = ttk.Style()
-        
+
         try:
             self.style.theme_use("clam")
         except Exception:
             pass
 
-        # Color Palette Definitions
+        # Detect System Font Fallbacks
+        font_primary, font_mono = get_system_font_families()
+        self.font_primary = font_primary
+        self.font_mono = font_mono
+
         bg_dark = "#181825"
         card_bg = "#1e1e2e"
         card_border = "#313244"
@@ -121,13 +508,10 @@ class BLECollector:
         accent_yellow = "#f9e2af"
         accent_red = "#f38ba8"
 
-        # Global TTK Styles
-        self.style.configure(".", background=bg_dark, foreground=fg_text, font=("Segoe UI", 10))
-
-        # Frames & Header
+        self.style.configure(".", background=bg_dark, foreground=fg_text, font=(font_primary, 10))
         self.style.configure("TFrame", background=bg_dark)
         self.style.configure("Card.TFrame", background=card_bg, relief="flat")
-        
+
         self.style.configure(
             "Card.TLabelframe",
             background=card_bg,
@@ -142,23 +526,20 @@ class BLECollector:
             "Card.TLabelframe.Label",
             background=card_bg,
             foreground=accent_blue,
-            font=("Segoe UI", 11, "bold")
+            font=(font_primary, 11, "bold")
         )
 
-        # Labels
         self.style.configure("TLabel", background=card_bg, foreground=fg_text)
-        self.style.configure("Subtext.TLabel", background=card_bg, foreground=fg_muted, font=("Segoe UI", 9))
-        self.style.configure("Header.TLabel", background=bg_dark, foreground="#cba6f7", font=("Segoe UI", 18, "bold"))
-        self.style.configure("Status.TLabel", background=card_bg, font=("Segoe UI", 11, "bold"))
+        self.style.configure("Subtext.TLabel", background=card_bg, foreground=fg_muted, font=(font_primary, 9))
+        self.style.configure("Header.TLabel", background=bg_dark, foreground="#cba6f7", font=(font_primary, 18, "bold"))
+        self.style.configure("Status.TLabel", background=card_bg, font=(font_primary, 11, "bold"))
 
-        # Badges & Stats
-        self.style.configure("StatVal.TLabel", background=card_bg, foreground=accent_blue, font=("Segoe UI", 14, "bold"))
-        self.style.configure("StatLbl.TLabel", background=card_bg, foreground=fg_muted, font=("Segoe UI", 9))
+        self.style.configure("StatVal.TLabel", background=card_bg, foreground=accent_blue, font=(font_primary, 14, "bold"))
+        self.style.configure("StatLbl.TLabel", background=card_bg, foreground=fg_muted, font=(font_primary, 9))
 
-        # Buttons
         self.style.configure(
             "Primary.TButton",
-            font=("Segoe UI", 10, "bold"),
+            font=(font_primary, 10, "bold"),
             background=accent_green,
             foreground="#11111b",
             padding=(14, 8)
@@ -171,7 +552,7 @@ class BLECollector:
 
         self.style.configure(
             "Warning.TButton",
-            font=("Segoe UI", 10, "bold"),
+            font=(font_primary, 10, "bold"),
             background=accent_yellow,
             foreground="#11111b",
             padding=(14, 8)
@@ -184,7 +565,7 @@ class BLECollector:
 
         self.style.configure(
             "Danger.TButton",
-            font=("Segoe UI", 10, "bold"),
+            font=(font_primary, 10, "bold"),
             background=accent_red,
             foreground="#11111b",
             padding=(14, 8)
@@ -197,20 +578,16 @@ class BLECollector:
 
         self.style.configure(
             "Secondary.TButton",
-            font=("Segoe UI", 9),
+            font=(font_primary, 9),
             background="#313244",
             foreground=fg_text,
             padding=(8, 4)
         )
-        self.style.map(
-            "Secondary.TButton",
-            background=[("active", "#45475a")]
-        )
+        self.style.map("Secondary.TButton", background=[("active", "#45475a")])
 
-        # Quick Pill Preset Button Style
         self.style.configure(
             "Pill.TButton",
-            font=("Segoe UI", 9),
+            font=(font_primary, 9),
             background="#313244",
             foreground="#cdd6f4",
             padding=(6, 3)
@@ -221,33 +598,23 @@ class BLECollector:
             foreground=[("active", "#11111b")]
         )
 
-        self.style.configure(
-            "TEntry",
-            fieldbackground="#313244",
-            foreground=fg_text,
-            insertcolor=fg_text
-        )
+        self.style.configure("TEntry", fieldbackground="#313244", foreground=fg_text, insertcolor=fg_text)
 
-        # Treeview Dark Styling (Section 5 Deficit Audit)
         self.style.configure(
             "Treeview",
             background="#1e1e2e",
             foreground="#cdd6f4",
             fieldbackground="#1e1e2e",
             rowheight=26,
-            font=("Segoe UI", 9)
+            font=(font_primary, 9)
         )
         self.style.configure(
             "Treeview.Heading",
             background="#313244",
             foreground="#89b4fa",
-            font=("Segoe UI", 10, "bold")
+            font=(font_primary, 10, "bold")
         )
-        self.style.map(
-            "Treeview",
-            background=[("selected", "#45475a")],
-            foreground=[("selected", "#cdd6f4")]
-        )
+        self.style.map("Treeview", background=[("selected", "#45475a")], foreground=[("selected", "#cdd6f4")])
 
 
     # ========================================================
@@ -255,59 +622,47 @@ class BLECollector:
     # ========================================================
 
     def build_gui(self):
-
-        # Main Scrollable Window Frame
         canvas = tk.Canvas(self.root, bg="#181825", highlightthickness=0)
         v_scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
-        
+
         main_container = ttk.Frame(canvas, padding=15)
-        main_container.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        main_container.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
         canvas_frame = canvas.create_window((0, 0), window=main_container, anchor="nw")
-        
+
         def _on_canvas_configure(event):
             canvas.itemconfig(canvas_frame, width=event.width)
-            
+
         canvas.bind("<Configure>", _on_canvas_configure)
         canvas.configure(yscrollcommand=v_scrollbar.set)
 
         v_scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
 
-        # Global Mousewheel Scrolling Bindings
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            
+
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # --- Top Header ---
         header_frame = ttk.Frame(main_container)
         header_frame.pack(fill="x", pady=(0, 10))
 
-        title = ttk.Label(
-            header_frame,
-            text="📡 BLE TRACKER — DATASET COLLECTOR STUDIO",
-            style="Header.TLabel"
-        )
+        title = ttk.Label(header_frame, text="📡 BLE TRACKER — DATASET COLLECTOR STUDIO", style="Header.TLabel")
         title.pack(side="left")
 
         subtitle = ttk.Label(
             header_frame,
-            text="ESP32 RSSI & Metadata Acquisition System",
+            text="ESP32 RSSI & Metadata Acquisition System (Modular V3)",
             style="Subtext.TLabel",
             background="#181825"
         )
         subtitle.pack(side="right", anchor="e", pady=5)
 
-
         # --- Section 1: ESP32 Connection Card ---
         conn_box = ttk.LabelFrame(main_container, text="1. ESP32 Connection Setup", style="Card.TLabelframe")
         conn_box.pack(fill="x", pady=(0, 10))
 
-        # Port Selection Row
         ttk.Label(conn_box, text="Serial COM Port:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
         self.port_combo = ttk.Combobox(conn_box, width=32, state="readonly")
@@ -316,21 +671,18 @@ class BLECollector:
         refresh_btn = ttk.Button(conn_box, text="🔄 Scan Ports Now", style="Secondary.TButton", command=self.refresh_ports)
         refresh_btn.grid(row=0, column=2, padx=5, pady=5)
 
-        # Auto Scan Status Indicator
         self.autoscan_lbl = ttk.Label(conn_box, text="⚡ Auto-Scan: ACTIVE (1.5s)", style="Subtext.TLabel", foreground="#a6e3a1")
         self.autoscan_lbl.grid(row=0, column=3, padx=(10, 5), pady=5)
 
-        # Baud Rate Row
         ttk.Label(conn_box, text="Baud Rate:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        
+
         self.baud_combo = ttk.Combobox(conn_box, values=BAUD_RATES, width=12, state="readonly")
-        self.baud_combo.set(DEFAULT_BAUD_RATE)
+        self.baud_combo.set(self.current_baud)
         self.baud_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         self.device_info_lbl = ttk.Label(conn_box, text="Device: Scanning...", style="Subtext.TLabel", foreground="#89b4fa")
         self.device_info_lbl.grid(row=1, column=2, columnspan=2, sticky="w", padx=5, pady=5)
 
-        # Firmware Auto-Loader & Flashing Row
         ttk.Label(conn_box, text="ESP32 Code Loader:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
 
         flash_frame = ttk.Frame(conn_box)
@@ -357,12 +709,10 @@ class BLECollector:
 
         self.check_firmware_binaries()
 
-
         # --- Section 2: Experiment Metadata Card ---
         exp_box = ttk.LabelFrame(main_container, text="2. Ground Truth Experiment Metadata", style="Card.TLabelframe")
         exp_box.pack(fill="x", pady=(0, 10))
 
-        # Distance Input & Presets
         ttk.Label(exp_box, text="Physical Distance (meters):").grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
         dist_input_frame = ttk.Frame(exp_box)
@@ -391,7 +741,6 @@ class BLECollector:
         )
         rand_btn.pack(side="left", padx=(8, 0))
 
-        # Height Level / Elevation Row
         ttk.Label(exp_box, text="Height / Elevation (meters):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
 
         height_frame = ttk.Frame(exp_box)
@@ -418,7 +767,6 @@ class BLECollector:
             )
             btn.pack(side="left", padx=2)
 
-        # Motion Mode Row (V2: Movement-Aware Data Collection)
         ttk.Label(exp_box, text="Motion Mode:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
 
         motion_frame = ttk.Frame(exp_box)
@@ -439,7 +787,6 @@ class BLECollector:
             style="Subtext.TLabel"
         ).pack(side="left")
 
-        # Dirty Data Presets Row
         ttk.Label(exp_box, text="Environment / Dirty Data Mode:").grid(row=3, column=0, sticky="w", padx=5, pady=5)
 
         self.dirty_mode_combo = ttk.Combobox(
@@ -461,7 +808,6 @@ class BLECollector:
         self.dirty_mode_combo.grid(row=3, column=1, columnspan=2, sticky="w", padx=5, pady=5)
         self.dirty_mode_combo.bind("<<ComboboxSelected>>", self.on_dirty_preset_change)
 
-        # Obstacle Controls Row
         ttk.Label(exp_box, text="Is there an obstacle?").grid(row=4, column=0, sticky="w", padx=5, pady=5)
 
         self.obstacle_combo = ttk.Combobox(exp_box, values=["No", "Yes"], state="readonly", width=10)
@@ -489,20 +835,17 @@ class BLECollector:
 
         ttk.Label(
             exp_box,
-            text="\U0001f4a1 Tip: Collecting arbitrary distances, heights, and 'Dirty Data' (WiFi interference, walls) ensures maximum ML robustness.",
+            text="\U0001f4a1 Tip: Collecting arbitrary distances, heights, and 'Dirty Data' ensures maximum ML model robustness.",
             style="Subtext.TLabel"
         ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=(5, 0))
-
 
         # --- Section 3: Live Dashboard & Controls ---
         ctrl_box = ttk.LabelFrame(main_container, text="3. Collection Controls & Live Metrics", style="Card.TLabelframe")
         ctrl_box.pack(fill="x", pady=(0, 10))
 
-        # Sub-frame split: Left Buttons, Right Badges
         ctrl_layout = ttk.Frame(ctrl_box)
         ctrl_layout.pack(fill="x")
 
-        # Action Buttons Column
         btn_frame = ttk.Frame(ctrl_layout)
         btn_frame.pack(side="left", anchor="w")
 
@@ -515,25 +858,21 @@ class BLECollector:
         self.stop_button = ttk.Button(btn_frame, text="⏹ STOP & SAVE", style="Danger.TButton", command=self.stop_collection, state="disabled")
         self.stop_button.pack(side="left", padx=(0, 8))
 
-        # Live Metrics Badges Right
         metrics_frame = ttk.Frame(ctrl_layout)
         metrics_frame.pack(side="right", anchor="e")
 
-        # Samples Card
         s_box = ttk.Frame(metrics_frame, padding=(10, 2))
         s_box.pack(side="left", padx=10)
         self.samples_lbl = ttk.Label(s_box, text="0", style="StatVal.TLabel")
         self.samples_lbl.pack()
         ttk.Label(s_box, text="SAMPLES", style="StatLbl.TLabel").pack()
 
-        # Rate Card
         r_box = ttk.Frame(metrics_frame, padding=(10, 2))
         r_box.pack(side="left", padx=10)
         self.rate_lbl = ttk.Label(r_box, text="0.0 Hz", style="StatVal.TLabel")
         self.rate_lbl.pack()
         ttk.Label(r_box, text="SAMPLE RATE", style="StatLbl.TLabel").pack()
 
-        # Status Badge Line
         status_bar = ttk.Frame(ctrl_box)
         status_bar.pack(fill="x", pady=(10, 0))
 
@@ -546,12 +885,10 @@ class BLECollector:
         open_folder_btn = ttk.Button(status_bar, text="📁 Open Dataset Folder", style="Secondary.TButton", command=self.open_data_folder)
         open_folder_btn.pack(side="right")
 
-
         # --- Section 4: Live BLE Terminal ---
         console_box = ttk.LabelFrame(main_container, text="4. Real-Time BLE Stream Console", style="Card.TLabelframe")
         console_box.pack(fill="both", expand=True)
 
-        # Toolbar above console
         c_toolbar = ttk.Frame(console_box)
         c_toolbar.pack(fill="x", pady=(0, 5))
 
@@ -563,7 +900,6 @@ class BLECollector:
         clear_btn = ttk.Button(c_toolbar, text="🗑 Clear Console", style="Secondary.TButton", command=self.clear_console)
         clear_btn.pack(side="right")
 
-        # Scrollable Console Text Area
         console_inner = ttk.Frame(console_box)
         console_inner.pack(fill="both", expand=True)
 
@@ -577,7 +913,7 @@ class BLECollector:
             fg="#cdd6f4",
             insertbackground="#cdd6f4",
             selectbackground="#45475a",
-            font=("Consolas", 9),
+            font=(getattr(self, "font_mono", "Consolas"), 9),
             relief="flat",
             state="disabled",
             yscrollcommand=scrollbar.set
@@ -585,15 +921,14 @@ class BLECollector:
         self.console.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.console.yview)
 
-        # Configure Text Tags for Log Highlighting
         self.console.tag_config("INFO", foreground="#89b4fa")
         self.console.tag_config("DATA", foreground="#a6e3a1")
         self.console.tag_config("WARN", foreground="#f9e2af")
         self.console.tag_config("ERROR", foreground="#f38ba8")
         self.console.tag_config("SYS", foreground="#cba6f7")
 
-        # --- Section 5: Dataset Health Audit & Deficit Monitor ---
-        audit_box = ttk.LabelFrame(main_container, text="5. Dataset Coverage Audit & Missing Sample Deficit Monitor", style="Card.TLabelframe")
+        # --- Section 5: True Multi-Dimensional Dataset Quality & Coverage Audit ---
+        audit_box = ttk.LabelFrame(main_container, text="5. Multi-Dimensional Dataset Quality & Coverage Audit", style="Card.TLabelframe")
         audit_box.pack(fill="x", pady=(10, 0))
 
         audit_top = ttk.Frame(audit_box)
@@ -601,18 +936,33 @@ class BLECollector:
 
         self.audit_summary_lbl = ttk.Label(
             audit_top,
-            text="Scanning raw dataset files for sample coverage...",
+            text="Scanning raw dataset files across 5 experimental dimensions...",
             style="Subtext.TLabel",
             foreground="#f9e2af"
         )
         self.audit_summary_lbl.pack(side="left")
 
+        audit_ctrls = ttk.Frame(audit_top)
+        audit_ctrls.pack(side="right")
+
+        ttk.Label(audit_ctrls, text="Dimension Filter:", style="Subtext.TLabel").pack(side="left", padx=(0, 5))
+
+        self.audit_dim_combo = ttk.Combobox(
+            audit_ctrls,
+            values=["Distance (m)", "Height / Elevation (m)", "Motion Mode", "Environment / Obstacle", "Anchor Nodes"],
+            state="readonly",
+            width=22
+        )
+        self.audit_dim_combo.set("Distance (m)")
+        self.audit_dim_combo.pack(side="left", padx=(0, 10))
+        self.audit_dim_combo.bind("<<ComboboxSelected>>", self.on_audit_dim_change)
+
         ttk.Button(
-            audit_top,
+            audit_ctrls,
             text="🔄 Refresh Deficit Audit",
             style="Secondary.TButton",
             command=self.refresh_dataset_audit
-        ).pack(side="right")
+        ).pack(side="left")
 
         tree_frame = ttk.Frame(audit_box)
         tree_frame.pack(fill="x", expand=True)
@@ -622,26 +972,26 @@ class BLECollector:
 
         self.audit_tree = ttk.Treeview(
             tree_frame,
-            columns=("dist", "current_win", "target_win", "missing_win", "est_min", "status"),
+            columns=("category", "current_win", "target_win", "missing_win", "est_min", "status"),
             show="headings",
             height=5,
             yscrollcommand=tree_scroll.set
         )
         tree_scroll.config(command=self.audit_tree.yview)
 
-        self.audit_tree.heading("dist", text="Distance (m)")
+        self.audit_tree.heading("category", text="Category / Preset")
         self.audit_tree.heading("current_win", text="Current Windows")
-        self.audit_tree.heading("target_win", text="Target Windows")
-        self.audit_tree.heading("missing_win", text="Missing Windows")
-        self.audit_tree.heading("est_min", text="Est. Mins Needed")
+        self.audit_tree.heading("target_win", text="Target Goal")
+        self.audit_tree.heading("missing_win", text="Missing Deficit")
+        self.audit_tree.heading("est_min", text="Est. Mins (Empirical)")
         self.audit_tree.heading("status", text="Coverage Status")
 
-        self.audit_tree.column("dist", width=90, anchor="center")
+        self.audit_tree.column("category", width=140, anchor="center")
         self.audit_tree.column("current_win", width=120, anchor="center")
         self.audit_tree.column("target_win", width=110, anchor="center")
         self.audit_tree.column("missing_win", width=120, anchor="center")
-        self.audit_tree.column("est_min", width=120, anchor="center")
-        self.audit_tree.column("status", width=140, anchor="center")
+        self.audit_tree.column("est_min", width=140, anchor="center")
+        self.audit_tree.column("status", width=180, anchor="center")
 
         self.audit_tree.pack(side="left", fill="both", expand=True)
 
@@ -651,7 +1001,6 @@ class BLECollector:
     # ========================================================
 
     def run_initial_port_diagnostic(self):
-
         self.log("SYS", "=" * 70)
         self.log("SYS", " HARDWARE DISCOVERY & SERIAL PORT DIAGNOSTIC REPORT")
         self.log("SYS", "=" * 70)
@@ -661,11 +1010,10 @@ class BLECollector:
         self.log("SYS", f" Output Dir: {DATA_DIR}")
         self.log("SYS", " Searching for connected USB / Serial devices...")
 
-        ports = list(serial.tools.list_ports.comports())
-        self.known_ports_map = {}
+        current_map, elapsed, err = self.serial_mgr.scan_ports()
         esp_port_info = None
 
-        if not ports:
+        if err or not current_map:
             self.log("WARN", " [✖] No active serial COM ports detected on this system.")
             self.log("WARN", "     Please connect your ESP32 via USB data cable.")
             self.log("SYS", " Status: Auto-port scanner ACTIVE (scanning every 1.5s).")
@@ -674,38 +1022,26 @@ class BLECollector:
             self.device_info_lbl.config(text="Device: None detected", foreground="#f38ba8")
             self.status_dot.config(text="● NO ESP32 DETECTED — Waiting for USB connection...", foreground="#f38ba8")
         else:
-            port_list_display = []
-            for p in ports:
-                device_str = p.device
-                desc = p.description
-                hwid = p.hwid or "N/A"
-                mfg = getattr(p, 'manufacturer', None) or "Unknown Manufacturer"
-                
-                full_display = f"{device_str} - {desc}"
-                port_list_display.append(full_display)
-                self.known_ports_map[device_str] = full_display
-
-                # Check for ESP32 UART bridge chips
-                desc_lower = desc.lower()
+            port_list_display = list(current_map.values())
+            for dev_str, full_disp in current_map.items():
+                desc_lower = full_disp.lower()
                 is_esp = any(k in desc_lower for k in ["ch340", "cp210", "ftdi", "uart", "esp32", "usb-serial"])
 
-                self.log("INFO", f" [✔] Port Detected: {device_str}")
-                self.log("INFO", f"     • Description : {desc}")
-                self.log("INFO", f"     • Manufacturer: {mfg}")
-                self.log("INFO", f"     • Hardware ID : {hwid}")
-                
+                self.log("INFO", f" [✔] Port Detected: {dev_str}")
+                self.log("INFO", f"     • Description : {full_disp}")
+
                 if is_esp:
-                    self.log("SYS", f"     • Detection   : ★ Recognized ESP32 USB-UART Serial Bridge!")
+                    self.log("SYS", "     • Detection   : ★ Recognized ESP32 USB-UART Serial Bridge!")
                     if not esp_port_info:
-                        esp_port_info = (device_str, full_display, desc)
+                        esp_port_info = (dev_str, full_disp)
 
             self.port_combo["values"] = port_list_display
 
             if esp_port_info:
-                dev_code, dev_disp, dev_desc = esp_port_info
+                dev_code, dev_disp = esp_port_info
                 self.port_combo.set(dev_disp)
-                self.last_esp_port = dev_code
-                self.device_info_lbl.config(text=f"Detected: {dev_desc}", foreground="#a6e3a1")
+                self.serial_mgr.last_esp_port = dev_code
+                self.device_info_lbl.config(text=f"Detected: {dev_disp.split(' - ')[1]}", foreground="#a6e3a1")
                 self.status_dot.config(text=f"● ESP32 READY on {dev_code}", foreground="#a6e3a1")
                 self.log("SYS", f" Result: Auto-selected target port {dev_code}")
             else:
@@ -723,22 +1059,28 @@ class BLECollector:
     # ========================================================
 
     def auto_scan_ports_loop(self):
-        if self.auto_scan_enabled:
-            try:
-                current_ports = list(serial.tools.list_ports.comports())
-                current_map = {p.device: f"{p.device} - {p.description}" for p in current_ports}
+        next_interval = 1500
 
-                # 1. Detect Newly Added Ports (Hot-Plug)
-                added_ports = set(current_map.keys()) - set(self.known_ports_map.keys())
+        if self.auto_scan_enabled:
+            current_map, elapsed, err = self.serial_mgr.scan_ports()
+
+            if err:
+                next_interval = min(5000, 1500 * (2 ** min(self.serial_mgr.scan_error_count, 3)))
+                logger.warning(f"Port scanner glitch (retry in {next_interval}ms): {err}")
+            else:
+                if elapsed > 0.2:
+                    next_interval = 2500
+
+                added_ports = set(current_map.keys()) - set(self.serial_mgr.known_ports_map.keys())
                 if added_ports:
                     for new_p in added_ports:
                         desc = current_map[new_p]
                         self.log("SYS", f"⚡ HOT-PLUG EVENT: New device connected on {new_p} ({desc})")
-                        
+
                         desc_lower = desc.lower()
                         if any(k in desc_lower for k in ["ch340", "cp210", "ftdi", "uart", "esp32", "usb-serial"]):
                             self.log("SYS", f"★ Auto-detected ESP32 on {new_p}! Updating port selection.")
-                            self.last_esp_port = new_p
+                            self.serial_mgr.last_esp_port = new_p
                             if not self.collecting and not self.flashing:
                                 self.port_combo.set(desc)
                                 self.device_info_lbl.config(text=f"Detected: {desc.split(' - ')[1]}", foreground="#a6e3a1")
@@ -748,20 +1090,17 @@ class BLECollector:
                                     self.log("SYS", f"⚡ Auto-Flash trigger for newly connected ESP32 on {new_p}...")
                                     self.root.after(500, lambda p=new_p: self.start_flash_firmware(p))
 
-                # 2. Detect Removed Ports (Disconnect)
-                removed_ports = set(self.known_ports_map.keys()) - set(current_map.keys())
+                removed_ports = set(self.serial_mgr.known_ports_map.keys()) - set(current_map.keys())
                 if removed_ports:
                     for rem_p in removed_ports:
                         self.log("WARN", f"⚠️ DISCONNECT EVENT: Serial device removed from {rem_p}")
-                        
-                        # Active port removed while collecting?
+
                         if self.collecting and self.current_port == rem_p:
                             self.log("ERROR", f"CRITICAL: Active ESP32 serial port {rem_p} was physically disconnected!")
                             self.data_queue.put(("PORT_DISCONNECTED", rem_p))
 
-                # Update state map & combo values if ports changed
                 if added_ports or removed_ports:
-                    self.known_ports_map = current_map
+                    self.serial_mgr.known_ports_map = current_map
                     port_values = list(current_map.values())
                     self.port_combo["values"] = port_values
 
@@ -770,11 +1109,7 @@ class BLECollector:
                         self.device_info_lbl.config(text="Device: None detected", foreground="#f38ba8")
                         self.status_dot.config(text="● NO ESP32 DETECTED — Connect via USB", foreground="#f38ba8")
 
-            except Exception as e:
-                pass
-
-        # Reschedule scanner loop (1.5s)
-        self.root.after(1500, self.auto_scan_ports_loop)
+        self.root.after(next_interval, self.auto_scan_ports_loop)
 
 
     # ========================================================
@@ -838,13 +1173,7 @@ class BLECollector:
             messagebox.showerror("Firmware Missing", err_msg)
             return
 
-        # Safely release serial connection before flashing
-        if self.serial_connection:
-            try:
-                self.serial_connection.close()
-            except Exception:
-                pass
-            self.serial_connection = None
+        self.serial_mgr.close()
 
         self.flashing = True
         self.flash_btn.config(state="disabled", text="⚡ FLASHING ESP32...")
@@ -863,7 +1192,6 @@ class BLECollector:
         self.data_queue.put(("FLASH_LOG", f" App Binary  : {APP_BIN} (0x10000)"))
         self.data_queue.put(("FLASH_LOG", " Invoking esptool flashing utility..."))
 
-        # Use 115200 baud rate and flash-size detect for 100% hardware compatibility & noise immunity
         cmd = [
             sys.executable, "-m", "esptool",
             "--chip", "esp32",
@@ -917,80 +1245,92 @@ class BLECollector:
     # Helper Handlers & Presets
     # ========================================================
 
+    # ========================================================
+    # Helper Handlers & Presets
+    # ========================================================
+
     def refresh_dataset_audit(self):
-        """Asynchronously scans raw dataset CSV files on a background thread so the GUI never lags."""
+        """Asynchronously performs true multi-dimensional sliding window dataset coverage analysis."""
         if hasattr(self, "audit_summary_lbl"):
-            self.audit_summary_lbl.config(text="⚡ Auditing dataset coverage...", foreground="#89b4fa")
+            self.audit_summary_lbl.config(text="⚡ Auditing dataset quality & coverage across 5 dimensions...", foreground="#89b4fa")
 
         def audit_worker():
-            target_presets = [0.5, 1.0, 2.0, 3.0, 5.0]
-            target_windows = 2500
-            dist_records = {d: 0 for d in target_presets}
-
-            raw_files = sorted(glob.glob(os.path.join(DATA_DIR, "dataset_*.csv")))
-
-            for fpath in raw_files:
-                try:
-                    with open(fpath, "r", encoding="utf-8") as f:
-                        line_count = 0
-                        first_data_row = None
-                        for i, line in enumerate(f):
-                            line_count += 1
-                            if i == 1 and line.strip():
-                                first_data_row = line.strip().split(",")
-
-                        if line_count > 1 and first_data_row and len(first_data_row) >= 6:
-                            try:
-                                file_dist = float(first_data_row[5])
-                                approx_windows = (line_count - 1) // 10
-                                if file_dist in dist_records:
-                                    dist_records[file_dist] += approx_windows
-                            except ValueError:
-                                pass
-                except Exception:
-                    pass
-
-            self.data_queue.put(("AUDIT_RESULT", dist_records, target_windows))
+            audit_data = self.auditor_mgr.run_audit()
+            self.data_queue.put(("AUDIT_RESULT", audit_data))
 
         threading.Thread(target=audit_worker, daemon=True).start()
 
-    def update_audit_ui(self, dist_records, target_windows):
-        """Updates Section 5 Treeview and summary label on the main GUI thread."""
+    def on_audit_dim_change(self, event=None):
+        if hasattr(self, "last_audit_data") and self.last_audit_data:
+            self.render_audit_dim_data(self.last_audit_data)
+
+    def update_audit_ui(self, audit_data):
+        self.last_audit_data = audit_data
+        self.render_audit_dim_data(audit_data)
+
+    def render_audit_dim_data(self, audit_data):
+        """Renders Section 5 Treeview and summary label according to selected dimension filter."""
         if hasattr(self, "audit_tree"):
             for item in self.audit_tree.get_children():
                 self.audit_tree.delete(item)
 
-        target_presets = [0.5, 1.0, 2.0, 3.0, 5.0]
+        dim_choice = self.audit_dim_combo.get() if hasattr(self, "audit_dim_combo") else "Distance (m)"
+        dim_map = {
+            "Distance (m)": "distance",
+            "Height / Elevation (m)": "height",
+            "Motion Mode": "motion",
+            "Environment / Obstacle": "obstacle",
+            "Anchor Nodes": "anchor"
+        }
+        dim_key = dim_map.get(dim_choice, "distance")
+
+        dim_info = audit_data.get(dim_key, {})
+        records = dim_info.get("records", {})
+        target_goal = dim_info.get("target", 2500)
+        sample_rate_hz = audit_data.get("sample_rate_hz", 20.0)
+        stride = self.config_mgr.get("stride", 10)
+
         total_missing = 0
         critical_missing = []
 
-        for d in target_presets:
-            current = dist_records.get(d, 0)
-            missing = max(0, target_windows - current)
+        for category, current in records.items():
+            cat_label = f"{category} m" if dim_key in ["distance", "height"] else str(category)
+            missing = max(0, target_goal - current)
             total_missing += missing
-            est_mins = round((missing * 1.0) / 60.0, 1)
 
-            if current == 0:
-                status = "🔴 CRITICAL MISSING"
-                critical_missing.append(f"{d}m")
-            elif current < 1000:
-                status = "🟡 LOW SAMPLES"
-                critical_missing.append(f"{d}m")
+            # Dynamic empirical time estimate based on measured packet rate (Hz)
+            est_mins = round((missing * stride) / (max(sample_rate_hz, 0.1) * 60.0), 1)
+
+            # Percentage-based Coverage Tiers
+            pct = round((current / max(target_goal, 1)) * 100, 1)
+
+            if pct == 0:
+                status = "🔴 CRITICAL (0%)"
+                critical_missing.append(cat_label)
+            elif pct < 50:
+                status = f"🟠 LOW ({pct}%)"
+                critical_missing.append(cat_label)
+            elif pct < 90:
+                status = f"🟡 MODERATE ({pct}%)"
+            elif pct < 100:
+                status = f"🟢 NEARLY COMPLETE ({pct}%)"
             else:
-                status = "✅ GOOD"
+                status = f"✅ COMPLETE ({pct}%)"
 
             if hasattr(self, "audit_tree"):
                 self.audit_tree.insert(
                     "", "end",
-                    values=(f"{d} m", f"{current:,} win", f"{target_windows:,} win", f"{missing:,} win", f"~{est_mins} mins", status)
+                    values=(cat_label, f"{current:,} win", f"{target_goal:,} win", f"{missing:,} win", f"~{est_mins} mins", status)
                 )
 
         if hasattr(self, "audit_summary_lbl"):
+            tot_win = audit_data.get("total_windows", 0)
+            tot_samp = audit_data.get("total_samples", 0)
             if critical_missing:
-                msg = f"⚠️ Dataset Deficit: Priority sample collection needed for distance(s): {', '.join(critical_missing)}. Total missing: {total_missing:,} windows."
+                msg = f"⚠️ Dataset Deficit [{dim_choice}]: Deficit in {', '.join(critical_missing)}. Total: {tot_win:,} windows ({tot_samp:,} packets @ {sample_rate_hz} Hz)."
                 self.audit_summary_lbl.config(text=msg, foreground="#f38ba8")
             else:
-                msg = "✅ Excellent Coverage: Target dataset size reached across all distance presets!"
+                msg = f"✅ High Quality Coverage [{dim_choice}]: Total dataset: {tot_win:,} windows ({tot_samp:,} packets @ {sample_rate_hz} Hz)."
                 self.audit_summary_lbl.config(text=msg, foreground="#a6e3a1")
 
     def set_preset_distance(self, value_str):
@@ -1000,7 +1340,6 @@ class BLECollector:
 
     def set_random_distance(self):
         if not self.collecting:
-            # Pick a random arbitrary distance between 0.1m and 5.0m (1 decimal place)
             d_rand = round(random.uniform(0.1, 5.0), 1)
             self.distance_entry.delete(0, tk.END)
             self.distance_entry.insert(0, str(d_rand))
@@ -1062,8 +1401,6 @@ class BLECollector:
     # ========================================================
 
     def start_collection(self):
-
-        # 1. Validate Distance & Height
         distance_text = self.distance_entry.get().strip()
         if not distance_text:
             messagebox.showerror("Missing Input", "Please specify a distance in meters.")
@@ -1085,7 +1422,6 @@ class BLECollector:
         except ValueError:
             height_m = 1.0
 
-        # 2. Validate Port
         selected_port_str = self.port_combo.get()
         if not selected_port_str or "No COM ports" in selected_port_str:
             messagebox.showerror("Connection Error", "Please connect a valid ESP32 COM port.")
@@ -1094,14 +1430,12 @@ class BLECollector:
         port = selected_port_str.split(" - ")[0]
         self.current_port = port
 
-        # 3. Validate Baud Rate
         try:
             baud_rate = int(self.baud_combo.get())
         except ValueError:
             baud_rate = DEFAULT_BAUD_RATE
         self.current_baud = baud_rate
 
-        # 4. Metadata Settings
         obstacle = self.obstacle_combo.get()
         obstacle_type = self.obstacle_type_combo.get().strip()
         if obstacle == "No":
@@ -1109,35 +1443,24 @@ class BLECollector:
         elif not obstacle_type:
             obstacle_type = "Unspecified"
 
-        # 5. Capture Motion Mode
         motion = self.motion_combo.get() if hasattr(self, 'motion_combo') else "stationary"
-
-        # 6. Initialize CSV Dataset File
-        timestamp_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        filename = f"dataset_{timestamp_str}.csv"
-        self.dataset_path = os.path.join(DATA_DIR, filename)
+        dirty_mode = self.dirty_mode_combo.get() if hasattr(self, 'dirty_mode_combo') else ""
+        target_mac = self.config_mgr.get("target_mac_filter", "52:06:26:03:01:DA")
 
         try:
-            self.csv_file = open(self.dataset_path, "w", newline="", encoding="utf-8")
-            self.csv_writer = csv.writer(self.csv_file)
+            # Start Writer Session (creates dataset_info.json sidecar metadata)
+            filename = self.writer_mgr.start_session(
+                distance=distance,
+                obstacle=obstacle,
+                obstacle_type=obstacle_type,
+                height_m=height_m,
+                motion=motion,
+                dirty_mode=dirty_mode,
+                target_mac=target_mac
+            )
 
-            # Standard Dataset Header (including height_m and motion)
-            self.csv_writer.writerow([
-                "timestamp",
-                "anchor",
-                "mac",
-                "rssi",
-                "name",
-                "distance_m",
-                "obstacle",
-                "obstacle_type",
-                "height_m",
-                "motion"
-            ])
-            self.csv_file.flush()
-
-            # Open Serial Connection
-            self.serial_connection = serial.Serial(port, baud_rate, timeout=1)
+            # Connect Serial via Manager
+            serial_conn = self.serial_mgr.connect(port, baud_rate)
 
             # State Updates
             self.collecting = True
@@ -1146,7 +1469,7 @@ class BLECollector:
             self.samples_count = 0
             self.start_time = time.time()
 
-            # UI Lock / Controls Update
+            # UI Controls Update
             self.lock_inputs(True)
             self.start_button.config(state="disabled")
             self.pause_button.config(state="normal", text="⏸ PAUSE")
@@ -1160,7 +1483,7 @@ class BLECollector:
             self.log("SYS", f"Started session logging to: {filename}")
             self.log("SYS", f"Params \u2192 Port: {port} @ {baud_rate} baud | Dist: {distance}m | Height: {height_m}m | Motion: {motion} | Obstacle: {obstacle} ({obstacle_type})")
 
-            # Start Reader Worker Thread
+            # Start Reader Thread
             self.reader_thread = threading.Thread(
                 target=self.serial_reader,
                 args=(distance, obstacle, obstacle_type, height_m, motion),
@@ -1180,10 +1503,11 @@ class BLECollector:
     def serial_reader(self, distance, obstacle, obstacle_type, height_m=1.0, motion="stationary"):
         while not self.stop_event.is_set():
             try:
-                if not self.serial_connection or not self.serial_connection.is_open:
+                conn = self.serial_mgr.serial_conn
+                if not conn or not conn.is_open:
                     break
 
-                raw_line = self.serial_connection.readline()
+                raw_line = conn.readline()
                 if not raw_line:
                     continue
 
@@ -1191,11 +1515,9 @@ class BLECollector:
                 if not line:
                     continue
 
-                # Skip header if ESP32 reboots
                 if line.startswith("timestamp,"):
                     continue
 
-                # Parse expected CSV format: timestamp,anchor,mac,rssi,name
                 parts = line.split(",")
                 if len(parts) < 5:
                     continue
@@ -1206,7 +1528,6 @@ class BLECollector:
                 rssi = parts[3].strip()
                 name = ",".join(parts[4:]).strip()
 
-                # Validate timestamp is numeric, MAC format, and RSSI is integer
                 if not timestamp.isdigit():
                     continue
                 if ":" not in mac or len(mac) < 11:
@@ -1216,23 +1537,13 @@ class BLECollector:
                 except ValueError:
                     continue
 
-                # Optional target MAC filter (default tag: 52:06:26:03:01:DA)
-                target_mac = getattr(self, "target_mac_filter", "52:06:26:03:01:DA")
+                target_mac = self.config_mgr.get("target_mac_filter", "52:06:26:03:01:DA")
                 if target_mac and mac.upper() != target_mac.upper():
                     continue
 
-                # Create populated dataset record (with height_m and motion)
                 row = [
-                    timestamp,
-                    anchor,
-                    mac,
-                    rssi,
-                    name,
-                    distance,
-                    obstacle,
-                    obstacle_type,
-                    height_m,
-                    motion
+                    timestamp, anchor, mac, rssi, name,
+                    distance, obstacle, obstacle_type, height_m, motion
                 ]
 
                 self.data_queue.put(row)
@@ -1254,18 +1565,15 @@ class BLECollector:
             while True:
                 item = self.data_queue.get_nowait()
 
-                # Event: Audit Result Ready
                 if isinstance(item, tuple) and item[0] == "AUDIT_RESULT":
-                    dist_records, target_windows = item[1], item[2]
-                    self.update_audit_ui(dist_records, target_windows)
+                    audit_data = item[1]
+                    self.update_audit_ui(audit_data)
                     continue
 
-                # Event: Flashing Process Log
                 if isinstance(item, tuple) and item[0] == "FLASH_LOG":
                     self.log("SYS", item[1])
                     continue
 
-                # Event: Flashing Complete
                 if isinstance(item, tuple) and item[0] == "FLASH_COMPLETE":
                     success, port, msg = item[1], item[2], item[3]
                     self.flashing = False
@@ -1279,7 +1587,6 @@ class BLECollector:
                         messagebox.showerror("Flash Error", f"Failed to load firmware:\n\n{msg}")
                     continue
 
-                # Event: Serial Port Disconnected Event
                 if isinstance(item, tuple) and item[0] == "PORT_DISCONNECTED":
                     self.log("ERROR", f"CRITICAL: Serial Port disconnect error ({item[1]})")
                     self.status_dot.config(text=f"🔴 DISCONNECTED ({self.current_port}) — Re-plug ESP32 USB", foreground="#f38ba8")
@@ -1288,7 +1595,6 @@ class BLECollector:
                     messagebox.showwarning("Device Disconnected", f"ESP32 on {self.current_port} was unplugged or lost power!\n\nCollection is PAUSED. Re-plug USB and click RESUME or STOP.")
                     continue
 
-                # Event: General Error
                 if isinstance(item, tuple) and item[0] == "ERROR":
                     self.log("ERROR", f"Serial Exception: {item[1]}")
                     continue
@@ -1298,35 +1604,17 @@ class BLECollector:
 
                 row = item
 
-                # Write to CSV
-                if self.csv_writer and self.csv_file:
-                    self.csv_writer.writerow(row)
-                    self.csv_file.flush()
+                # Buffered CSV Write (no flush per row!)
+                self.writer_mgr.write_row(row)
 
-                # Stream to real-time positioning server if active (FastAPI on http://localhost:8000)
-                try:
-                    def stream_packet(r):
-                        try:
-                            import requests
-                            packet_json = {
-                                "timestamp": int(r[0]),
-                                "anchor": r[1],
-                                "mac": r[2],
-                                "rssi": int(r[3]),
-                                "name": r[4]
-                            }
-                            requests.post("http://localhost:8000/api/observation", json=packet_json, timeout=0.15)
-                        except Exception:
-                            pass
-                    threading.Thread(target=stream_packet, args=(row,), daemon=True).start()
-                except Exception:
-                    pass
+                # Push to Persistent Network Streamer Thread
+                self.streamer_mgr.push(row)
 
                 self.samples_count += 1
 
-                # Update Stats Labels
+                # Update Live Metrics Labels
                 self.samples_lbl.config(text=str(self.samples_count))
-                
+
                 elapsed = time.time() - self.start_time if self.start_time else 1.0
                 rate = self.samples_count / max(elapsed, 0.1)
                 self.rate_lbl.config(text=f"{rate:.1f} Hz")
@@ -1355,6 +1643,7 @@ class BLECollector:
         self.paused = not self.paused
 
         if self.paused:
+            self.writer_mgr.flush()
             self.pause_button.config(text="▶ RESUME")
             self.status_dot.config(text="● PAUSED", foreground="#f9e2af")
             self.log("WARN", "Data collection paused. Incoming samples will be discarded.")
@@ -1373,20 +1662,10 @@ class BLECollector:
             return
 
         self.stop_event.set()
+        self.serial_mgr.close()
 
-        if self.serial_connection:
-            try:
-                self.serial_connection.close()
-            except Exception:
-                pass
-            self.serial_connection = None
-
-        if self.csv_file:
-            try:
-                self.csv_file.close()
-            except Exception:
-                pass
-            self.csv_file = None
+        # Flush & close CSV writer, save dataset_info.json sidecar metadata
+        dataset_path, total_samples = self.writer_mgr.stop_session()
 
         self.collecting = False
         self.paused = False
@@ -1398,12 +1677,13 @@ class BLECollector:
         self.stop_button.config(state="disabled")
 
         self.status_dot.config(text="● STOPPED & SAVED", foreground="#89b4fa")
-        self.log("SYS", f"Session completed. Total saved samples: {self.samples_count}")
-        self.log("SYS", f"Output File: {self.dataset_path}")
+        self.log("SYS", f"Session completed. Total saved samples: {total_samples}")
+        self.log("SYS", f"Output File: {dataset_path}")
+        self.log("SYS", f"Metadata File: {self.writer_mgr.metadata_path}")
 
         messagebox.showinfo(
             "Collection Complete",
-            f"Successfully recorded {self.samples_count} BLE samples!\n\nSaved to:\n{self.dataset_path}"
+            f"Successfully recorded {total_samples} BLE samples!\n\nSaved to:\n{dataset_path}\n\nMetadata written to dataset_info.json"
         )
 
 
@@ -1414,7 +1694,7 @@ class BLECollector:
     def lock_inputs(self, lock=True):
         state = "disabled" if lock else "readonly"
         entry_state = "disabled" if lock else "normal"
-        
+
         self.port_combo.config(state=state)
         self.baud_combo.config(state=state)
         self.distance_entry.config(state=entry_state)
@@ -1428,20 +1708,9 @@ class BLECollector:
 
     def cleanup(self):
         self.stop_event.set()
-        if self.serial_connection:
-            try:
-                self.serial_connection.close()
-            except Exception:
-                pass
-            self.serial_connection = None
-
-        if self.csv_file:
-            try:
-                self.csv_file.close()
-            except Exception:
-                pass
-            self.csv_file = None
-
+        self.serial_mgr.close()
+        self.writer_mgr.stop_session()
+        self.streamer_mgr.stop()
         self.collecting = False
         self.root.destroy()
 
@@ -1453,7 +1722,6 @@ class BLECollector:
     def log(self, tag, message):
         self.console.config(state="normal")
 
-        # Keep console size manageable (max 1000 lines)
         line_count = int(self.console.index('end-1c').split('.')[0])
         if line_count > 1000:
             self.console.delete("1.0", "200.0")

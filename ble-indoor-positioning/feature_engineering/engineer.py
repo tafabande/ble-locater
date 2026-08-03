@@ -1,16 +1,3 @@
-"""
-Feature Engineering: Raw BLE Packets → 1-Second Observation Windows
-===================================================================
-
-Extracts 38 state-of-the-art physical, statistical, temporal, and interaction
-features per 1-second observation window for maximum localization precision.
-Includes 8 temporal/behavioral RSSI features for signal dynamics analysis.
-
-V2.0: Adds 11 cross-window temporal features computed across consecutive
-observation windows for motion-aware distance estimation. Total: up to 50 features.
-Now updated with crash-proof safeguards against NaN/Inf values.
-"""
-
 import os
 import glob
 import logging
@@ -136,7 +123,7 @@ def compute_window_features(group: pd.DataFrame) -> dict:
         observed_adv_interval = 0.0
         adv_interval_std = 0.0
 
-    # 6. Physical Path Loss Priors & Feature Interactions
+    # 6. Physical Path Loss Priors & Feature Interactions (Theoretical Log-Distance Estimates)
     n_free_space = 2.0
     n_indoor_obs = 3.0
 
@@ -192,23 +179,23 @@ def compute_window_features(group: pd.DataFrame) -> dict:
     else:
         rssi_ema_diff = 0.0
 
-    # 7c. Half-window drift — first half mean vs second half mean
-    mid = packet_count // 2
-    if mid > 0 and packet_count > 1:
-        rssi_first_half_mean = float(np.mean(rssi_values[:mid]))
-        rssi_second_half_mean = float(np.mean(rssi_values[mid:]))
+    # 7c. First half vs Second half split mean (signal directionality)
+    mid_idx = packet_count // 2
+    if mid_idx > 0:
+        rssi_first_half_mean = float(np.mean(rssi_values[:mid_idx]))
+        rssi_second_half_mean = float(np.mean(rssi_values[mid_idx:]))
         rssi_half_diff = rssi_second_half_mean - rssi_first_half_mean
     else:
         rssi_first_half_mean = rssi_mean
         rssi_second_half_mean = rssi_mean
         rssi_half_diff = 0.0
 
-    # 7d. Lag-1 Autocorrelation — signal regularity/stability
+    # 7d. Lag-1 Autocorrelation (signal persistence / multipath fading speed)
     if packet_count > 2 and rssi_std > 1e-5:
         try:
-            centered = rssi_values - rssi_mean
-            autocov = float(np.sum(centered[:-1] * centered[1:])) / (packet_count - 1)
-            rssi_autocorrelation = autocov / (rssi_std ** 2 + 1e-10)
+            rssi_centered = rssi_values - rssi_mean
+            autocorr = np.corrcoef(rssi_centered[:-1], rssi_centered[1:])[0, 1]
+            rssi_autocorrelation = float(autocorr) if np.isfinite(autocorr) else 0.0
         except Exception:
             rssi_autocorrelation = 0.0
     else:
@@ -220,8 +207,20 @@ def compute_window_features(group: pd.DataFrame) -> dict:
     except Exception:
         rssi_energy = rssi_mean ** 2
 
+    # 8. BLE Domain Features (Packet Loss & RSSI Histogram Density)
+    expected_nominal_packets = 50.0
+    packet_loss_rate = max(0.0, min(1.0, (expected_nominal_packets - packet_count) / expected_nominal_packets))
+
+    rssi_bin_neg100_90 = float(np.mean((rssi_values >= -100) & (rssi_values < -90)))
+    rssi_bin_neg90_80 = float(np.mean((rssi_values >= -90) & (rssi_values < -80)))
+    rssi_bin_neg80_70 = float(np.mean((rssi_values >= -80) & (rssi_values < -70)))
+    rssi_bin_neg70_60 = float(np.mean((rssi_values >= -70) & (rssi_values < -60)))
+    rssi_bin_neg60_50 = float(np.mean((rssi_values >= -60) & (rssi_values < -50)))
+    rssi_bin_neg50_30 = float(np.mean(rssi_values >= -50))
+
     features_raw = {
         "packet_count": packet_count,
+        "packet_loss_rate": packet_loss_rate,
         "scan_duration_ms": scan_duration_ms,
         "rssi_mean": rssi_mean,
         "rssi_median": rssi_median,
@@ -260,6 +259,13 @@ def compute_window_features(group: pd.DataFrame) -> dict:
         "rssi_half_diff": rssi_half_diff,
         "rssi_autocorrelation": rssi_autocorrelation,
         "rssi_energy": rssi_energy,
+        # RSSI Histogram Density Bins
+        "rssi_bin_neg100_90": rssi_bin_neg100_90,
+        "rssi_bin_neg90_80": rssi_bin_neg90_80,
+        "rssi_bin_neg80_70": rssi_bin_neg80_70,
+        "rssi_bin_neg70_60": rssi_bin_neg70_60,
+        "rssi_bin_neg60_50": rssi_bin_neg60_50,
+        "rssi_bin_neg50_30": rssi_bin_neg50_30,
     }
 
     # Final sanitization pass
@@ -532,7 +538,6 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
 
     if not rows:
         return pd.DataFrame()
-        return pd.DataFrame()
 
     result = pd.DataFrame(rows)
 
@@ -549,13 +554,94 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
         # Single window — fill cross-window features with defaults
         result = compute_cross_window_features(result)
 
-    meta_cols = ["window_start", "anchor_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
     feat_cols = [c for c in result.columns if c not in meta_cols]
-    col_order = ["window_start", "anchor_id"] + feat_cols + ["distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    col_order = ["window_start", "anchor_id", "session_id"] + feat_cols + ["distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
     # Only include columns that exist
     col_order = [c for c in col_order if c in result.columns]
 
     return result[col_order]
+
+
+def print_dataset_audit_report(merged: pd.DataFrame):
+    """Prints a comprehensive multi-dimensional Dataset Quality Audit & Model Readiness Report."""
+    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    feat_cols = [c for c in merged.columns if c not in meta_cols]
+    total_windows = len(merged)
+
+    print("\n" + "=" * 75)
+    print("  [DATASET QUALITY AUDIT & MODEL READINESS REPORT]")
+    print("=" * 75)
+    print(f"  Total Observation Windows : {total_windows:,}")
+    print(f"  Extracted Feature Count   : {len(feat_cols)}")
+    print(f"  Unique Recording Sessions : {merged['session_id'].nunique() if 'session_id' in merged.columns else 1}")
+    print(f"  Unique Anchor Nodes       : {sorted(merged['anchor_id'].unique().tolist()) if 'anchor_id' in merged.columns else 'N/A'}")
+
+    # 1. Visual ASCII Distance Coverage Bars & Missing Distances
+    print("\n  [1. Distance Presets Coverage & Class Balance]")
+    target_presets = [0.5, 1.0, 1.5, 2.0, 3.0, 5.0]
+    actual_counts = merged["distance_m"].value_counts()
+    max_cnt = max(actual_counts.max(), 1)
+    min_cnt = actual_counts.min()
+
+    for d in sorted(merged["distance_m"].unique()):
+        cnt = actual_counts.get(d, 0)
+        bar_len = int((cnt / max_cnt) * 25)
+        bar = "#" * bar_len
+        pct = (cnt / total_windows) * 100
+
+        # RSSI stats for this distance
+        dist_df = merged[merged["distance_m"] == d]
+        rssi_m = dist_df["rssi_mean"].mean() if "rssi_mean" in dist_df.columns else 0.0
+        rssi_s = dist_df["rssi_mean"].std() if "rssi_mean" in dist_df.columns else 0.0
+
+        status = "[GOOD]" if cnt >= 1000 else "[LOW SAMPLES]"
+        print(f"     - {d:>4.1f}m | {bar:<25} | {cnt:>5,} samples ({pct:>5.1f}%) | RSSI: {rssi_m:>6.1f} +/- {rssi_s:<4.1f} dBm | {status}")
+
+    # Check for missing preset distances
+    missing_presets = [p for p in target_presets if p not in merged["distance_m"].unique()]
+    if missing_presets:
+        print(f"     [!] WARNING: Missing target distance presets: {missing_presets}")
+
+    # Check for class imbalance ratio
+    imbalance_ratio = max_cnt / max(min_cnt, 1)
+    if imbalance_ratio > 3.0:
+        print(f"     [!] WARNING: Class Imbalance Detected! Ratio: {imbalance_ratio:.1f}x (Max: {max_cnt}, Min: {min_cnt})")
+
+    # 2. Anchor Node Balance
+    if "anchor_id" in merged.columns:
+        print("\n  [2. Anchor Node Distribution & Balance]")
+        anc_counts = merged["anchor_id"].value_counts()
+        for anc, cnt in anc_counts.items():
+            pct = (cnt / total_windows) * 100
+            print(f"     - Anchor '{anc:<15}' : {cnt:>6,} windows ({pct:>5.1f}%)")
+
+    # 3. Environmental Noise & Obstacle Coverage
+    if "obstacle" in merged.columns:
+        print("\n  [3. Obstacle & Environmental Coverage]")
+        obs_counts = merged["obstacle"].value_counts()
+        for obs, cnt in obs_counts.items():
+            pct = (cnt / total_windows) * 100
+            print(f"     - Obstacle '{obs:<15}' : {cnt:>6,} windows ({pct:>5.1f}%)")
+
+    # 4. Motion Mode Coverage
+    if "motion" in merged.columns:
+        print("\n  [4. Motion Mode Distribution]")
+        m_counts = merged["motion"].value_counts()
+        for m, cnt in m_counts.items():
+            pct = (cnt / total_windows) * 100
+            print(f"     - Motion '{m:<15}' : {cnt:>6,} windows ({pct:>5.1f}%)")
+
+    # 5. Model Readiness Verdict
+    print("\n  [5. Model Readiness Verdict]")
+    if total_windows >= 5000 and imbalance_ratio <= 4.0:
+        print("     [VERDICT] EXCELLENT: Dataset is fully balanced, diverse, and ready for ML model training!")
+    elif total_windows >= 2000:
+        print("     [VERDICT] MODERATE: Dataset is sufficient for training, but additional samples for underrepresented presets will improve MAE.")
+    else:
+        print("     [VERDICT] CRITICAL: Dataset is small. Collect additional BLE recording sessions before training.")
+
+    print("=" * 75 + "\n")
 
 
 def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None) -> pd.DataFrame:
@@ -580,7 +666,9 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
             if df.empty:
                 print(f"  [SKIP] {fname} -> 0 windows (skipped)")
             else:
-                n_features = len([c for c in df.columns if c not in ["window_start", "anchor_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]])
+                df["session_id"] = fname
+                meta_cols_list = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+                n_features = len([c for c in df.columns if c not in meta_cols_list])
                 print(f"  [OK] {fname} -> {len(df)} observation windows ({n_features} features)")
                 all_windows.append(df)
         except Exception as e:
@@ -595,21 +683,7 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     merged.to_csv(output_path, index=False)
 
-    n_features = len([c for c in merged.columns if c not in ["window_start", "anchor_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]])
-    has_cross_window = "rssi_mean_delta" in merged.columns
-    has_motion_data = "motion" in merged.columns and merged["motion"].nunique() > 1
-
-    print(f"\n[DONE] Engineered dataset saved: {output_path}")
-    print(f"   Total Observation Windows: {len(merged)}")
-    print(f"   Distance Presets: {sorted(merged['distance_m'].unique())} m")
-    print(f"   Extracted Features Count: {n_features}")
-    if has_cross_window:
-        print(f"   Cross-Window Features: 11 (V2 motion-aware)")
-    if has_motion_data:
-        motion_counts = merged["motion"].value_counts()
-        print(f"   Motion Labels: {dict(motion_counts)}")
-    else:
-        print(f"   Motion Labels: All stationary (V1 legacy data)")
+    print_dataset_audit_report(merged)
 
     return merged
 

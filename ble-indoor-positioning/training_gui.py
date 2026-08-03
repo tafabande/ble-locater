@@ -1,12 +1,3 @@
-"""
-===============================================================================
-BLE INDOOR POSITIONING — AI/ML DATASET & MODEL TRAINING STUDIO GUI
-===============================================================================
-An interactive GUI for managing BLE dataset collection audits, automated feature
-engineering, machine learning model training (regression + zone classification),
-accuracy diagnostics, and live distance testing.
-Now supports XGBoost, CatBoost, and distance-zone classification mode.
-"""
 
 import os
 import sys
@@ -17,6 +8,10 @@ import threading
 import queue
 import subprocess
 from datetime import datetime
+
+import joblib
+import numpy as np
+import pandas as pd
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -37,6 +32,70 @@ TARGET_DISTANCES = [0.5, 1.0, 2.0, 3.0, 5.0]
 
 # Add module paths
 sys.path.insert(0, PROJECT_ROOT)
+
+
+def build_simulated_feature_dict(rssi_val, height_m=1.0):
+    """Builds a full dictionary of simulated signal features derived from a given RSSI value."""
+    n = 2.5
+    d_free = 10 ** ((-40.0 - rssi_val) / (10.0 * 2.0))
+    d_indoor = 10 ** ((-60.0 - rssi_val) / (10.0 * n))
+
+    return {
+        "packet_count": 10.0,
+        "scan_duration_ms": 1000.0,
+        "rssi_mean": float(rssi_val),
+        "rssi_median": float(rssi_val),
+        "rssi_min": float(rssi_val) - 2.0,
+        "rssi_max": float(rssi_val) + 2.0,
+        "rssi_std": 1.5,
+        "rssi_variance": 2.25,
+        "rssi_range": 4.0,
+        "rssi_p05": float(rssi_val) - 2.5,
+        "rssi_p10": float(rssi_val) - 2.0,
+        "rssi_p25": float(rssi_val) - 1.0,
+        "rssi_p75": float(rssi_val) + 1.0,
+        "rssi_p90": float(rssi_val) + 2.0,
+        "rssi_p95": float(rssi_val) + 2.5,
+        "rssi_iqr": 2.0,
+        "rssi_p90_10_range": 4.0,
+        "rssi_mad": 1.2,
+        "rssi_snr": abs(rssi_val) / 1.5,
+        "rssi_skewness": 0.0,
+        "rssi_kurtosis": 0.0,
+        "rssi_delta_mean": 0.0,
+        "rssi_delta_std": 0.5,
+        "rssi_delta_max": 1.0,
+        "observed_adv_interval": 100.0,
+        "adv_interval_std": 5.0,
+        "path_loss_free_space": d_free,
+        "path_loss_indoor": d_indoor,
+        "rssi_mean_to_std_ratio": abs(rssi_val) / 1.5,
+        "rssi_median_mean_diff": 0.0,
+        "rssi_slope": 0.0,
+        "rssi_trend_strength": 0.0,
+        "rssi_ema_diff": 0.0,
+        "rssi_first_half_mean": float(rssi_val),
+        "rssi_second_half_mean": float(rssi_val),
+        "rssi_half_diff": 0.0,
+        "rssi_autocorrelation": 0.5,
+        "rssi_energy": float(rssi_val) ** 2,
+        "rssi_mean_delta": 0.0,
+        "rssi_mean_slope_3w": 0.0,
+        "rssi_mean_slope_5w": 0.0,
+        "rssi_rolling_mean_3w": float(rssi_val),
+        "rssi_rolling_std_3w": 1.5,
+        "rssi_rolling_mean_5w": float(rssi_val),
+        "rssi_rolling_std_5w": 1.5,
+        "rssi_ema_cross_window": float(rssi_val),
+        "rssi_velocity": 0.0,
+        "rssi_acceleration": 0.0,
+        "signal_stability_index": 1.0 / (1.5 + 1e-3),
+        "rssi_rolling_mean_10w": float(rssi_val),
+        "rssi_rolling_std_10w": 1.5,
+        "rssi_motion_direction": 0.0,
+        "rssi_snr_rolling_5w": abs(rssi_val) / 1.5,
+        "height_m": float(height_m),
+    }
 
 
 class MLTrainingStudio:
@@ -64,12 +123,51 @@ class MLTrainingStudio:
             "subtext": "#a6adc8",
         }
 
+        # Model Asset State
+        self.model = None
+        self.scaler = None
+        self.metadata = None
+        self.zone_model = None
+
         self.setup_styles()
         self.build_ui()
 
+        # Load trained ML model artifacts
+        self.load_trained_model()
+
         # Start periodic log & status refresh loops
         self.root.after(100, self.process_queue_logs)
-        self.refresh_dataset_audit()
+        self.auto_refresh_audit()
+
+    def load_trained_model(self):
+        """Loads trained ML regression model, scaler, and metadata for live interactive predictions."""
+        model_path = os.path.join(MODEL_DIR, "distance_estimator.joblib")
+        scaler_path = os.path.join(MODEL_DIR, "scaler.joblib")
+        meta_path = os.path.join(MODEL_DIR, "model_metadata.json")
+        zone_model_path = os.path.join(MODEL_DIR, "zone_classifier.joblib")
+
+        self.model = None
+        self.scaler = None
+        self.metadata = None
+        self.zone_model = None
+
+        if os.path.exists(model_path) and os.path.exists(scaler_path) and os.path.exists(meta_path):
+            try:
+                self.model = joblib.load(model_path)
+                self.scaler = joblib.load(scaler_path)
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    self.metadata = json.load(f)
+
+                if os.path.exists(zone_model_path):
+                    try:
+                        self.zone_model = joblib.load(zone_model_path)
+                    except Exception:
+                        pass
+                return True
+            except Exception as e:
+                print(f"Error loading trained ML model: {e}")
+                return False
+        return False
 
     def setup_styles(self):
         style = ttk.Style()
@@ -224,6 +322,29 @@ class MLTrainingStudio:
         self.plot_canvas = tk.Label(right_box, bg=self.colors["panel"], text="No diagnostics loaded.\nRun pipeline to generate plots.", fg=self.colors["subtext"])
         self.plot_canvas.pack(fill="both", expand=True)
 
+        # Live Model Tournament Leaderboard Panel
+        lead_box = ttk.Frame(self.tab_train, style="Card.TFrame", padding=10)
+        lead_box.pack(fill="x", pady=(10, 0))
+
+        ttk.Label(lead_box, text="🏆 Super Learner Tournament Live Leaderboard", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 5))
+
+        self.model_tree = ttk.Treeview(lead_box, columns=("model", "status", "mae", "rmse", "r2", "cv_mae"), show="headings", height=5)
+        self.model_tree.heading("model", text="Candidate Model")
+        self.model_tree.heading("status", text="Status")
+        self.model_tree.heading("mae", text="Test MAE (m)")
+        self.model_tree.heading("rmse", text="RMSE (m)")
+        self.model_tree.heading("r2", text="R² Score")
+        self.model_tree.heading("cv_mae", text="CV MAE (m)")
+
+        self.model_tree.column("model", width=180, anchor="w")
+        self.model_tree.column("status", width=110, anchor="center")
+        self.model_tree.column("mae", width=100, anchor="center")
+        self.model_tree.column("rmse", width=100, anchor="center")
+        self.model_tree.column("r2", width=90, anchor="center")
+        self.model_tree.column("cv_mae", width=100, anchor="center")
+
+        self.model_tree.pack(fill="x", expand=True)
+
         # Load existing plots & metadata if available
         self.load_metadata_summary()
         self.load_plot_image()
@@ -300,7 +421,7 @@ class MLTrainingStudio:
         card.pack(fill="both", expand=True)
 
         ttk.Label(card, text="🎯 Interactive Distance Estimator Tester", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 15))
-        ttk.Label(card, text="Test how your trained Random Forest model predicts physical distance based on live RSSI inputs.", style="Muted.TLabel").pack(anchor="w", pady=(0, 20))
+        ttk.Label(card, text="Test how your trained ML model artifact (XGBoost/CatBoost/RF) predicts physical distance based on live RSSI inputs.", style="Muted.TLabel").pack(anchor="w", pady=(0, 20))
 
         # Slider Input
         input_frame = ttk.Frame(card, style="Card.TFrame")
@@ -331,7 +452,9 @@ class MLTrainingStudio:
     # ──────────────────────────────────────────────────────────────────
 
     def refresh_dataset_audit(self):
-        """Scans raw dataset CSVs and updates audit views and advice."""
+        """Scans raw dataset CSVs and engineered ML observation windows to update audit views."""
+        import csv
+
         for item in self.cov_tree.get_children():
             self.cov_tree.delete(item)
         for item in self.file_tree.get_children():
@@ -347,8 +470,9 @@ class MLTrainingStudio:
             self.advice_lbl.config(text="⚠️ No raw CSV files found. Connect ESP32 and click 'START RECORDING' in Collector.", foreground=self.colors["yellow"])
             return
 
-        dist_counts = {d: 0 for d in TARGET_DISTANCES}
-        dist_counts["Other"] = 0
+        raw_counts = {d: 0 for d in TARGET_DISTANCES}
+        raw_counts["Other"] = 0
+        ml_window_counts = {d: 0 for d in TARGET_DISTANCES}
 
         for fpath in raw_files:
             fname = os.path.basename(fpath)
@@ -358,35 +482,54 @@ class MLTrainingStudio:
 
             try:
                 with open(fpath, "r", encoding="utf-8") as f:
-                    lines = [line.strip() for line in f if line.strip()]
-                    if len(lines) > 1:
-                        records = len(lines) - 1
-                        first_row = lines[1].split(",")
-                        if len(first_row) >= 6:
-                            try:
-                                file_dist = float(first_row[5])
-                                if file_dist in dist_counts:
-                                    dist_counts[file_dist] += records
-                                else:
-                                    dist_counts["Other"] += records
-                            except ValueError:
-                                pass
+                    reader = csv.DictReader(f)
+                    rows = list(reader)
+                    records = len(rows)
+                    if rows and "distance_m" in rows[0]:
+                        try:
+                            raw_dist = float(rows[0]["distance_m"])
+                            nearest = min(TARGET_DISTANCES, key=lambda x: abs(x - raw_dist))
+                            if abs(nearest - raw_dist) < 0.05:
+                                file_dist = nearest
+                                raw_counts[nearest] += records
+                            else:
+                                file_dist = raw_dist
+                                raw_counts["Other"] += records
+                        except (ValueError, TypeError):
+                            pass
             except Exception:
                 pass
 
-            self.file_tree.insert("", "end", values=(fname, size_kb, f"{file_dist}m" if isinstance(file_dist, float) else file_dist, records))
+            self.file_tree.insert("", "end", values=(fname, size_kb, f"{file_dist}m" if isinstance(file_dist, (int, float)) else file_dist, records))
+
+        # Check engineered observations dataset if available
+        if os.path.exists(DATASET_PATH):
+            try:
+                obs_df = pd.read_csv(DATASET_PATH)
+                if "distance_m" in obs_df.columns:
+                    for d in TARGET_DISTANCES:
+                        matched = obs_df[obs_df["distance_m"].apply(lambda val: abs(val - d) < 0.05)]
+                        ml_window_counts[d] = len(matched)
+            except Exception:
+                pass
+        else:
+            # Fallback estimation based on raw packet counts
+            for d in TARGET_DISTANCES:
+                ml_window_counts[d] = max(0, (raw_counts[d] - 50) // 10 + 1) if raw_counts[d] >= 50 else 0
 
         # Update Coverage Table & Advice
         missing_dists = []
         low_dists = []
 
         for d in TARGET_DISTANCES:
-            cnt = dist_counts[d]
-            if cnt == 0:
+            raw_c = raw_counts[d]
+            win_c = ml_window_counts[d]
+
+            if raw_c == 0 or win_c == 0:
                 status = "❌ MISSING"
                 advice = "Need 60s recording at this distance"
                 missing_dists.append(f"{d}m")
-            elif cnt < 50:
+            elif win_c < 100:
                 status = "⚠️ LOW SAMPLES"
                 advice = "Record a bit more data (~60s)"
                 low_dists.append(f"{d}m")
@@ -394,17 +537,17 @@ class MLTrainingStudio:
                 status = "✅ GOOD"
                 advice = "Sufficient data available"
 
-            self.cov_tree.insert("", "end", values=(f"{d} m", f"{cnt} rows", status, advice))
+            self.cov_tree.insert("", "end", values=(f"{d} m", f"{raw_c:,} pkts / {win_c:,} win", status, advice))
 
         # Dynamic Recommendations Text
         if missing_dists:
             msg = f"⚠️ Dataset Incomplete: Missing distance(s): {', '.join(missing_dists)}.\n👉 Action: Set Collector GUI distance to {missing_dists[0]} and click START RECORDING for 60 seconds."
             fg = self.colors["yellow"]
         elif low_dists:
-            msg = f"🟡 Dataset Acceptable: Low sample count for {', '.join(low_dists)}.\n👉 Action: Record another 30–60s for low distances, or click 'RUN END-TO-END ML PIPELINE' to train now!"
+            msg = f"🟡 Dataset Acceptable: Low ML window count for {', '.join(low_dists)}.\n👉 Action: Record another 30–60s for low distances, or click 'RUN END-TO-END ML PIPELINE' to train now!"
             fg = self.colors["accent"]
         else:
-            msg = "✅ Dataset Ready: Great coverage across all required distance presets!\n👉 Action: Click '⚡ RUN END-TO-END ML PIPELINE' on Tab 1 to train your final production model."
+            msg = "✅ Dataset Ready: Great ML window coverage across all required distance presets!\n👉 Action: Click '⚡ RUN END-TO-END ML PIPELINE' on Tab 1 to train your final production model."
             fg = self.colors["green"]
 
         self.advice_lbl.config(text=msg, foreground=fg)
@@ -419,8 +562,9 @@ class MLTrainingStudio:
 
         self.is_training = True
         self.train_btn.config(state="disabled")
-        self.progress_bar.start(10)
-        self.lbl_status.config(text="Running end-to-end ML pipeline...", foreground=self.colors["accent"])
+        self.progress_bar["mode"] = "determinate"
+        self.progress_bar["value"] = 0
+        self.lbl_status.config(text="Initializing ML pipeline...", foreground=self.colors["accent"])
         self.console_text.delete("1.0", tk.END)
 
         thread = threading.Thread(target=self.run_pipeline_worker, daemon=True)
@@ -446,7 +590,21 @@ class MLTrainingStudio:
             )
 
             for line in iter(proc.stdout.readline, ""):
-                if line:
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                    if isinstance(data, dict):
+                        msg_type = data.get("type")
+                        if msg_type == "progress":
+                            self.root.after(0, lambda d=data: self.update_progress(d))
+                        elif msg_type == "model_status":
+                            self.root.after(0, lambda d=data: self.update_model_status(d))
+                        else:
+                            self.log_queue.put(line)
+                    else:
+                        self.log_queue.put(line)
+                except (json.JSONDecodeError, TypeError):
                     self.log_queue.put(line)
 
             proc.wait()
@@ -462,6 +620,86 @@ class MLTrainingStudio:
             self.log_queue.put(f"\n❌ Exception: {str(e)}\n")
             self.root.after(0, self.on_pipeline_error)
 
+    def update_model_status(self, data: dict):
+        """Live updates the tournament leaderboard table as candidate models train and evaluate."""
+        m_name = data.get("model_name", "")
+        status = data.get("status", "")
+        idx = data.get("index", 0)
+        total = data.get("total", 0)
+        pct = data.get("percent", 0)
+
+        if hasattr(self, "model_tree"):
+            # Check if row exists in treeview
+            existing_item = None
+            for item in self.model_tree.get_children():
+                if self.model_tree.item(item)["values"][0] == m_name:
+                    existing_item = item
+                    break
+
+            if status == "TRAINING":
+                vals = (m_name, "⏳ TRAINING", "--", "--", "--", "--")
+                if existing_item:
+                    self.model_tree.item(existing_item, values=vals)
+                else:
+                    self.model_tree.insert("", "end", values=vals)
+            elif status == "SUCCESS":
+                mae_str = f"{data.get('mae', 0.0):.4f}"
+                rmse_str = f"{data.get('rmse', 0.0):.4f}"
+                r2_str = f"{data.get('r2', 0.0):.4f}"
+                cv_str = f"{data.get('cv_mae', 0.0):.4f}"
+                vals = (m_name, "✅ SUCCESS", mae_str, rmse_str, r2_str, cv_str)
+                if existing_item:
+                    self.model_tree.item(existing_item, values=vals)
+                else:
+                    self.model_tree.insert("", "end", values=vals)
+            elif status == "FAILED":
+                err = data.get("error", "Error")
+                vals = (m_name, "❌ FAILED", "--", "--", "--", err[:25])
+                if existing_item:
+                    self.model_tree.item(existing_item, values=vals)
+                else:
+                    self.model_tree.insert("", "end", values=vals)
+
+        self.progress_bar["mode"] = "determinate"
+        self.progress_bar["value"] = pct
+        self.lbl_status.config(
+            text=f"[{idx}/{total}] {status}: {m_name}",
+            foreground=self.colors["accent"] if status == "TRAINING" else (self.colors["green"] if status == "SUCCESS" else self.colors["red"])
+        )
+
+    def update_progress(self, data: dict):
+        """Updates the determinate progress bar, status text, and metric cards in real-time."""
+        percent = data.get("percent", 0)
+        stage = data.get("stage", "")
+        metrics = data.get("metrics", {})
+
+        self.progress_bar["mode"] = "determinate"
+        self.progress_bar["value"] = percent
+
+        self.lbl_status.config(
+            text=f"[{percent}%] {stage}",
+            foreground=self.colors["accent"]
+        )
+
+        if metrics:
+            if "mae" in metrics and metrics["mae"] > 0:
+                self.lbl_mae.config(text=f"MAE: {metrics['mae']:.4f} m")
+            if "r2" in metrics and metrics["r2"] != 0:
+                self.lbl_r2.config(text=f"R²: {metrics['r2']:.4f}")
+            if "zone_acc" in metrics and metrics["zone_acc"] > 0:
+                self.lbl_zone_acc.config(text=f"Zone: {metrics['zone_acc']:.1f}%")
+            if "windows" in metrics and metrics["windows"] > 0:
+                self.lbl_samples.config(text=f"Windows: {metrics['windows']:,}")
+
+        self.console_text.insert(tk.END, f"[{percent}%] {stage}\n")
+        self.console_text.see(tk.END)
+
+    def auto_refresh_audit(self):
+        """Periodically refreshes the dataset audit view every 5 seconds."""
+        if not self.is_training:
+            self.refresh_dataset_audit()
+        self.root.after(5000, self.auto_refresh_audit)
+
     def process_queue_logs(self):
         while not self.log_queue.empty():
             msg = self.log_queue.get_nowait()
@@ -471,17 +709,21 @@ class MLTrainingStudio:
 
     def on_pipeline_success(self):
         self.is_training = False
-        self.progress_bar.stop()
+        self.progress_bar["value"] = 100
         self.train_btn.config(state="normal")
         self.lbl_status.config(text="✅ Model training and evaluation complete!", foreground=self.colors["green"])
 
+        self.load_trained_model()
         self.load_metadata_summary()
         self.load_plot_image()
         self.refresh_dataset_audit()
 
+        if hasattr(self, "rssi_slider"):
+            self.on_rssi_slider_change(self.rssi_slider.get())
+
     def on_pipeline_error(self):
         self.is_training = False
-        self.progress_bar.stop()
+        self.progress_bar["value"] = 0
         self.train_btn.config(state="normal")
         self.lbl_status.config(text="❌ Training failed. Check log console below.", foreground=self.colors["red"])
 
@@ -524,17 +766,47 @@ class MLTrainingStudio:
         rssi_val = float(val)
         self.lbl_rssi_val.config(text=f"{int(rssi_val)} dBm")
 
-        # Instant synthetic model prediction heuristic for test tab
-        if os.path.exists(METADATA_PATH):
-            # Log-distance path loss approximation for quick GUI feedback
-            # RSSI = -60 - 10 * n * log10(d)
-            # d = 10 ^ ((-60 - RSSI) / (10 * n))
-            import math
-            n = 2.5  # Environmental exponent
-            d_est = 10 ** ((-60 - rssi_val) / (10 * n))
-            d_est = max(0.3, min(10.0, d_est))
-            self.lbl_pred_result.config(text=f"{d_est:.2f} meters")
-            self.lbl_pred_detail.config(text=f"Predicted distance for Mean RSSI = {int(rssi_val)} dBm")
+        # 1. Use real trained ML model & scaler pipeline if loaded
+        if self.model is not None and self.scaler is not None and self.metadata is not None:
+            try:
+                feature_cols = self.metadata.get("feature_cols", [])
+                sim_features = build_simulated_feature_dict(rssi_val)
+
+                X_vec = [sim_features.get(col, 0.0) for col in feature_cols]
+                X = np.array([X_vec], dtype=float)
+
+                X_scaled = self.scaler.transform(X)
+                d_pred = float(self.model.predict(X_scaled)[0])
+                d_pred = max(0.1, min(25.0, d_pred))
+
+                champ_name = self.metadata.get("champion_model", "Trained ML Model")
+                mae = self.metadata.get("metrics", {}).get("test_mae", "--")
+
+                zone_info = ""
+                if self.zone_model is not None:
+                    try:
+                        zone_pred = self.zone_model.predict(X_scaled)[0]
+                        zone_info = f" | Zone Class: {zone_pred}"
+                    except Exception:
+                        pass
+
+                self.lbl_pred_result.config(text=f"{d_pred:.2f} meters")
+                self.lbl_pred_detail.config(
+                    text=f"🤖 Real ML Model ({champ_name}) | Test MAE: {mae}m{zone_info}"
+                )
+                return
+            except Exception as e:
+                pass
+
+        # 2. Fallback to physical log-distance path loss prior if model is not loaded yet
+        import math
+        n = 2.5
+        d_est = 10 ** ((-60 - rssi_val) / (10 * n))
+        d_est = max(0.3, min(10.0, d_est))
+        self.lbl_pred_result.config(text=f"{d_est:.2f} meters")
+        self.lbl_pred_detail.config(
+            text="⚠️ Log-Distance Fallback (Train ML model to enable real pipeline predictions)"
+        )
 
 
 def main():

@@ -18,6 +18,7 @@ Usage:
 
 import os
 import sys
+import json
 import argparse
 
 # Add project root to path
@@ -26,6 +27,14 @@ sys.path.insert(0, PROJECT_ROOT)
 
 from feature_engineering.engineer import process_all_raw_csvs
 from training.train import load_dataset, train_model, train_zone_classifier, save_model, generate_plots
+
+
+def progress(stage: str, percent: int, metrics: dict = None):
+    """Emits structured JSON progress event to stdout for real-time GUI tracking."""
+    event = {"type": "progress", "stage": stage, "percent": percent}
+    if metrics:
+        event["metrics"] = metrics
+    print(json.dumps(event), flush=True)
 
 
 def main():
@@ -67,7 +76,6 @@ def main():
 
     # Resolve paths
     if args.raw_dir is None:
-        # Look for raw data in the sibling 'ble tracker' project
         args.raw_dir = os.path.join(
             os.path.dirname(PROJECT_ROOT), "ble tracker", "collector", "data", "raw"
         )
@@ -77,11 +85,14 @@ def main():
     reports_dir  = os.path.join(PROJECT_ROOT, "reports")
 
     # ── Step 1: Feature Engineering ──────────────────────────────────
+    progress("Scanning & Engineering Features from Raw CSVs...", 10)
     print("=" * 70)
-    print("  STEP 1: FEATURE ENGINEERING (38 Features)")
+    print("  STEP 1: FEATURE ENGINEERING (60 Features)")
     print("=" * 70)
 
     df = process_all_raw_csvs(args.raw_dir, dataset_path, target_mac=args.target_mac)
+
+    progress("Dataset Engineered. Loading Observations...", 30)
 
     # ── Step 2: Training ─────────────────────────────────────────────
     print("\n" + "=" * 70)
@@ -94,18 +105,21 @@ def main():
     zone_result = None
 
     if args.mode in ("regression", "both"):
+        progress("Running Super Learner Regression Tournament...", 45)
         print("\n" + "-" * 70)
         print("  STEP 2a: REGRESSION TOURNAMENT")
         print("-" * 70)
         result = train_model(df, model_type=args.model_type, tune_hyperparams=args.tune)
 
     if args.mode in ("classification", "both"):
+        progress("Running Zone Classification Tournament...", 75)
         print("\n" + "-" * 70)
         print("  STEP 2b: ZONE CLASSIFICATION TOURNAMENT")
         print("-" * 70)
         zone_result = train_zone_classifier(df)
 
     # ── Step 3: Save & Evaluate ──────────────────────────────────────
+    progress("Saving Champion Artifacts & Diagnostic Plots...", 90)
     print("\n" + "=" * 70)
     print("  STEP 3: SAVING MODEL & GENERATING REPORTS")
     print("=" * 70)
@@ -113,6 +127,16 @@ def main():
     if result:
         save_model(result, model_dir, zone_result=zone_result)
         generate_plots(result, reports_dir, zone_result=zone_result)
+
+    # Prepare summary metrics
+    summary_metrics = {
+        "windows": len(df),
+        "mae": result["metrics"]["test_mae"] if result else 0.0,
+        "r2": result["metrics"]["test_r2"] if result else 0.0,
+        "zone_acc": zone_result.get("zone_accuracy", 0.0) if zone_result else 0.0
+    }
+
+    progress("Pipeline Complete!", 100, metrics=summary_metrics)
 
     # ── Summary ──────────────────────────────────────────────────────
     print("\n" + "=" * 70)
