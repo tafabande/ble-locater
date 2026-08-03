@@ -8,16 +8,12 @@ from scipy import stats
 
 logger = logging.getLogger("FEATURE_ENGINEERING")
 
-# ──────────────────────────────────────────────────────────────────────
-#  CONFIGURATION
-# ──────────────────────────────────────────────────────────────────────
-
 WINDOW_SIZE_MS = 1000
 MIN_PACKETS_PER_WINDOW = 1
 
 
 def _safe_float(val: float, default: float = 0.0, min_val: float = -1e5, max_val: float = 1e5) -> float:
-    """Sanitizes floats to prevent NaN or Inf from corrupting ML feature vectors."""
+    """Sanitize float values to prevent NaN or Inf."""
     try:
         f_val = float(val)
         if not np.isfinite(f_val):
@@ -27,14 +23,8 @@ def _safe_float(val: float, default: float = 0.0, min_val: float = -1e5, max_val
         return float(default)
 
 
-# ──────────────────────────────────────────────────────────────────────
-#  CORE FEATURE EXTRACTION (38 FEATURES)
-# ──────────────────────────────────────────────────────────────────────
-
 def compute_window_features(group: pd.DataFrame) -> dict:
-    """
-    Compute 38 advanced physical, statistical, temporal, and interaction features safely.
-    """
+    """Extract statistical and temporal features from a window of RSSI packets."""
     if group is None or group.empty or "rssi" not in group:
         # Fallback dictionary of zeros
         return {
@@ -433,10 +423,18 @@ def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
 
-    # 1. Distance Normalization (0.9 and 0.90 become identical 0.9; 0.92 remains 0.92)
+    # 1. Distance Normalization & Canonical Preset Snapping
     if "distance_m" in df.columns:
         df["distance_m"] = pd.to_numeric(df["distance_m"], errors="coerce")
-        df["distance_m"] = df["distance_m"].apply(lambda v: round(float(v), 2) if np.isfinite(v) else v)
+        canonical_presets = np.array([0.5, 0.6, 0.7, 1.0, 1.1, 1.5, 1.9, 2.0, 3.0, 4.5, 5.0, 5.3])
+        def _snap_distance(v):
+            if not np.isfinite(v):
+                return v
+            idx = np.argmin(np.abs(canonical_presets - float(v)))
+            if abs(canonical_presets[idx] - float(v)) <= 0.2:
+                return float(canonical_presets[idx])
+            return round(float(v), 2)
+        df["distance_m"] = df["distance_m"].apply(_snap_distance)
 
     # 2. String Trimming & Case Normalization
     if "anchor_id" in df.columns:

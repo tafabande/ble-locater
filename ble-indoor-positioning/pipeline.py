@@ -1,19 +1,9 @@
 """
-BLE Indoor Positioning — End-to-End Pipeline
-=============================================
-
-Runs the complete pipeline:
-  1. Feature Engineering: raw CSVs → observation windows (38 features)
-  2. ML Training: observation windows → trained model (regression + zone classification)
-  3. Evaluation: metrics + diagnostic plots
-
-Usage:
-    python pipeline.py
-    python pipeline.py --target-mac 52:06:26:03:01:DA
-    python pipeline.py --target-mac 52:06:26:03:01:DA --tune
-    python pipeline.py --mode regression
-    python pipeline.py --mode classification
-    python pipeline.py --mode both
+End-to-End Pipeline
+===================
+1. Feature Engineering (raw CSVs -> features)
+2. ML Training (train regression & zone models)
+3. Evaluation & Diagnostic Plots
 """
 
 import os
@@ -21,7 +11,7 @@ import sys
 import json
 import argparse
 
-# Add project root to path
+# Add project root to sys.path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)
 
@@ -30,7 +20,7 @@ from training.train import load_dataset, train_model, train_zone_classifier, sav
 
 
 def progress(stage: str, percent: int, metrics: dict = None):
-    """Emits structured JSON progress event to stdout for real-time GUI tracking."""
+    """Emit JSON progress for GUI tracking."""
     event = {"type": "progress", "stage": stage, "percent": percent}
     if metrics:
         event["metrics"] = metrics

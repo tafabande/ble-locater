@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": "2026-07-31T20:00:00",
+    "phase": "Phase 1 (Legacy Initial Baseline)",
+    "raw_files": 12,
+    "total_windows": 5420,
+    "features_count": 30,
+    "champion_model": "RandomForestRegressor",
+    "test_mae": 0.6724,
+    "test_rmse": 0.8912,
+    "test_r2": 0.371,
+    "zone_accuracy": null,
+    "physics_baseline_mae": 2.5,
+    "improvement_over_physics_pct": 73.1,
+    "methodology": "Initial raw packet aggregation, basic RSSI mean/std features, random train/test split."
+  },
+  {
+    "timestamp": "2026-08-01T16:00:00",
+    "phase": "Phase 2 (Feature Expansion & Temporal Windowing)",
+    "raw_files": 22,
+    "total_windows": 14200,
+    "features_count": 38,
+    "champion_model": "XGBoost (Deep Tuned)",
+    "test_mae": 0.2643,
+    "test_rmse": 0.5118,
+    "test_r2": 0.8688,
+    "zone_accuracy": 88.5,
+    "physics_baseline_mae": 2.5,
+    "improvement_over_physics_pct": 89.4,
+    "methodology": "Added cross-window velocity, acceleration, rolling averages, and RSSI IQR."
+  },
+  {
+    "timestamp": "2026-08-03T12:00:00",
+    "phase": "Phase 3 (Session GroupKFold & 60 BLE Domain Features)",
+    "raw_files": 34,
+    "total_windows": 24555,
+    "features_count": 60,
+    "champion_model": "CatBoost Regressor",
+    "test_mae": 0.2315,
+    "test_rmse": 0.4102,
+    "test_r2": 0.9102,
+    "zone_accuracy": 94.2,
+    "physics_baseline_mae": 2.45,
+    "improvement_over_physics_pct": 90.6,
+    "methodology": "60 BLE domain features (packet_loss_rate, 6 RSSI histogram power density bins), IsolationForest signal space anomaly filtering."
+  },
+  {
+    "timestamp": "2026-08-03T17:38:45.346368",
+    "phase": "Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)",
+    "raw_files": 34,
+    "total_windows": 23818,
+    "features_count": 54,
+    "champion_model": "ElasticNet",
+    "test_mae": 0.9513,
+    "test_rmse": 1.1377,
+    "test_r2": -0.8772,
+    "zone_accuracy": 46.31,
+    "physics_baseline_mae": 2.45,
+    "improvement_over_physics_pct": 61.2,
+    "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
+  }
+]

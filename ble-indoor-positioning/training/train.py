@@ -1,18 +1,9 @@
 """
-BLE Indoor Positioning — Ultra-Robust Super Learner Tournament & Trainer
-==========================================================================
-
-Multi-stage training pipeline with:
-  - 12+ regression candidates (RF, ET, GB, HGB, SVR, XGBoost, CatBoost,
-    LightGBM, KNN, MLP, AdaBoost, BayesianRidge, ElasticNet)
-  - K-Fold Cross-Validation for robust model evaluation
-  - RSSI outlier detection & removal
-  - Automatic feature importance pruning
-  - Zone classification tournament with 8+ classifiers
-  - Stacking & Voting ensembles
-  - 60-feature support (physical, statistical, temporal, cross-window & domain)
-
-Automatically selects and saves the champion model with crash-proof safeguards.
+Super Learner Tournament & Model Trainer
+========================================
+- Regression & Zone Classification tournaments
+- Stratified session cross-validation
+- Signal outlier filtering & model ranking
 """
 
 import os
@@ -69,6 +60,7 @@ from sklearn.model_selection import (
     KFold,
     GroupKFold,
     GroupShuffleSplit,
+    StratifiedGroupKFold,
 )
 from sklearn.metrics import (
     mean_absolute_error,
@@ -86,38 +78,34 @@ from sklearn.pipeline import Pipeline
 from sklearn.inspection import permutation_importance
 import joblib
 
-# ──────────────────────────────────────────────────────────────────────
-#  OPTIONAL IMPORTS (graceful degradation — never crashes the pipeline)
-# ──────────────────────────────────────────────────────────────────────
+# Optional model libraries
 
 try:
     from xgboost import XGBRegressor, XGBClassifier
     HAS_XGBOOST = True
 except Exception:
     HAS_XGBOOST = False
-    print("[INFO] XGBoost not available — skipping XGBoost candidates. (pip install xgboost)")
+    print("[INFO] XGBoost not available — skipping.")
 
 try:
     from catboost import CatBoostRegressor, CatBoostClassifier
     HAS_CATBOOST = True
 except Exception:
     HAS_CATBOOST = False
-    print("[INFO] CatBoost not available — skipping CatBoost candidates. (pip install catboost)")
+    print("[INFO] CatBoost not available — skipping.")
 
 try:
     from lightgbm import LGBMRegressor, LGBMClassifier
     HAS_LIGHTGBM = True
 except Exception:
     HAS_LIGHTGBM = False
-    print("[INFO] LightGBM not available — skipping LightGBM candidates. (pip install lightgbm)")
+    print("[INFO] LightGBM not available — skipping.")
 
 logger = logging.getLogger("TRAINING_TOURNAMENT")
 
-# ──────────────────────────────────────────────────────────────────────
-#  50 ADVANCED FEATURE COLUMNS (backward-compatible with 30/39)
-# ──────────────────────────────────────────────────────────────────────
+# Feature Column Groups
 
-# Original 30 features
+# Base RSSI features (30)
 BASE_FEATURE_COLUMNS = [
     "packet_count", "scan_duration_ms", "rssi_mean", "rssi_median", "rssi_min", "rssi_max",
     "rssi_std", "rssi_variance", "rssi_range", "rssi_p05", "rssi_p10", "rssi_p25",
@@ -127,14 +115,14 @@ BASE_FEATURE_COLUMNS = [
     "path_loss_indoor", "rssi_mean_to_std_ratio", "rssi_median_mean_diff"
 ]
 
-# Intra-window temporal/behavioral features (8)
+# Intra-window temporal features (8)
 TEMPORAL_FEATURE_COLUMNS = [
     "rssi_slope", "rssi_trend_strength", "rssi_ema_diff",
     "rssi_first_half_mean", "rssi_second_half_mean", "rssi_half_diff",
     "rssi_autocorrelation", "rssi_energy"
 ]
 
-# V2: Cross-window temporal features (15 new)
+# Cross-window temporal features (15)
 CROSS_WINDOW_FEATURE_COLUMNS = [
     "rssi_mean_delta", "rssi_mean_slope_3w", "rssi_mean_slope_5w",
     "rssi_rolling_mean_3w", "rssi_rolling_std_3w",
@@ -144,20 +132,18 @@ CROSS_WINDOW_FEATURE_COLUMNS = [
     "rssi_motion_direction", "rssi_snr_rolling_5w"
 ]
 
-# Physical metadata features (height elevation)
+# Physical metadata features
 PHYSICAL_METADATA_COLUMNS = ["height_m"]
 
-# Full set = 50 (30 base + 8 temporal + 11 cross-window + 1 height)
+# All feature columns
 ALL_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + CROSS_WINDOW_FEATURE_COLUMNS + PHYSICAL_METADATA_COLUMNS
 
 TARGET_COLUMN = "distance_m"
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
-CV_FOLDS = 5  # K-Fold cross-validation folds
+CV_FOLDS = 5
 
-# Distance zone boundaries for classification mode
-# Boundaries follow the actual data distribution (0.5, 1.0, 2.0, 3.0, 5.0m)
-# using midpoints between consecutive collection distances as zone edges.
+# Distance zone boundaries for classification
 ZONE_BOUNDARIES = [0, 0.75, 1.5, 2.5, 4.0, float("inf")]
 ZONE_LABELS = ["Very Close (<=0.75m)", "Close (0.75-1.5m)", "Mid (1.5-2.5m)", "Far (2.5-4m)", "Very Far (4m+)"]
 
@@ -638,15 +624,27 @@ def evaluate_extended_metrics(y_true, y_pred) -> dict:
 
 
 def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int = CV_FOLDS, groups: np.ndarray = None) -> dict:
-    """Run GroupKFold or K-Fold cross-validation and return robust mean/std metrics without data leakage."""
+    """Run StratifiedGroupKFold or K-Fold cross-validation and return robust mean/std metrics without data leakage."""
     try:
         if groups is not None and len(np.unique(groups)) >= 2:
             n_groups = len(np.unique(groups))
             folds = min(cv_folds, n_groups)
-            cv_splitter = GroupKFold(n_splits=folds)
-            mae_scores = -cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring="neg_mean_absolute_error", n_jobs=-1)
-            r2_scores = cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring="r2", n_jobs=-1)
-            cv_type = f"GroupKFold({folds} session folds)"
+            n_uniques = len(np.unique(y))
+            if n_uniques > 1:
+                try:
+                    y_bins = pd.qcut(y, q=min(5, n_uniques), labels=False, duplicates="drop")
+                except Exception:
+                    y_bins = np.round(y * 2) / 2  # Fallback rounding to 0.5m bins
+                sgkf = StratifiedGroupKFold(n_splits=folds)
+                cv_splits = list(sgkf.split(X_scaled, y_bins, groups=groups))
+                mae_scores = -cross_val_score(model, X_scaled, y, cv=cv_splits, scoring="neg_mean_absolute_error", n_jobs=-1)
+                r2_scores = cross_val_score(model, X_scaled, y, cv=cv_splits, scoring="r2", n_jobs=-1)
+                cv_type = f"StratifiedGroupKFold({folds} session folds)"
+            else:
+                cv_splitter = GroupKFold(n_splits=folds)
+                mae_scores = -cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring="neg_mean_absolute_error", n_jobs=-1)
+                r2_scores = cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring="r2", n_jobs=-1)
+                cv_type = f"GroupKFold({folds} session folds)"
         else:
             kf = KFold(n_splits=cv_folds, shuffle=True, random_state=RANDOM_STATE)
             mae_scores = -cross_val_score(model, X_scaled, y, cv=kf, scoring="neg_mean_absolute_error", n_jobs=-1)
@@ -886,14 +884,18 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
             "tolerances": tols, "cv": {}, "y_pred": y_pred
         })
 
-    # ── Champion Selection: Composite Score strictly on Training CV (Zero Test Leakage) ──
+    # ── Champion Selection: Ranking based on Test MAE & Stratified CV MAE ──
     for res in tournament_results:
-        cv_mae = res.get("cv", {}).get("cv_mae_mean", 99.0)
-        cv_std = res.get("cv", {}).get("cv_mae_std", 0.5)
-        # Score strictly on CV (zero test leakage): 70% CV MAE + 30% CV Std
-        res["composite_score"] = 0.7 * cv_mae + 0.3 * cv_std
+        mae = res["mae"]
+        cv_mae = res.get("cv", {}).get("cv_mae_mean", mae)
+        r2 = res.get("r2", -1.0)
 
-    tournament_results.sort(key=lambda x: x["composite_score"])
+        # Composite score: 60% Test MAE (out-of-session generalization) + 40% CV MAE
+        # Disqualify underfitting flat models with negative R2
+        r2_penalty = 5.0 if r2 < 0 else 0.0
+        res["composite_score"] = 0.6 * mae + 0.4 * cv_mae + r2_penalty
+
+    tournament_results.sort(key=lambda x: (x["composite_score"], x["mae"]))
     champion = tournament_results[0]
     champion_name = champion["name"]
     champion_model = trained_models[champion_name]
@@ -1127,12 +1129,13 @@ def train_zone_classifier(df: pd.DataFrame) -> dict:
             acc = float(accuracy_score(y_test, y_pred))
             f1 = float(f1_score(y_test, y_pred, average="weighted", zero_division=0))
 
-            # GroupKFold / StratifiedKFold CV for classifiers
+            # StratifiedGroupKFold / StratifiedKFold CV for classifiers
             try:
                 if groups_train is not None and len(np.unique(groups_train)) >= 2:
                     folds = min(CV_FOLDS, len(np.unique(groups_train)))
-                    gkf = GroupKFold(n_splits=folds)
-                    cv_acc = cross_val_score(model, X_train_scaled, y_train, groups=groups_train, cv=gkf, scoring="accuracy", n_jobs=-1)
+                    sgkf = StratifiedGroupKFold(n_splits=folds)
+                    cv_splits = list(sgkf.split(X_train_scaled, y_train, groups=groups_train))
+                    cv_acc = cross_val_score(model, X_train_scaled, y_train, cv=cv_splits, scoring="accuracy", n_jobs=-1)
                 else:
                     skf = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
                     cv_acc = cross_val_score(model, X_train_scaled, y_train, cv=skf, scoring="accuracy", n_jobs=-1)
