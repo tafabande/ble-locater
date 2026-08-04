@@ -197,9 +197,8 @@ def compute_window_features(group: pd.DataFrame) -> dict:
     except Exception:
         rssi_energy = rssi_mean ** 2
 
-    # 8. BLE Domain Features (Packet Loss & RSSI Histogram Density)
-    expected_nominal_packets = 50.0
-    packet_loss_rate = max(0.0, min(1.0, (expected_nominal_packets - packet_count) / expected_nominal_packets))
+    # 8. BLE Domain Features (Packet Rate & RSSI Histogram Density)
+    packet_rate = float(packet_count) / (float(scan_duration_ms) / 1000.0) if scan_duration_ms > 0 else 0.0
 
     rssi_bin_neg100_90 = float(np.mean((rssi_values >= -100) & (rssi_values < -90)))
     rssi_bin_neg90_80 = float(np.mean((rssi_values >= -90) & (rssi_values < -80)))
@@ -210,7 +209,7 @@ def compute_window_features(group: pd.DataFrame) -> dict:
 
     features_raw = {
         "packet_count": packet_count,
-        "packet_loss_rate": packet_loss_rate,
+        "packet_rate": packet_rate,
         "scan_duration_ms": scan_duration_ms,
         "rssi_mean": rssi_mean,
         "rssi_median": rssi_median,
@@ -434,7 +433,7 @@ def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             if abs(canonical_presets[idx] - float(v)) <= 0.2:
                 return float(canonical_presets[idx])
             return round(float(v), 2)
-        df["distance_m"] = df["distance_m"].apply(_snap_distance)
+        df["distance_bucket"] = df["distance_m"].apply(_snap_distance)
 
     # 2. String Trimming & Case Normalization
     if "anchor_id" in df.columns:
@@ -471,7 +470,7 @@ def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 #  PIPELINE PROCESSING
 # ──────────────────────────────────────────────────────────────────────
 
-def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
+def process_raw_csv(filepath: str, target_mac: str = None, drop_duplicates: bool = False) -> pd.DataFrame:
     """Load a raw CSV and transform it into observation-window features."""
     if not os.path.exists(filepath):
         logger.warning(f"File not found: {filepath}")
@@ -496,6 +495,10 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
 
     if df.empty:
         return pd.DataFrame()
+
+    if drop_duplicates and "duplicate_candidate" in df.columns:
+        # Some legacy files might have it as string 'True'/'False' or bool
+        df = df[~df["duplicate_candidate"].astype(str).str.lower().isin(["true", "1"])]
 
     if target_mac:
         df = df[df["mac"].astype(str).str.strip().str.upper() == target_mac.strip().upper()].copy()
@@ -538,23 +541,24 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
         return pd.DataFrame()
 
     result = pd.DataFrame(rows)
+    result["session_id"] = os.path.basename(filepath)
 
-    # V2: Compute cross-window temporal features per anchor
-    # Sort by anchor and window_start, then compute features within each anchor group
+    # V2: Compute cross-window temporal features per anchor and session
+    # Sort by anchor and window_start, then compute features within each group
     if len(result) > 1:
-        result.sort_values(["anchor_id", "window_start"], inplace=True)
+        result.sort_values(["session_id", "anchor_id", "window_start"], inplace=True)
         cross_window_dfs = []
-        for anchor_id, anchor_group in result.groupby("anchor_id"):
-            anchor_with_cross = compute_cross_window_features(anchor_group)
-            cross_window_dfs.append(anchor_with_cross)
+        for (session_id, anchor_id), group in result.groupby(["session_id", "anchor_id"]):
+            group_with_cross = compute_cross_window_features(group)
+            cross_window_dfs.append(group_with_cross)
         result = pd.concat(cross_window_dfs, ignore_index=True)
     else:
         # Single window — fill cross-window features with defaults
         result = compute_cross_window_features(result)
 
-    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "distance_bucket", "height_m", "obstacle", "obstacle_type", "motion"]
     feat_cols = [c for c in result.columns if c not in meta_cols]
-    col_order = ["window_start", "anchor_id", "session_id"] + feat_cols + ["distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    col_order = ["window_start", "anchor_id", "session_id"] + feat_cols + ["distance_m", "distance_bucket", "height_m", "obstacle", "obstacle_type", "motion"]
     # Only include columns that exist
     col_order = [c for c in col_order if c in result.columns]
 
@@ -563,7 +567,7 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
 
 def print_dataset_audit_report(merged: pd.DataFrame):
     """Prints a comprehensive multi-dimensional Dataset Quality Audit & Model Readiness Report."""
-    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "distance_bucket", "height_m", "obstacle", "obstacle_type", "motion"]
     feat_cols = [c for c in merged.columns if c not in meta_cols]
     total_windows = len(merged)
 
@@ -578,23 +582,25 @@ def print_dataset_audit_report(merged: pd.DataFrame):
     # 1. Visual ASCII Distance Coverage Bars & Missing Distances
     print("\n  [1. Distance Presets Coverage & Class Balance]")
     target_presets = [0.5, 1.0, 1.5, 2.0, 3.0, 5.0]
-    actual_counts = merged["distance_m"].value_counts()
+    # Use distance_bucket for reporting if available, else fallback to distance_m
+    dist_col = "distance_bucket" if "distance_bucket" in merged.columns else "distance_m"
+    actual_counts = merged[dist_col].value_counts()
     max_cnt = max(actual_counts.max(), 1)
     min_cnt = actual_counts.min()
 
-    for d in sorted(merged["distance_m"].unique()):
+    for d in sorted(merged[dist_col].unique()):
         cnt = actual_counts.get(d, 0)
         bar_len = int((cnt / max_cnt) * 25)
         bar = "#" * bar_len
         pct = (cnt / total_windows) * 100
 
         # RSSI stats for this distance
-        dist_df = merged[merged["distance_m"] == d]
+        dist_df = merged[merged[dist_col] == d]
         rssi_m = dist_df["rssi_mean"].mean() if "rssi_mean" in dist_df.columns else 0.0
         rssi_s = dist_df["rssi_mean"].std() if "rssi_mean" in dist_df.columns else 0.0
 
         status = "[GOOD]" if cnt >= 1000 else "[LOW SAMPLES]"
-        print(f"     - {d:>4.1f}m | {bar:<25} | {cnt:>5,} samples ({pct:>5.1f}%) | RSSI: {rssi_m:>6.1f} +/- {rssi_s:<4.1f} dBm | {status}")
+        print(f"     {d:>4.1f}m | {bar:<25} | {cnt:>5,} windows ({pct:>5.1f}%) | RSSI: {rssi_m:>6.1f}±{rssi_s:<4.1f} {status}")
 
     # Check for missing preset distances
     missing_presets = [p for p in target_presets if p not in merged["distance_m"].unique()]
@@ -642,7 +648,7 @@ def print_dataset_audit_report(merged: pd.DataFrame):
     print("=" * 75 + "\n")
 
 
-def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None) -> pd.DataFrame:
+def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None, drop_duplicates: bool = False, progress_callback=None) -> pd.DataFrame:
     """Process all raw CSV files in a directory and merge into one dataset."""
     if not os.path.exists(raw_dir):
         raise FileNotFoundError(f"Raw CSV directory not found: {raw_dir}")
@@ -657,10 +663,14 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
         print(f"[FILTER] Target MAC lock: {target_mac}")
 
     all_windows = []
-    for fpath in csv_files:
+    total = len(csv_files)
+    for index, fpath in enumerate(csv_files):
         fname = os.path.basename(fpath)
+        if progress_callback:
+            pct = 5 + int((index / total) * 30)
+            progress_callback(f"Processing CSV {index+1}/{total}: {fname}", pct)
         try:
-            df = process_raw_csv(fpath, target_mac=target_mac)
+            df = process_raw_csv(fpath, target_mac=target_mac, drop_duplicates=drop_duplicates)
             if df.empty:
                 print(f"  [SKIP] {fname} -> 0 windows (skipped)")
             else:

@@ -358,9 +358,10 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
     print(f"{'='*75}")
     print(f"  Total Clean Windows : {len(df)}")
     print(f"  Features Available  : {len(available_features)}")
-    print(f"  Distance Presets    : {sorted(df[TARGET_COLUMN].unique())} m")
+    dist_col = "distance_bucket" if "distance_bucket" in df.columns else TARGET_COLUMN
+    print(f"  Distance Presets    : {sorted(df[dist_col].unique())} m")
     print(f"\n  Distance Breakdown:")
-    for dist, count in df.groupby(TARGET_COLUMN).size().items():
+    for dist, count in df.groupby(dist_col).size().items():
         pct = (count / len(df)) * 100
         bar = "#" * int(pct / 2)
         print(f"    {dist:4.1f}m : {count:4d} windows ({pct:5.1f}%)  {bar}")
@@ -637,6 +638,12 @@ def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int = CV
             n_uniques = len(np.unique(y))
             if n_uniques > 1:
                 try:
+                    # Use distance_bucket for StratifiedGroupKFold if available
+                    if "distance_bucket" in globals() or "distance_bucket" in str(y_bins): # this is a hack, we can't access df here
+                        pass # just a placeholder, wait
+                except Exception:
+                    pass
+                try:
                     y_bins = pd.qcut(y, q=min(5, n_uniques), labels=False, duplicates="drop")
                 except Exception:
                     y_bins = np.round(y * 2) / 2  # Fallback rounding to 0.5m bins
@@ -700,7 +707,7 @@ def evaluate_path_loss_baseline(X_test: np.ndarray, y_test: np.ndarray, feature_
         return {"name": "Classical Path-Loss Physics Baseline", "mae": 2.50, "rmse": 3.0, "r2": -0.5}
 
 
-def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bool = False, eval_mode: str = "session", prune_features: bool = False) -> dict:
+def train_model(df: pd.DataFrame, tune_hyperparams: bool = False, eval_mode: str = "session", prune_features: bool = False, progress_callback=None) -> dict:
     """
     Run Ultra-Robust Super Learner Tournament:
     1. Assign & audit recording session IDs (prevent temporal data leakage)
@@ -733,10 +740,26 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
     print(f"  Unique Recording Sessions Detected: {n_unique_sessions}")
     print(f"  Evaluation Mode: {eval_mode.upper()}")
 
-    if eval_mode == "session" and n_unique_sessions >= 2:
-        print("  [LEAKAGE PREVENTION] GroupShuffleSplit active: Holding out ENTIRE recording sessions!")
-        gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
-        train_idx, test_idx = next(gss.split(X_clean, y_clean, groups=groups_clean))
+    if eval_mode in ("session", "strict_session", "balanced_session") and n_unique_sessions >= 2:
+        if eval_mode == "strict_session":
+            print("  [LEAKAGE PREVENTION] Strict GroupShuffleSplit active: Unbalanced random sessions held out.")
+            splitter = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+            train_idx, test_idx = next(splitter.split(X_clean, y_clean, groups=groups_clean))
+        else: # Default "session" is now "balanced_session"
+            print("  [LEAKAGE PREVENTION] StratifiedGroupKFold active: BALANCED unseen sessions held out.")
+            n_splits = int(1.0 / TEST_SIZE) if TEST_SIZE > 0 else 5
+            try:
+                n_uniques = len(np.unique(y_clean))
+                if "distance_bucket" in df.columns:
+                    y_bins = df.iloc[:len(y_clean)]["distance_bucket"].values # Wait, this might be filtered by outliers
+                # Safer: just use qcut on y_clean
+                y_bins = pd.qcut(y_clean, q=min(5, n_uniques), labels=False, duplicates="drop")
+            except Exception:
+                y_bins = np.round(y_clean * 2) / 2
+            
+            # StratifiedGroupKFold guarantees entirely unseen groups while balancing the y_bins
+            splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=RANDOM_STATE)
+            train_idx, test_idx = next(splitter.split(X_clean, y_bins, groups=groups_clean))
 
         X_train, X_test = X_clean[train_idx], X_clean[test_idx]
         y_train, y_test = y_clean[train_idx], y_clean[test_idx]
@@ -744,9 +767,21 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
 
         train_sess_set = set(groups_train)
         test_sess_set = set(groups_test)
-        print(f"  Training Sessions ({len(train_sess_set)}): {sorted(list(train_sess_set))[:5]}...")
-        print(f"  Testing Sessions  ({len(test_sess_set)}): {sorted(list(test_sess_set))[:5]}...")
+        print(f"  Train sessions ({len(train_sess_set)}): {sorted(list(train_sess_set))}")
+        print(f"  Test sessions  ({len(test_sess_set)}): {sorted(list(test_sess_set))}")
+        print(f"  Train size        : {len(y_train)}")
+        print(f"  Test size         : {len(y_test)}")
         print(f"  Session Overlap   : {len(train_sess_set.intersection(test_sess_set))} (ZERO Data Leakage)")
+
+        print("\n  Train Distance Distribution:")
+        train_dists = pd.Series(np.round(y_train, 2)).value_counts().sort_index()
+        for d, c in train_dists.items():
+            print(f"    {d}m : {c}")
+
+        print("\n  Test Distance Distribution:")
+        test_dists = pd.Series(np.round(y_test, 2)).value_counts().sort_index()
+        for d, c in test_dists.items():
+            print(f"    {d}m : {c}")
     else:
         if eval_mode == "session":
             print("  [WARN] Fewer than 2 unique sessions. Falling back to Stratified Random Split.")
@@ -798,7 +833,14 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
 
     total_candidates = len(candidates)
     for idx, (name, raw_model) in enumerate(candidates.items(), 1):
-        progress_pct = int(40 + int((idx / max(1, total_candidates)) * 35))
+        progress_pct = int(45 + int((idx / max(1, total_candidates)) * 40))
+        if progress_callback:
+            progress_callback(f"Training {name}", progress_pct, {
+                "windows": len(X_clean),
+                "features": len(feature_cols),
+                "sessions": n_unique_sessions
+            })
+        
         start_event = {
             "type": "model_status",
             "model_name": name,
@@ -842,6 +884,7 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
             r2 = float(r2_score(y_test, y_pred))
             med = float(median_absolute_error(y_test, y_pred))
             tols = evaluate_error_tolerances(y_test, y_pred)
+            ext_metrics = evaluate_extended_metrics(y_test, y_pred)
 
             print(f"  -> Test MAE: {mae:.4f}m | RMSE: {rmse:.4f}m | R2: {r2:.4f} | "
                   f"<=25cm: {tols['within_25cm']}% | <=50cm: {tols['within_50cm']}%")
@@ -854,6 +897,7 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
                 "r2": r2,
                 "med_ae": med,
                 "tolerances": tols,
+                "ext_metrics": ext_metrics,
                 "cv": cv_results,
                 "y_pred": y_pred
             })
@@ -903,7 +947,7 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
             "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
             "r2": float(r2_score(y_test, y_pred)),
             "med_ae": float(median_absolute_error(y_test, y_pred)),
-            "tolerances": tols, "cv": {}, "y_pred": y_pred
+            "tolerances": tols, "ext_metrics": evaluate_extended_metrics(y_test, y_pred), "cv": {}, "y_pred": y_pred
         })
 
     # ── Champion Selection: Ranking based on Test MAE & Stratified CV MAE ──
@@ -948,6 +992,21 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
     print(f"  <= 75cm Acc : {champion['tolerances']['within_75cm']}%")
     print(f"  <= 100cm Acc: {champion['tolerances']['within_100cm']}%")
     print(f"  <= 150cm Acc: {champion['tolerances']['within_150cm']}%")
+    
+    if "ext_metrics" in champion and "per_distance_mae" in champion["ext_metrics"]:
+        print(f"\n  [DISTANCE ERROR REPORT (BLE LIMITATION CURVE)]")
+        for d_str, d_mae in champion["ext_metrics"]["per_distance_mae"].items():
+            print(f"  {d_str}: MAE {d_mae:.4f}m")
+    
+    print(f"\n  [TEST SET PER-SESSION METRICS]")
+    if groups_test is not None:
+        champ_y_pred = champion['y_pred']
+        for sess in sorted(list(set(groups_test))):
+            sess_mask = (groups_test == sess)
+            sess_mae = mean_absolute_error(y_test[sess_mask], champ_y_pred[sess_mask])
+            print(f"  Session {sess} MAE: {sess_mae:.4f}m ({np.sum(sess_mask)} samples)")
+    else:
+        print("  (Session IDs not available for per-session breakdown)")
     if champion.get("cv"):
         print(f"  CV MAE      : {champion['cv']['cv_mae_mean']:.4f} +/- {champion['cv']['cv_mae_std']:.4f}")
         print(f"  CV R2       : {champion['cv']['cv_r2_mean']:.4f} +/- {champion['cv']['cv_r2_std']:.4f}")
@@ -1113,8 +1172,12 @@ def instantiate_classification_candidates() -> dict:
     return candidates
 
 
-def train_zone_classifier(df: pd.DataFrame, eval_mode: str = "session") -> dict:
-    """Train zone classification tournament with session-aware K-Fold validation."""
+def train_zone_classifier(df: pd.DataFrame, progress_callback=None) -> dict:
+    """Train a robust Random Forest classifier for abstract Zone mapping."""
+    if progress_callback:
+        progress_callback("Training Zone Classifier", 88)
+    print(f"\n{'='*75}")
+    print(f"  [ZONE CLASSIFICATION] TOURNAMENT (session-aware K-Fold validation.)")
     df = assign_session_ids(df)
     feature_cols = detect_available_features(df)
 

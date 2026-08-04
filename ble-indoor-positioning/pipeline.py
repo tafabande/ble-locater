@@ -10,6 +10,10 @@ import os
 import sys
 import json
 import argparse
+import time
+import builtins
+
+START_TIME = time.time()
 
 # Add project root to sys.path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -21,11 +25,26 @@ from training.train import load_dataset, train_model, train_zone_classifier, sav
 
 def progress(stage: str, percent: int, metrics: dict = None):
     """Emit JSON progress for GUI tracking."""
-    event = {"type": "progress", "stage": stage, "percent": percent}
+    event = {
+        "type": "progress", 
+        "stage": stage, 
+        "percent": percent,
+        "elapsed": round(time.time() - START_TIME, 1)
+    }
     if metrics:
         event["metrics"] = metrics
-    print(json.dumps(event), flush=True)
+    # Use original print to guarantee raw JSON bypass
+    original_print(json.dumps(event), flush=True)
 
+# ── Global JSON Print wrapper ──
+original_print = builtins.print
+def json_print(*args, **kwargs):
+    text = " ".join(str(a) for a in args)
+    if text.strip().startswith('{') and text.strip().endswith('}'):
+        original_print(text, **kwargs)
+    else:
+        original_print(json.dumps({"type": "log", "message": text}), **kwargs)
+builtins.print = json_print
 
 def main():
     parser = argparse.ArgumentParser(
@@ -43,13 +62,7 @@ def main():
         default=None,
         help="Filter for a specific BLE device MAC (e.g. 52:06:26:03:01:DA)"
     )
-    parser.add_argument(
-        "--model-type",
-        type=str,
-        choices=["random_forest", "gradient_boosting"],
-        default="random_forest",
-        help="ML model type"
-    )
+
     parser.add_argument(
         "--tune",
         action="store_true",
@@ -61,6 +74,18 @@ def main():
         choices=["regression", "classification", "both"],
         default="both",
         help="Training mode: regression, classification (zones), or both (default)"
+    )
+    parser.add_argument(
+        "--drop-duplicates",
+        action="store_true",
+        help="Drop packets flagged as duplicate_candidate in raw CSVs"
+    )
+    parser.add_argument(
+        "--eval-mode",
+        type=str,
+        choices=["balanced_session", "strict_session", "random"],
+        default="balanced_session",
+        help="Evaluation mode for train/test split"
     )
     args = parser.parse_args()
 
@@ -75,14 +100,20 @@ def main():
     reports_dir  = os.path.join(PROJECT_ROOT, "reports")
 
     # ── Step 1: Feature Engineering ──────────────────────────────────
-    progress("Scanning & Engineering Features from Raw CSVs...", 10)
+    progress("Scanning & Engineering Features from Raw CSVs...", 5)
     print("=" * 70)
     print("  STEP 1: FEATURE ENGINEERING (60 Features)")
     print("=" * 70)
 
-    df = process_all_raw_csvs(args.raw_dir, dataset_path, target_mac=args.target_mac)
+    df = process_all_raw_csvs(
+        args.raw_dir, 
+        dataset_path, 
+        target_mac=args.target_mac, 
+        drop_duplicates=args.drop_duplicates,
+        progress_callback=progress
+    )
 
-    progress("Dataset Engineered. Loading Observations...", 30)
+    progress("Dataset Engineered. Loading Observations...", 35)
 
     # ── Step 2: Training ─────────────────────────────────────────────
     print("\n" + "=" * 70)
@@ -99,14 +130,14 @@ def main():
         print("\n" + "-" * 70)
         print("  STEP 2a: REGRESSION TOURNAMENT")
         print("-" * 70)
-        result = train_model(df, model_type=args.model_type, tune_hyperparams=args.tune)
+        result = train_model(df, tune_hyperparams=args.tune, eval_mode=args.eval_mode, progress_callback=progress)
 
     if args.mode in ("classification", "both"):
-        progress("Running Zone Classification Tournament...", 75)
+        progress("Running Zone Classification Tournament...", 85)
         print("\n" + "-" * 70)
         print("  STEP 2b: ZONE CLASSIFICATION TOURNAMENT")
         print("-" * 70)
-        zone_result = train_zone_classifier(df)
+        zone_result = train_zone_classifier(df, progress_callback=progress)
 
     # ── Step 3: Save & Evaluate ──────────────────────────────────────
     progress("Saving Champion Artifacts & Diagnostic Plots...", 90)

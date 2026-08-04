@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from datetime import datetime
+import requests
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -71,7 +72,7 @@ class ConfigManager:
         "auto_scan_interval_ms": 1500,
         "stream_endpoint_url": "http://localhost:8000/api/observation",
         "stream_enabled": True,
-        "buffer_flush_size": 50,
+        "buffer_flush_size": 200,
         "window_size": 50,
         "stride": 10,
         "target_mac_filter": "52:06:26:03:01:DA",
@@ -120,7 +121,7 @@ class NetworkStreamer:
     def __init__(self, endpoint_url, enabled=True):
         self.endpoint_url = endpoint_url
         self.enabled = enabled
-        self.queue = queue.Queue()
+        self.queue = queue.Queue(maxsize=5000)
         self.stop_event = threading.Event()
         self.worker_thread = None
 
@@ -138,7 +139,6 @@ class NetworkStreamer:
             self.queue.put(row)
 
     def _worker_loop(self):
-        import requests
         session = requests.Session()
         while not self.stop_event.is_set():
             try:
@@ -167,7 +167,7 @@ class NetworkStreamer:
 class DatasetWriter:
     """Handles buffered CSV dataset recording and sidecar dataset_info.json metadata generation."""
 
-    def __init__(self, data_dir, buffer_flush_size=50):
+    def __init__(self, data_dir, buffer_flush_size=200):
         self.data_dir = data_dir
         self.buffer_flush_size = buffer_flush_size
         self.csv_file = None
@@ -206,7 +206,7 @@ class DatasetWriter:
         self.csv_writer = csv.writer(self.csv_file)
         self.csv_writer.writerow([
             "timestamp", "anchor", "mac", "rssi", "name",
-            "distance_m", "obstacle", "obstacle_type", "height_m", "motion"
+            "distance_m", "obstacle", "obstacle_type", "height_m", "motion", "duplicate_candidate"
         ])
         return filename
 
@@ -248,15 +248,13 @@ class DatasetWriter:
 
 
 class DatasetAuditor:
-    """Performs true multi-dimensional sliding-window dataset coverage & quality analysis across raw CSV files."""
+    """Performs true multi-dimensional dataset coverage & quality analysis across raw CSV files."""
 
-    def __init__(self, data_dir, target_presets=None, target_windows=2500, window_size=50, stride=10):
+    def __init__(self, data_dir, target_presets=None, target_samples=25000):
         self.data_dir = data_dir
         self.target_presets = target_presets or [0.5, 1.0, 2.0, 3.0, 5.0]
         self.height_presets = [0.0, 1.0, 1.4, 1.7]
-        self.target_windows = target_windows
-        self.window_size = window_size
-        self.stride = stride
+        self.target_samples = target_samples
 
     def run_audit(self):
         dist_samples = {d: 0 for d in self.target_presets}
@@ -298,10 +296,10 @@ class DatasetAuditor:
                         if len(row) > 5:
                             try:
                                 raw_d = float(row[5].strip().lower().replace("m", "").replace(",", "."))
-                                for target in self.target_presets:
-                                    if abs(raw_d - target) < 0.1:
-                                        dist_samples[target] += 1
-                                        break
+                                rounded_d = round(raw_d * 2) / 2
+                                if rounded_d not in dist_samples:
+                                    dist_samples[rounded_d] = 0
+                                dist_samples[rounded_d] += 1
                             except (ValueError, TypeError):
                                 pass
 
@@ -349,24 +347,14 @@ class DatasetAuditor:
         else:
             sample_rate_hz = 20.0
 
-        def calc_windows(samples_cnt):
-            return max(0, (samples_cnt - self.window_size) // self.stride + 1) if samples_cnt >= self.window_size else 0
-
-        dist_windows = {d: calc_windows(dist_samples[d]) for d in self.target_presets}
-        height_windows = {h: calc_windows(height_samples[h]) for h in self.height_presets}
-        motion_windows = {m: calc_windows(motion_samples[m]) for m in motion_samples}
-        obs_windows = {k: calc_windows(obs_samples[k]) for k in obs_samples}
-        anchor_windows = {a: calc_windows(anchor_samples[a]) for a in anchor_samples}
-
         return {
-            "distance": {"records": dist_windows, "target": self.target_windows},
-            "height": {"records": height_windows, "target": 1000},
-            "motion": {"records": motion_windows, "target": 1000},
-            "obstacle": {"records": obs_windows, "target": 1500},
-            "anchor": {"records": anchor_windows, "target": self.target_windows},
+            "distance": {"records": dist_samples, "target": self.target_samples},
+            "height": {"records": height_samples, "target": 10000},
+            "motion": {"records": motion_samples, "target": 10000},
+            "obstacle": {"records": obs_samples, "target": 15000},
+            "anchor": {"records": anchor_samples, "target": self.target_samples},
             "sample_rate_hz": round(sample_rate_hz, 1),
             "total_samples": total_samples,
-            "total_windows": calc_windows(total_samples)
         }
 
 
@@ -432,9 +420,7 @@ class BLECollector:
         )
         self.auditor_mgr = DatasetAuditor(
             DATA_DIR,
-            target_windows=self.config_mgr.get("target_windows_goal", 2500),
-            window_size=self.config_mgr.get("window_size", 50),
-            stride=self.config_mgr.get("stride", 10)
+            target_samples=self.config_mgr.get("target_windows_goal", 2500) * 10
         )
         self.streamer_mgr = NetworkStreamer(
             endpoint_url=self.config_mgr.get("stream_endpoint_url", "http://localhost:8000/api/observation"),
@@ -462,7 +448,7 @@ class BLECollector:
         self.samples_count = 0
 
         # Thread Queue
-        self.data_queue = queue.Queue()
+        self.data_queue = queue.Queue(maxsize=5000)
 
         # Apply Modern Styling
         self.setup_styles()
@@ -833,11 +819,16 @@ class BLECollector:
         self.obstacle_type_combo.pack(side="left")
         self.obstacle_type_combo.config(state="disabled")
 
+        ttk.Label(exp_box, text="Target Beacon MAC:").grid(row=5, column=0, sticky="w", padx=5, pady=5)
+        self.mac_entry = ttk.Entry(exp_box, width=22)
+        self.mac_entry.grid(row=5, column=1, columnspan=2, sticky="w", padx=5, pady=5)
+        self.mac_entry.insert(0, self.config_mgr.get("target_mac_filter", "52:06:26:03:01:DA"))
+
         ttk.Label(
             exp_box,
             text="\U0001f4a1 Tip: Collecting arbitrary distances, heights, and 'Dirty Data' ensures maximum ML model robustness.",
             style="Subtext.TLabel"
-        ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=(5, 0))
+        ).grid(row=6, column=0, columnspan=4, sticky="w", padx=5, pady=(5, 0))
 
         # --- Section 3: Live Dashboard & Controls ---
         ctrl_box = ttk.LabelFrame(main_container, text="3. Collection Controls & Live Metrics", style="Card.TLabelframe")
@@ -972,7 +963,7 @@ class BLECollector:
 
         self.audit_tree = ttk.Treeview(
             tree_frame,
-            columns=("category", "current_win", "target_win", "missing_win", "est_min", "status"),
+            columns=("category", "current_samp", "target_samp", "missing_samp", "est_min", "status"),
             show="headings",
             height=5,
             yscrollcommand=tree_scroll.set
@@ -980,16 +971,16 @@ class BLECollector:
         tree_scroll.config(command=self.audit_tree.yview)
 
         self.audit_tree.heading("category", text="Category / Preset")
-        self.audit_tree.heading("current_win", text="Current Windows")
-        self.audit_tree.heading("target_win", text="Target Goal")
-        self.audit_tree.heading("missing_win", text="Missing Deficit")
+        self.audit_tree.heading("current_samp", text="Current Samples")
+        self.audit_tree.heading("target_samp", text="Target Goal")
+        self.audit_tree.heading("missing_samp", text="Missing Deficit")
         self.audit_tree.heading("est_min", text="Est. Mins (Empirical)")
         self.audit_tree.heading("status", text="Coverage Status")
 
         self.audit_tree.column("category", width=140, anchor="center")
-        self.audit_tree.column("current_win", width=120, anchor="center")
-        self.audit_tree.column("target_win", width=110, anchor="center")
-        self.audit_tree.column("missing_win", width=120, anchor="center")
+        self.audit_tree.column("current_samp", width=120, anchor="center")
+        self.audit_tree.column("target_samp", width=110, anchor="center")
+        self.audit_tree.column("missing_samp", width=120, anchor="center")
         self.audit_tree.column("est_min", width=140, anchor="center")
         self.audit_tree.column("status", width=180, anchor="center")
 
@@ -1320,17 +1311,16 @@ class BLECollector:
             if hasattr(self, "audit_tree"):
                 self.audit_tree.insert(
                     "", "end",
-                    values=(cat_label, f"{current:,} win", f"{target_goal:,} win", f"{missing:,} win", f"~{est_mins} mins", status)
+                    values=(cat_label, f"{current:,}", f"{target_goal:,}", f"{missing:,}", f"~{est_mins} mins", status)
                 )
 
         if hasattr(self, "audit_summary_lbl"):
-            tot_win = audit_data.get("total_windows", 0)
             tot_samp = audit_data.get("total_samples", 0)
             if critical_missing:
-                msg = f"⚠️ Dataset Deficit [{dim_choice}]: Deficit in {', '.join(critical_missing)}. Total: {tot_win:,} windows ({tot_samp:,} packets @ {sample_rate_hz} Hz)."
+                msg = f"⚠️ Dataset Deficit [{dim_choice}]: Deficit in {', '.join(critical_missing)}. Total: {tot_samp:,} packets @ {sample_rate_hz} Hz."
                 self.audit_summary_lbl.config(text=msg, foreground="#f38ba8")
             else:
-                msg = f"✅ High Quality Coverage [{dim_choice}]: Total dataset: {tot_win:,} windows ({tot_samp:,} packets @ {sample_rate_hz} Hz)."
+                msg = f"✅ High Quality Coverage [{dim_choice}]: Total dataset: {tot_samp:,} packets @ {sample_rate_hz} Hz."
                 self.audit_summary_lbl.config(text=msg, foreground="#a6e3a1")
 
     def set_preset_distance(self, value_str):
@@ -1445,7 +1435,7 @@ class BLECollector:
 
         motion = self.motion_combo.get() if hasattr(self, 'motion_combo') else "stationary"
         dirty_mode = self.dirty_mode_combo.get() if hasattr(self, 'dirty_mode_combo') else ""
-        target_mac = self.config_mgr.get("target_mac_filter", "52:06:26:03:01:DA")
+        target_mac = self.mac_entry.get().strip()
 
         try:
             # Start Writer Session (creates dataset_info.json sidecar metadata)
@@ -1486,7 +1476,7 @@ class BLECollector:
             # Start Reader Thread
             self.reader_thread = threading.Thread(
                 target=self.serial_reader,
-                args=(distance, obstacle, obstacle_type, height_m, motion),
+                args=(distance, obstacle, obstacle_type, height_m, motion, target_mac),
                 daemon=True
             )
             self.reader_thread.start()
@@ -1500,7 +1490,11 @@ class BLECollector:
     # Worker Thread: Serial Reader
     # ========================================================
 
-    def serial_reader(self, distance, obstacle, obstacle_type, height_m=1.0, motion="stationary"):
+    def serial_reader(self, distance, obstacle, obstacle_type, height_m=1.0, motion="stationary", target_mac=""):
+        last_mac = None
+        last_rssi = None
+        last_ts = 0
+
         while not self.stop_event.is_set():
             try:
                 conn = self.serial_mgr.serial_conn
@@ -1518,7 +1512,10 @@ class BLECollector:
                 if line.startswith("timestamp,"):
                     continue
 
-                parts = line.split(",")
+                try:
+                    parts = next(csv.reader([line]))
+                except Exception:
+                    continue
                 if len(parts) < 5:
                     continue
 
@@ -1526,24 +1523,34 @@ class BLECollector:
                 anchor = parts[1].strip()
                 mac = parts[2].strip()
                 rssi = parts[3].strip()
-                name = ",".join(parts[4:]).strip()
+                name = parts[4].strip()
 
                 if not timestamp.isdigit():
                     continue
                 if ":" not in mac or len(mac) < 11:
                     continue
                 try:
-                    int(rssi)
+                    rssi_val = int(rssi)
+                    if not (-127 <= rssi_val <= 20):
+                        continue
                 except ValueError:
                     continue
 
-                target_mac = self.config_mgr.get("target_mac_filter", "52:06:26:03:01:DA")
                 if target_mac and mac.upper() != target_mac.upper():
                     continue
 
+                ts_val = int(timestamp)
+                duplicate_candidate = False
+                if last_mac == mac and last_rssi == rssi_val and (ts_val - last_ts) < 100:
+                    duplicate_candidate = True
+
+                last_mac = mac
+                last_rssi = rssi_val
+                last_ts = ts_val
+
                 row = [
                     timestamp, anchor, mac, rssi, name,
-                    distance, obstacle, obstacle_type, height_m, motion
+                    distance, obstacle, obstacle_type, height_m, motion, duplicate_candidate
                 ]
 
                 self.data_queue.put(row)
@@ -1652,6 +1659,31 @@ class BLECollector:
             self.status_dot.config(text=f"● COLLECTING | {self.current_port}", foreground="#a6e3a1")
             self.log("SYS", "Data collection resumed.")
 
+            # Handle serial reconnection if thread died due to unplug
+            if not self.serial_mgr.serial_conn or not self.serial_mgr.serial_conn.is_open:
+                try:
+                    self.serial_mgr.connect(self.current_port, self.current_baud)
+                    distance = float(self.distance_entry.get().strip())
+                    height_m = float(self.height_entry.get().strip()) if self.height_entry.get().strip() else 1.0
+                    obstacle = self.obstacle_combo.get()
+                    obstacle_type = self.obstacle_type_combo.get().strip()
+                    if obstacle == "No": obstacle_type = "None"
+                    motion = self.motion_combo.get() if hasattr(self, 'motion_combo') else "stationary"
+                    target_mac = self.mac_entry.get().strip() if hasattr(self, 'mac_entry') else ""
+                    
+                    self.reader_thread = threading.Thread(
+                        target=self.serial_reader,
+                        args=(distance, obstacle, obstacle_type, height_m, motion, target_mac),
+                        daemon=True
+                    )
+                    self.reader_thread.start()
+                    self.log("SYS", "Successfully reconnected and restarted serial reader thread.")
+                except Exception as e:
+                    self.log("ERROR", f"Failed to reconnect to {self.current_port}: {e}")
+                    self.paused = True
+                    self.pause_button.config(text="▶ RESUME (When Re-connected)")
+                    self.status_dot.config(text=f"🔴 RECONNECT FAILED ({self.current_port})", foreground="#f38ba8")
+
 
     # ========================================================
     # Stop Collection
@@ -1685,6 +1717,7 @@ class BLECollector:
             "Collection Complete",
             f"Successfully recorded {total_samples} BLE samples!\n\nSaved to:\n{dataset_path}\n\nMetadata written to dataset_info.json"
         )
+        self.refresh_dataset_audit()
 
 
     # ========================================================
@@ -1698,13 +1731,24 @@ class BLECollector:
         self.port_combo.config(state=state)
         self.baud_combo.config(state=state)
         self.distance_entry.config(state=entry_state)
+        
+        self.height_entry.config(state=entry_state)
+        if hasattr(self, 'mac_entry'):
+            self.mac_entry.config(state=entry_state)
+            
         self.obstacle_combo.config(state=state)
         if hasattr(self, 'motion_combo'):
             self.motion_combo.config(state=state)
-        if self.obstacle_combo.get() == "Yes" and not lock:
-            self.obstacle_type_combo.config(state="normal")
+        if hasattr(self, 'dirty_mode_combo'):
+            self.dirty_mode_combo.config(state=state)
+            
+        if lock:
+            self.obstacle_type_combo.config(state="disabled")
         else:
-            self.obstacle_type_combo.config(state="disabled" if lock else ("normal" if self.obstacle_combo.get() == "Yes" else "disabled"))
+            if self.obstacle_combo.get() == "Yes":
+                self.obstacle_type_combo.config(state="normal")
+            else:
+                self.obstacle_type_combo.config(state="disabled")
 
     def cleanup(self):
         self.stop_event.set()
@@ -1723,8 +1767,9 @@ class BLECollector:
         self.console.config(state="normal")
 
         line_count = int(self.console.index('end-1c').split('.')[0])
-        if line_count > 1000:
-            self.console.delete("1.0", "200.0")
+        if line_count > 500:
+            # Delete just the oldest line to maintain a continuous 500 line circular buffer
+            self.console.delete("1.0", "2.0")
 
         timestamp = datetime.now().strftime("%H:%M:%S")
         formatted = f"[{timestamp}] {message}\n"
