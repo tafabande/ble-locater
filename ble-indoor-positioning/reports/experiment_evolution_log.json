@@ -58,5 +58,20 @@
     "physics_baseline_mae": 2.45,
     "improvement_over_physics_pct": 61.2,
     "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
+  },
+  {
+    "timestamp": "2026-08-03T21:30:38.625380",
+    "phase": "Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)",
+    "raw_files": 34,
+    "total_windows": 23818,
+    "features_count": 54,
+    "champion_model": "MLP Neural Network",
+    "test_mae": 0.5635,
+    "test_rmse": 0.8145,
+    "test_r2": 0.0256,
+    "zone_accuracy": 46.31,
+    "physics_baseline_mae": 2.45,
+    "improvement_over_physics_pct": 77.0,
+    "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
   }
 ]

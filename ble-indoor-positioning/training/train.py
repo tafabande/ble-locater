@@ -133,7 +133,7 @@ CROSS_WINDOW_FEATURE_COLUMNS = [
 ]
 
 # Physical metadata features
-PHYSICAL_METADATA_COLUMNS = ["height_m"]
+PHYSICAL_METADATA_COLUMNS = ["height_m", "anchor_height_m"]
 
 # All feature columns
 ALL_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + CROSS_WINDOW_FEATURE_COLUMNS + PHYSICAL_METADATA_COLUMNS
@@ -182,9 +182,9 @@ def assign_session_ids(df: pd.DataFrame) -> pd.DataFrame:
     if "window_start" in df.columns:
         df = df.sort_values("window_start").reset_index(drop=True)
         time_diffs = df["window_start"].diff().fillna(0)
-        new_session = (time_diffs > 15000) | (df[TARGET_COLUMN].diff().abs() > 0.05)
+        new_session = time_diffs > 15000
     else:
-        new_session = df[TARGET_COLUMN].diff().abs() > 0.05
+        new_session = pd.Series([False] * len(df))
 
     df["session_id"] = [f"session_{idx}" for idx in new_session.cumsum()]
     return df
@@ -340,6 +340,11 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
         df["height_m"] = 0.0
     else:
         df["height_m"] = df["height_m"].fillna(0.0)
+
+    if "anchor_height_m" not in df.columns:
+        df["anchor_height_m"] = 0.0
+    else:
+        df["anchor_height_m"] = df["anchor_height_m"].fillna(0.0)
 
     # Use all available feature columns for NaN dropping
     available_features = [c for c in ALL_FEATURE_COLUMNS if c in df.columns]
@@ -695,7 +700,7 @@ def evaluate_path_loss_baseline(X_test: np.ndarray, y_test: np.ndarray, feature_
         return {"name": "Classical Path-Loss Physics Baseline", "mae": 2.50, "rmse": 3.0, "r2": -0.5}
 
 
-def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bool = False) -> dict:
+def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bool = False, eval_mode: str = "session", prune_features: bool = False) -> dict:
     """
     Run Ultra-Robust Super Learner Tournament:
     1. Assign & audit recording session IDs (prevent temporal data leakage)
@@ -726,8 +731,9 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
 
     n_unique_sessions = len(np.unique(groups_clean))
     print(f"  Unique Recording Sessions Detected: {n_unique_sessions}")
+    print(f"  Evaluation Mode: {eval_mode.upper()}")
 
-    if n_unique_sessions >= 2:
+    if eval_mode == "session" and n_unique_sessions >= 2:
         print("  [LEAKAGE PREVENTION] GroupShuffleSplit active: Holding out ENTIRE recording sessions!")
         gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
         train_idx, test_idx = next(gss.split(X_clean, y_clean, groups=groups_clean))
@@ -742,7 +748,10 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
         print(f"  Testing Sessions  ({len(test_sess_set)}): {sorted(list(test_sess_set))[:5]}...")
         print(f"  Session Overlap   : {len(train_sess_set.intersection(test_sess_set))} (ZERO Data Leakage)")
     else:
-        print("  [WARN] Fewer than 2 unique sessions. Falling back to Stratified Random Split.")
+        if eval_mode == "session":
+            print("  [WARN] Fewer than 2 unique sessions. Falling back to Stratified Random Split.")
+        else:
+            print("  [RANDOM SPLIT] Using standard Random Stratified Split as requested.")
         groups_train, groups_test = None, None
         try:
             n_uniques = len(np.unique(y_clean))
@@ -774,6 +783,14 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
     print(f"\n[PHYSICAL BASELINE] > {baseline_metrics['name']}")
     print(f"  -> Classical Path Loss MAE: {baseline_metrics['mae']:.4f}m | RMSE: {baseline_metrics['rmse']:.4f}m | R2: {baseline_metrics['r2']:.4f}")
 
+    # Evaluate Mean Baseline (predict mean of y_train)
+    mean_baseline = np.full_like(y_test, np.mean(y_train))
+    mean_mae = float(mean_absolute_error(y_test, mean_baseline))
+    mean_rmse = float(np.sqrt(mean_squared_error(y_test, mean_baseline)))
+    mean_r2 = float(r2_score(y_test, mean_baseline))
+    print(f"\n[MEAN PREDICTION BASELINE] > Baseline (Mean)")
+    print(f"  -> Mean Baseline MAE: {mean_mae:.4f}m | RMSE: {mean_rmse:.4f}m | R2: {mean_r2:.4f}")
+
     tournament_results = []
     trained_models = {}
 
@@ -796,10 +813,15 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
             # Build Pipeline: Feature Selection + Selective Scaling + Model
             is_tree = any(t in name for t in tree_model_names)
             steps = []
-            steps.append(("selector", SelectFromModel(
-                RandomForestRegressor(n_estimators=50, random_state=RANDOM_STATE, n_jobs=-1),
-                threshold=0.001
-            )))
+            
+            if prune_features:
+                steps.append(("selector", SelectFromModel(
+                    RandomForestRegressor(n_estimators=50, random_state=RANDOM_STATE, n_jobs=-1),
+                    threshold=0.001
+                )))
+            else:
+                steps.append(("selector", "passthrough"))
+                
             if is_tree:
                 steps.append(("scaler", "passthrough"))
             else:
@@ -1069,7 +1091,7 @@ def instantiate_classification_candidates() -> dict:
     return candidates
 
 
-def train_zone_classifier(df: pd.DataFrame) -> dict:
+def train_zone_classifier(df: pd.DataFrame, eval_mode: str = "session") -> dict:
     """Train zone classification tournament with session-aware K-Fold validation."""
     df = assign_session_ids(df)
     feature_cols = detect_available_features(df)
@@ -1086,7 +1108,7 @@ def train_zone_classifier(df: pd.DataFrame) -> dict:
     y_encoded = np.array([zone_to_int[z] for z in y_zones])
 
     n_unique_sessions = len(np.unique(groups))
-    if n_unique_sessions >= 2:
+    if eval_mode == "session" and n_unique_sessions >= 2:
         gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
         train_idx, test_idx = next(gss.split(X, y_encoded, groups=groups))
         X_train, X_test = X[train_idx], X[test_idx]
@@ -1592,7 +1614,22 @@ def main():
     parser.add_argument("--tune", action="store_true")
     parser.add_argument("--mode", type=str, choices=["regression", "classification", "both"], default="both",
                         help="Training mode: regression only, classification (zones) only, or both (default)")
+    parser.add_argument("--eval-mode", type=str, choices=["session", "random"], default="session",
+                        help="Evaluation mode: session split (generalization) or random split (interpolation)")
+    parser.add_argument("--no-height", action="store_true", help="Exclude height_m from features")
+    parser.add_argument("--prune-features", action="store_true", help="Enable feature pruning via SelectFromModel")
     args = parser.parse_args()
+
+    if args.no_height:
+        global PHYSICAL_METADATA_COLUMNS, ALL_FEATURE_COLUMNS
+        if "height_m" in PHYSICAL_METADATA_COLUMNS:
+            PHYSICAL_METADATA_COLUMNS.remove("height_m")
+        if "height_m" in ALL_FEATURE_COLUMNS:
+            ALL_FEATURE_COLUMNS.remove("height_m")
+        if "anchor_height_m" in PHYSICAL_METADATA_COLUMNS:
+            PHYSICAL_METADATA_COLUMNS.remove("anchor_height_m")
+        if "anchor_height_m" in ALL_FEATURE_COLUMNS:
+            ALL_FEATURE_COLUMNS.remove("anchor_height_m")
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -1608,10 +1645,10 @@ def main():
     zone_result = None
 
     if args.mode in ("regression", "both"):
-        result = train_model(df, model_type=args.model_type, tune_hyperparams=args.tune)
+        result = train_model(df, model_type=args.model_type, tune_hyperparams=args.tune, eval_mode=args.eval_mode, prune_features=args.prune_features)
 
     if args.mode in ("classification", "both"):
-        zone_result = train_zone_classifier(df)
+        zone_result = train_zone_classifier(df, eval_mode=args.eval_mode)
 
     if result:
         save_model(result, args.output_dir, zone_result=zone_result)

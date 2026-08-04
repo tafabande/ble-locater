@@ -522,6 +522,7 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
         features["anchor_id"] = str(anchor).strip().upper()
         features["distance_m"] = round(float(first["distance_m"]), 2)
         features["height_m"] = round(float(first.get("height_m", 0.0)), 2)
+        features["anchor_height_m"] = round(float(first.get("anchor_height_m", 0.0)), 2)
         features["obstacle"] = str(first.get("obstacle", "No")).strip().capitalize()
         features["obstacle_type"] = str(first.get("obstacle_type", "None")).strip().title()
 
@@ -552,9 +553,9 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
         # Single window — fill cross-window features with defaults
         result = compute_cross_window_features(result)
 
-    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "anchor_height_m", "obstacle", "obstacle_type", "motion"]
     feat_cols = [c for c in result.columns if c not in meta_cols]
-    col_order = ["window_start", "anchor_id", "session_id"] + feat_cols + ["distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    col_order = ["window_start", "anchor_id", "session_id"] + feat_cols + ["distance_m", "height_m", "anchor_height_m", "obstacle", "obstacle_type", "motion"]
     # Only include columns that exist
     col_order = [c for c in col_order if c in result.columns]
 
@@ -563,7 +564,7 @@ def process_raw_csv(filepath: str, target_mac: str = None) -> pd.DataFrame:
 
 def print_dataset_audit_report(merged: pd.DataFrame):
     """Prints a comprehensive multi-dimensional Dataset Quality Audit & Model Readiness Report."""
-    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+    meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "anchor_height_m", "obstacle", "obstacle_type", "motion"]
     feat_cols = [c for c in merged.columns if c not in meta_cols]
     total_windows = len(merged)
 
@@ -665,7 +666,7 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str = None)
                 print(f"  [SKIP] {fname} -> 0 windows (skipped)")
             else:
                 df["session_id"] = fname
-                meta_cols_list = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "obstacle", "obstacle_type", "motion"]
+                meta_cols_list = ["window_start", "anchor_id", "session_id", "distance_m", "height_m", "anchor_height_m", "obstacle", "obstacle_type", "motion"]
                 n_features = len([c for c in df.columns if c not in meta_cols_list])
                 print(f"  [OK] {fname} -> {len(df)} observation windows ({n_features} features)")
                 all_windows.append(df)
