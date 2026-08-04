@@ -128,15 +128,25 @@ class MLTrainingStudio:
         self.scaler = None
         self.metadata = None
         self.zone_model = None
+        self._last_audit_mtime = 0
 
         self.setup_styles()
         self.build_ui()
 
-        # Load trained ML model artifacts
-        self.load_trained_model()
-
-        # Start periodic log & status refresh loops
+        # Start periodic log refresh loop
         self.root.after(100, self.process_queue_logs)
+        # Defer heavy loading to allow the GUI window to appear instantly
+        self.root.after(50, self.initial_load)
+
+    def initial_load(self):
+        """Loads heavy models and datasets after the main window is visible."""
+        self.lbl_status.config(text="Loading ML models and dataset...", foreground=self.colors["accent"])
+        self.root.update()
+        
+        self.load_trained_model()
+        self.refresh_dataset_audit()
+        
+        self.lbl_status.config(text="System Ready. Click 'RUN END-TO-END ML PIPELINE' to start.", foreground=self.colors["subtext"])
         self.auto_refresh_audit()
 
     def load_trained_model(self):
@@ -453,18 +463,33 @@ class MLTrainingStudio:
 
     def refresh_dataset_audit(self):
         """Scans raw dataset CSVs and engineered ML observation windows to update audit views."""
+        if not os.path.exists(RAW_DATA_DIR):
+            self.advice_lbl.config(text="⚠️ Raw data directory not found. Run collector first.", foreground=self.colors["red"])
+            return
+
+        raw_files = sorted(glob.glob(os.path.join(RAW_DATA_DIR, "dataset_*.csv")))
+
+        # Check for file modifications before running heavy parsing
+        latest_mtime = 0
+        for fpath in raw_files:
+            latest_mtime = max(latest_mtime, os.path.getmtime(fpath))
+            
+        dataset_mtime = 0
+        if os.path.exists(DATASET_PATH):
+            dataset_mtime = os.path.getmtime(DATASET_PATH)
+            
+        current_mtime = max(latest_mtime, dataset_mtime)
+        if hasattr(self, '_last_audit_mtime') and self._last_audit_mtime >= current_mtime:
+            return  # Skip expensive UI update if no files changed
+            
+        self._last_audit_mtime = current_mtime
+
         import csv
 
         for item in self.cov_tree.get_children():
             self.cov_tree.delete(item)
         for item in self.file_tree.get_children():
             self.file_tree.delete(item)
-
-        if not os.path.exists(RAW_DATA_DIR):
-            self.advice_lbl.config(text="⚠️ Raw data directory not found. Run collector first.", foreground=self.colors["red"])
-            return
-
-        raw_files = sorted(glob.glob(os.path.join(RAW_DATA_DIR, "dataset_*.csv")))
 
         if not raw_files:
             self.advice_lbl.config(text="⚠️ No raw CSV files found. Connect ESP32 and click 'START RECORDING' in Collector.", foreground=self.colors["yellow"])

@@ -960,6 +960,28 @@ def train_model(df: pd.DataFrame, model_type: str = "auto", tune_hyperparams: bo
     print(f"  ML Champion MAE        : {champion['mae']:.4f} m")
     print(f"  Empirical Improvement  : {improvement_pct:.1f}% Error Reduction over Physics Model!")
 
+    # Previous Model Comparison
+    try:
+        # We assume the standard models/ directory here since train.py runs from root
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        meta_path = os.path.join(project_root, "models", "model_metadata.json")
+        if os.path.exists(meta_path):
+            with open(meta_path, "r") as f:
+                prev_meta = json.load(f)
+            prev_metrics = prev_meta.get("metrics", {})
+            prev_mae = prev_metrics.get("test_mae")
+            prev_r2 = prev_metrics.get("test_r2")
+            if prev_mae is not None and prev_r2 is not None:
+                mae_diff = champion['mae'] - prev_mae
+                r2_diff = champion['r2'] - prev_r2
+                mae_status = "✅ Better" if mae_diff < 0 else ("❌ Worse" if mae_diff > 0 else "➖ No Change")
+                r2_status = "✅ Better" if r2_diff > 0 else ("❌ Worse" if r2_diff < 0 else "➖ No Change")
+                print(f"\n  [PREVIOUS MODEL COMPARISON]")
+                print(f"  Previous MAE: {prev_mae:.4f}m -> Current MAE: {champion['mae']:.4f}m (Change: {mae_diff:+.4f}m) [{mae_status}]")
+                print(f"  Previous R² : {prev_r2:.4f}   -> Current R² : {champion['r2']:.4f}   (Change: {r2_diff:+.4f}) [{r2_status}]")
+    except Exception as e:
+        logger.warning(f"Failed to load previous model metadata for comparison: {e}")
+
     # V2: Extended metrics (dissertation-quality)
     ext_metrics = evaluate_extended_metrics(y_test, champion["y_pred"])
     print(f"\n  [V2 EXTENDED METRICS]")
