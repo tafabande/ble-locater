@@ -45,7 +45,8 @@ class ControlCenterGUI:
             "backend": None,
             "dashboard": None,
             "collector": None,
-            "training_gui": None
+            "training_gui": None,
+            "simulator": None
         }
 
         # Colors (Warm Dark / Catppuccin-inspired Dark Theme)
@@ -174,7 +175,7 @@ class ControlCenterGUI:
 
         # D. ESP32 Python Serial Ingestion Collector
         collector_card = ttk.Frame(left_pane, style="Card.TFrame", padding=15)
-        collector_card.pack(fill="x")
+        collector_card.pack(fill="x", pady=(0, 15))
 
         ttk.Label(collector_card, text="📡 ESP32 Serial Data Telemetry Collector", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 5))
         ttk.Label(collector_card, text="Read live signals from ESP32 anchor COM ports and write to datasets.", style="Muted.TLabel").pack(anchor="w", pady=(0, 10))
@@ -190,6 +191,25 @@ class ControlCenterGUI:
 
         self.lbl_coll_status = ttk.Label(coll_btn_row, text="OFFLINE", font=("Segoe UI", 10, "bold"), foreground=self.colors["red"], background=self.colors["card"])
         self.lbl_coll_status.pack(side="right", padx=10)
+
+        # E. Simulated Demo Mover
+        sim_card = ttk.Frame(left_pane, style="Card.TFrame", padding=15)
+        sim_card.pack(fill="x")
+
+        ttk.Label(sim_card, text="🎮 Simulated Demo Mover", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 5))
+        ttk.Label(sim_card, text="Simulates a moving tag transmitting to the backend without physical hardware.", style="Muted.TLabel").pack(anchor="w", pady=(0, 10))
+
+        sim_btn_row = ttk.Frame(sim_card, style="Card.TFrame")
+        sim_btn_row.pack(fill="x")
+
+        self.btn_start_sim = ttk.Button(sim_btn_row, text="Start Simulation", style="Primary.TButton", command=self.start_sim)
+        self.btn_start_sim.pack(side="left", padx=(0, 10))
+
+        self.btn_stop_sim = ttk.Button(sim_btn_row, text="Stop Simulation", style="Danger.TButton", command=self.stop_sim, state="disabled")
+        self.btn_stop_sim.pack(side="left")
+
+        self.lbl_sim_status = ttk.Label(sim_btn_row, text="OFFLINE", font=("Segoe UI", 10, "bold"), foreground=self.colors["red"], background=self.colors["card"])
+        self.lbl_sim_status.pack(side="right", padx=10)
 
         # ──────────────────────────────────────────────────────────────────
         # RIGHT PANE: REAL-TIME CONSOLE LOGS & WORKSPACE DIAGNOSTICS
@@ -329,6 +349,20 @@ class ControlCenterGUI:
             proc.terminate()
             self.log_queue.put("[SYSTEM] Sent terminate command to Serial Collector.\n")
 
+    def start_sim(self):
+        if self.processes["simulator"] is not None:
+            return
+
+        script = os.path.join(PROJECT_ROOT, "simulate_demo.py")
+        cmd = [VENV_PYTHON, script]
+        self.run_process_in_thread("simulator", cmd, PROJECT_ROOT)
+
+    def stop_sim(self):
+        proc = self.processes["simulator"]
+        if proc:
+            proc.terminate()
+            self.log_queue.put("[SYSTEM] Sent terminate command to Simulator.\n")
+
     def run_tests(self):
         """Runs the pytest suite in a background thread and streams results to the console."""
         def worker():
@@ -401,6 +435,16 @@ class ControlCenterGUI:
             self.lbl_coll_status.config(text="OFFLINE", foreground=self.colors["red"])
             self.btn_start_collector.config(state="normal")
             self.btn_stop_collector.config(state="disabled")
+
+        # 4. Simulator Status
+        if self.processes["simulator"] is not None:
+            self.lbl_sim_status.config(text="RUNNING", foreground=self.colors["green"])
+            self.btn_start_sim.config(state="disabled")
+            self.btn_stop_sim.config(state="normal")
+        else:
+            self.lbl_sim_status.config(text="OFFLINE", foreground=self.colors["red"])
+            self.btn_start_sim.config(state="normal")
+            self.btn_stop_sim.config(state="disabled")
 
         self.root.after(500, self.update_process_states)
 

@@ -1172,7 +1172,7 @@ def instantiate_classification_candidates() -> dict:
     return candidates
 
 
-def train_zone_classifier(df: pd.DataFrame, progress_callback=None) -> dict:
+def train_zone_classifier(df: pd.DataFrame, eval_mode="random", progress_callback=None) -> dict:
     """Train a robust Random Forest classifier for abstract Zone mapping."""
     if progress_callback:
         progress_callback("Training Zone Classifier", 88)
