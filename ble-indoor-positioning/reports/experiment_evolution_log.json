@@ -73,5 +73,20 @@
     "physics_baseline_mae": 2.45,
     "improvement_over_physics_pct": 77.0,
     "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
+  },
+  {
+    "timestamp": "2026-08-04T15:52:14.151813",
+    "phase": "Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)",
+    "raw_files": 34,
+    "total_windows": 23818,
+    "features_count": 54,
+    "champion_model": "Stacking Super Learner",
+    "test_mae": 0.2638,
+    "test_rmse": 0.5072,
+    "test_r2": 0.8665,
+    "zone_accuracy": 92.85,
+    "physics_baseline_mae": 2.45,
+    "improvement_over_physics_pct": 89.2,
+    "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
   }
 ]

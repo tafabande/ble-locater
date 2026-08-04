@@ -133,7 +133,7 @@ CROSS_WINDOW_FEATURE_COLUMNS = [
 ]
 
 # Physical metadata features
-PHYSICAL_METADATA_COLUMNS = ["height_m", "anchor_height_m"]
+PHYSICAL_METADATA_COLUMNS = ["height_m"]
 
 # All feature columns
 ALL_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + CROSS_WINDOW_FEATURE_COLUMNS + PHYSICAL_METADATA_COLUMNS
@@ -1648,10 +1648,6 @@ def main():
             PHYSICAL_METADATA_COLUMNS.remove("height_m")
         if "height_m" in ALL_FEATURE_COLUMNS:
             ALL_FEATURE_COLUMNS.remove("height_m")
-        if "anchor_height_m" in PHYSICAL_METADATA_COLUMNS:
-            PHYSICAL_METADATA_COLUMNS.remove("anchor_height_m")
-        if "anchor_height_m" in ALL_FEATURE_COLUMNS:
-            ALL_FEATURE_COLUMNS.remove("anchor_height_m")
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

@@ -12,6 +12,7 @@
 | `2026-08-03 12:00` | **Phase 3 (Session GroupKFold & 60 BLE Domain Features)** | 24,555 | 60 | `CatBoost Regressor` | **0.2315m** | **0.9102** | 94.2% | **+90.6%** |
 | `2026-08-03 17:38` | **Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)** | 23,818 | 54 | `ElasticNet` | **0.9513m** | **-0.8772** | 46.3% | **+61.2%** |
 | `2026-08-03 21:30` | **Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)** | 23,818 | 54 | `MLP Neural Network` | **0.5635m** | **0.0256** | 46.3% | **+77.0%** |
+| `2026-08-04 15:52` | **Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)** | 23,818 | 54 | `Stacking Super Learner` | **0.2638m** | **0.8665** | 92.8% | **+89.2%** |
 
 ## 🔬 Chronological Experiment Milestone Log
 
@@ -57,4 +58,13 @@
 - **Champion Model**: `MLP Neural Network`
 - **Performance Metrics**: Test MAE = `0.5635m` | RMSE = `0.8145m` | R² = `0.0256`
 - **Zone Classification**: `46.31%` Accuracy
+- **Key Methodology / Breakthrough**: In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection.
+
+### Iteration 6: Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)
+- **Timestamp**: `2026-08-04 15:52:14`
+- **Dataset Size**: `23,818` observation windows
+- **Feature Set**: `54` extracted channels
+- **Champion Model**: `Stacking Super Learner`
+- **Performance Metrics**: Test MAE = `0.2638m` | RMSE = `0.5072m` | R² = `0.8665`
+- **Zone Classification**: `92.85%` Accuracy
 - **Key Methodology / Breakthrough**: In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection.
