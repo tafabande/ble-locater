@@ -1,0 +1,12 @@
+{
+    "version": 1,
+    "total_runs": 0,
+    "stage_runtimes": {
+        "Feature Engineering": 8.0,
+        "Dataset Ingestion": 2.0,
+        "Regression Tournament": 25.0,
+        "Classification Tournament": 15.0,
+        "Saving Artifacts & Reports": 3.0
+    },
+    "last_updated": "2026-08-06T15:21:28Z"
+}

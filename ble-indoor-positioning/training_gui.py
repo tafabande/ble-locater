@@ -33,6 +33,8 @@ TARGET_DISTANCES = [0.5, 1.0, 2.0, 3.0, 5.0]
 # Add module paths
 sys.path.insert(0, PROJECT_ROOT)
 
+from learning.stage_runtime_learner import StageRuntimeLearner
+
 
 def build_simulated_feature_dict(rssi_val, height_m=1.0):
     """Builds a full dictionary of simulated signal features derived from a given RSSI value."""
@@ -109,11 +111,15 @@ class MLTrainingStudio:
         self.log_queue = queue.Queue()
         self.is_training = False
 
-        # Timer, Moving Window & Exponential Smoothing State
+        # Timer, Moving Window & Historical Stage Learner State
         self.start_time = None
         self.current_percent = 0
         self.progress_history = []      # list of (timestamp, percent)
         self.smoothed_eta_sec = None    # EMA smoothed remaining seconds
+        self.stage_learner = StageRuntimeLearner()
+        self.stage_start_times = {}
+        self.stage_durations = {}
+        self.current_stage_name = None
         self.anim_step = 0
         self.timer_job = None
         self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -633,11 +639,13 @@ class MLTrainingStudio:
 
             if time_delta >= 1.5 and pct_delta > 0:
                 speed_pct_per_sec = pct_delta / time_delta
-                raw_rem_sec = (100.0 - pct) / speed_pct_per_sec
+                live_rem_sec = (100.0 - pct) / speed_pct_per_sec
             else:
-                # Fallback to cumulative average pace
-                raw_rem_sec = (elapsed / (pct / 100.0)) - elapsed
+                live_rem_sec = (elapsed / (pct / 100.0)) - elapsed
 
+            # Blend learned historical stage runtimes with live velocity rate
+            hist_eta = self.stage_learner.compute_historical_eta(pct, elapsed)
+            raw_rem_sec = 0.65 * hist_eta + 0.35 * live_rem_sec
             raw_rem_sec = max(0.0, min(7200.0, raw_rem_sec))
 
             # 2. Apply Exponential Moving Average (EMA) smoothing to eliminate erratic jumps
@@ -673,6 +681,9 @@ class MLTrainingStudio:
         self.current_percent = 0
         self.progress_history = []
         self.smoothed_eta_sec = None
+        self.stage_start_times = {}
+        self.stage_durations = {}
+        self.current_stage_name = None
         self.anim_step = 0
         self.train_btn.config(state="disabled")
         self.progress_bar["mode"] = "determinate"
@@ -793,6 +804,17 @@ class MLTrainingStudio:
         stage = data.get("stage", "")
         metrics = data.get("metrics", {})
         self.current_percent = percent
+        now = time.time()
+
+        # Track historical stage durations
+        if stage:
+            if hasattr(self, "current_stage_name") and self.current_stage_name and self.current_stage_name != stage:
+                prev = self.current_stage_name
+                if prev in self.stage_start_times:
+                    self.stage_durations[prev] = now - self.stage_start_times[prev]
+            self.current_stage_name = stage
+            if stage not in self.stage_start_times:
+                self.stage_start_times[stage] = now
 
         self.progress_bar["mode"] = "determinate"
         self.progress_bar["value"] = percent
@@ -833,6 +855,14 @@ class MLTrainingStudio:
         if self.timer_job:
             self.root.after_cancel(self.timer_job)
             self.timer_job = None
+
+        # Finalize and record last stage duration
+        if hasattr(self, "current_stage_name") and self.current_stage_name and self.current_stage_name in self.stage_start_times:
+            self.stage_durations[self.current_stage_name] = time.time() - self.stage_start_times[self.current_stage_name]
+
+        # Learn and persist historical stage runtimes for future training runs
+        if hasattr(self, "stage_learner") and self.stage_durations:
+            self.stage_learner.record_run(self.stage_durations)
 
         self.progress_bar["value"] = 100
         self.train_btn.config(state="normal")
