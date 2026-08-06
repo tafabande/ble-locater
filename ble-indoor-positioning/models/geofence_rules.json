@@ -1,0 +1,26 @@
+[
+    {
+        "from": "Room A",
+        "to": "Room D",
+        "severity": "HIGH",
+        "message": "🚨 CRITICAL: Patient exited ICU (Room A) directly into Emergency Ward (Room D)!"
+    },
+    {
+        "from": "Room A",
+        "to": "Room B",
+        "severity": "WARNING",
+        "message": "⚠️ WARNING: Patient exited ICU (Room A) into Patient Bedroom 2 (Room B)."
+    },
+    {
+        "from": "Room A",
+        "to": "Room C",
+        "severity": "WARNING",
+        "message": "⚠️ WARNING: Patient exited ICU (Room A) into Medical Station (Room C)."
+    },
+    {
+        "from": "Room C",
+        "to": "Room D",
+        "severity": "LOW",
+        "message": "ℹ️ INFO: Tag moved from Medical Station (Room C) to Emergency Ward (Room D)."
+    }
+]

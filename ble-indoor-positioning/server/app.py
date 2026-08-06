@@ -33,6 +33,8 @@ sys.path.insert(0, PROJECT_ROOT)
 
 from feature_engineering.engineer import compute_window_features, compute_cross_window_features
 from localization.trilateration import TrilaterationEngine, KalmanFilter2D
+from learning.calibration_storage import CalibrationStorage
+from engineering.geofence_engine import GeofenceEngine
 
 # Logger config
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -91,18 +93,40 @@ def resolve_room_name_with_hysteresis(x: float, y: float, current_room: str) -> 
 
 class OnlineDistanceLearner:
     """
-    Runtime Online Learning & Adaptive Calibrator.
+    Runtime Online Learning & Adaptive Calibrator with Persistent Calibration File Storage.
     Continuously updates path-loss parameters (path-loss exponent eta & distance bias offset)
     using live ground-truth feedback (true_x, true_y or real 5m calibration).
+    Performs persistent auto-saving to models/learned_calibrations.json every 100 observations or 60s.
     """
     def __init__(self, learning_rate: float = 0.08, tx_power_1m: float = -77.8):
         self.learning_rate = learning_rate
         self.tx_power_1m = tx_power_1m
-        self.anchor_eta = defaultdict(lambda: 2.7)  # anchor -> learned pathloss exp
-        self.anchor_bias = defaultdict(float)        # anchor -> learned bias correction in meters
+        self.anchor_eta = defaultdict(lambda: 2.7)   # anchor -> learned pathloss exp
+        self.anchor_bias = defaultdict(float)         # anchor -> learned bias correction in meters
+        self.anchor_samples = defaultdict(int)         # anchor -> learned sample count
         self.samples_learned_count = 0
+        self.unpersisted_samples = 0
+        self.last_save_time = time.time()
         self.mae_accumulator = []
         self.is_active = True
+        self.calib_filepath = os.path.join(PROJECT_ROOT, "models", "learned_calibrations.json")
+        self.load()
+
+    def load(self):
+        """Loads learned calibration parameters via CalibrationStorage."""
+        data = CalibrationStorage.load(self.calib_filepath)
+        anchors_data = data.get("anchors", {})
+        for anc_id, params in anchors_data.items():
+            self.anchor_eta[anc_id] = float(params.get("eta", 2.7))
+            self.anchor_bias[anc_id] = float(params.get("bias", 0.0))
+            self.anchor_samples[anc_id] = int(params.get("samples", 0))
+        self.samples_learned_count = int(data.get("total_samples", sum(self.anchor_samples.values())))
+
+    def save(self):
+        """Saves current learned calibration parameters via CalibrationStorage."""
+        if CalibrationStorage.save(self, self.calib_filepath):
+            self.unpersisted_samples = 0
+            self.last_save_time = time.time()
 
     def learn_sample(self, anchor_id: str, rssi: float, true_dist: float, raw_pred_dist: float) -> dict:
         import math
@@ -123,10 +147,17 @@ class OnlineDistanceLearner:
         self.anchor_bias[anchor_id] = (1.0 - self.learning_rate) * current_bias + self.learning_rate * error
 
         self.samples_learned_count += 1
+        self.anchor_samples[anchor_id] += 1
+        self.unpersisted_samples += 1
+
         abs_err = abs(error)
         self.mae_accumulator.append(abs_err)
         if len(self.mae_accumulator) > 200:
             self.mae_accumulator.pop(0)
+
+        # Auto-save policy: every 100 observations or 60 seconds
+        if self.unpersisted_samples >= 100 or (time.time() - self.last_save_time) >= 60.0:
+            self.save()
 
         return {
             "anchor": anchor_id,
@@ -134,6 +165,7 @@ class OnlineDistanceLearner:
             "raw_pred": round(raw_pred_dist, 2),
             "learned_eta": round(self.anchor_eta[anchor_id], 3),
             "learned_bias": round(self.anchor_bias[anchor_id], 3),
+            "samples": self.anchor_samples[anchor_id],
             "current_mae": round(sum(self.mae_accumulator) / max(1, len(self.mae_accumulator)), 3)
         }
 
@@ -158,8 +190,54 @@ class OnlineDistanceLearner:
             "samples_learned": self.samples_learned_count,
             "average_learned_pathloss": avg_eta,
             "live_mae_error": mae,
-            "learned_biases": {k: round(v, 3) for k, v in self.anchor_bias.items()}
+            "learned_biases": {k: round(v, 3) for k, v in self.anchor_bias.items()},
+            "anchor_samples": dict(self.anchor_samples)
         }
+
+
+class GeofenceEngine:
+    """
+    Geofence Alert Engine.
+    Monitors patient boundary violations and room-to-room transitions.
+    Generates event objects broadcasted over WebSocket to Unity and Streamlit.
+    """
+    def __init__(self):
+        self.transition_rules = {
+            ("Room A", "Room D"): {"severity": "HIGH", "message": "🚨 CRITICAL: Patient exited ICU (Room A) directly into Emergency Ward (Room D)!"},
+            ("Room A", "Room B"): {"severity": "WARNING", "message": "⚠️ WARNING: Patient exited ICU (Room A) into Patient Bedroom 2 (Room B)."},
+            ("Room A", "Room C"): {"severity": "WARNING", "message": "⚠️ WARNING: Patient exited ICU (Room A) into Medical Station (Room C)."},
+            ("Room C", "Room D"): {"severity": "LOW", "message": "ℹ️ INFO: Tag moved from Medical Station (Room C) to Emergency Ward (Room D)."},
+        }
+
+    def evaluate_transition(self, tag_id: str, old_room: str, new_room: str) -> Optional[dict]:
+        if not old_room or not new_room or old_room == new_room:
+            return None
+
+        rule = None
+        for (f_p, t_p), r in self.transition_rules.items():
+            if f_p in old_room and t_p in new_room:
+                rule = r
+                break
+
+        if not rule:
+            if "Room A" in old_room:
+                rule = {"severity": "HIGH", "message": f"🚨 CRITICAL: Tag {tag_id} exited ICU (Room A) into {new_room}!"}
+            else:
+                rule = {"severity": "LOW", "message": f"ℹ️ Tag {tag_id} moved from {old_room} to {new_room}."}
+
+        timestamp_str = time.strftime("%H:%M:%S", time.localtime())
+        alert_event = {
+            "type": "GEOFENCE_ALERT",
+            "severity": rule["severity"],
+            "patient": tag_id,
+            "from": old_room,
+            "to": new_room,
+            "time": timestamp_str,
+            "timestamp_ms": int(time.time() * 1000),
+            "message": rule["message"]
+        }
+        return alert_event
+
 
 state = {
     "model": None,
@@ -173,6 +251,9 @@ state = {
     "trilateration_engine": TrilaterationEngine(DEFAULT_ANCHORS_CONFIG),
     "kalman_filter": KalmanFilter2D(dt=0.1, process_noise=0.05, measurement_noise=0.8),
     "online_learner": OnlineDistanceLearner(),
+    "geofence_engine": GeofenceEngine(),
+    "alerts": [],          # list of recent alert dicts
+    "latest_alert": None,  # most recent alert dict
     "last_raw_packets": defaultdict(list),  # anchor -> list of (timestamp, rssi)
     "anchor_window_history": defaultdict(list), # anchor -> list of feature dicts for cross-window computation
     "estimated_distances": {},  # anchor -> estimated_dist
@@ -214,7 +295,11 @@ def load_ml_assets():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_ml_assets()
-    yield
+    state["online_learner"].load()
+    try:
+        yield
+    finally:
+        state["online_learner"].save()
 
 
 # Instantiate FastAPI App
@@ -373,9 +458,19 @@ def perform_localization():
         else: zone_str = "Very Far (4m+)"
         state["zone_prediction"] = zone_str
 
-        # 6. Room resolution with hysteresis
-        room_name = resolve_room_name_with_hysteresis(smoothed_x, smoothed_y, state["current_room"])
+        # 6. Room resolution with hysteresis & Geofence Alert Evaluation
+        prev_room = state["current_room"]
+        room_name = resolve_room_name_with_hysteresis(smoothed_x, smoothed_y, prev_room)
         state["current_room"] = room_name
+
+        if prev_room != room_name:
+            alert = state["geofence_engine"].evaluate_transition("TAG_01", prev_room, room_name)
+            if alert:
+                state["alerts"].append(alert)
+                if len(state["alerts"]) > 50:
+                    state["alerts"].pop(0)
+                state["latest_alert"] = alert
+                logger.warning(f"🚨 GEOFENCE ALERT: {alert['message']}")
 
         state["last_position"] = {
             "x": round(float(smoothed_x), 2),
@@ -490,15 +585,56 @@ def direct_online_learn(item: DirectLearningInput):
 
 @app.get("/api/state")
 def get_position_state():
-    """Retrieve full location coordinates, estimated distances, history, and runtime learning metrics."""
+    """Retrieve full location coordinates, estimated distances, history, runtime learning metrics, and geofence alerts."""
     return {
         "position": state["last_position"],
         "distances": state["estimated_distances"],
         "anchors": state["anchors_config"],
         "history": state["history"],
         "zone": state["zone_prediction"],
-        "learning": state["online_learner"].get_summary()
+        "learning": state["online_learner"].get_summary(),
+        "alerts": state["alerts"],
+        "latest_alert": state["latest_alert"]
     }
+
+
+@app.get("/api/alerts")
+def get_alerts():
+    """Retrieve recent geofence room transition alerts."""
+    return {
+        "alerts": state["alerts"],
+        "latest": state["latest_alert"],
+        "count": len(state["alerts"])
+    }
+
+
+@app.post("/api/alerts/clear")
+def clear_alerts():
+    """Clear geofence alert history log."""
+    state["alerts"].clear()
+    state["latest_alert"] = None
+    return {"status": "success", "message": "Alert history cleared."}
+
+
+@app.get("/api/confidence_heatmap")
+def get_confidence_heatmap(step: float = 0.5):
+    """
+    Computes a 2D spatial grid map of Geometric Dilution of Precision (GDOP)
+    and Localization Confidence (%) across floorplan bounds.
+    """
+    try:
+        active_anchors = list(state["estimated_distances"].keys())
+        heatmap_data = state["trilateration_engine"].compute_gdop_grid(
+            bounds_x=(0.0, 10.0),
+            bounds_y=(0.0, 10.0),
+            step=max(0.2, min(2.0, step)),
+            active_anchors=active_anchors
+        )
+        return heatmap_data
+    except Exception as e:
+        logger.error(f"Error computing confidence heatmap: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate heatmap: {e}")
+
 
 
 @app.post("/api/config/anchors")
@@ -531,6 +667,7 @@ def configure_anchor(config: ConfigUpdate):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     state["active_connections"].append(websocket)
+    last_sent_alert_time = 0
     try:
         while True:
             current_data = {
@@ -539,7 +676,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     "position": state["last_position"],
                     "distances": state["estimated_distances"],
                     "history": state["history"],
-                    "zone": state["zone_prediction"]
+                    "zone": state["zone_prediction"],
+                    "alert": state["latest_alert"]
                 }
             }
             await websocket.send_json(current_data)

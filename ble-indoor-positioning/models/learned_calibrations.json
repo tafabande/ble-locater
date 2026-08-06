@@ -1,0 +1,22 @@
+{
+    "version": 1,
+    "anchors": {
+        "ANCHOR_01": {
+            "eta": 2.7,
+            "bias": 0.0,
+            "samples": 0
+        },
+        "ANCHOR_02": {
+            "eta": 2.7,
+            "bias": 0.0,
+            "samples": 0
+        },
+        "ANCHOR_03": {
+            "eta": 2.7,
+            "bias": 0.0,
+            "samples": 0
+        }
+    },
+    "total_samples": 0,
+    "last_updated": "2026-08-06T14:43:50Z"
+}

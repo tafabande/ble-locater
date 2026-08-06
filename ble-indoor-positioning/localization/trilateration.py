@@ -135,6 +135,65 @@ class TrilaterationEngine:
 
         return (est_x, est_y), round(uncertainty_radius, 3), round(gdop, 2)
 
+    def compute_gdop_grid(self, bounds_x=(0.0, 10.0), bounds_y=(0.0, 10.0), step=0.5, active_anchors=None) -> dict:
+        """
+        Computes a 2D spatial map of GDOP and localization confidence scores (%)
+        across a discrete floorplan grid.
+        """
+        if active_anchors is not None:
+            target_coords = [self.anchors[a] for a in active_anchors if a in self.anchors]
+        else:
+            target_coords = list(self.anchors.values())
+
+        if len(target_coords) < 2:
+            target_coords = list(self.anchors.values())
+
+        xs = np.arange(bounds_x[0], bounds_x[1] + step, step)
+        ys = np.arange(bounds_y[0], bounds_y[1] + step, step)
+
+        grid_z_confidence = []
+        grid_z_gdop = []
+
+        coords_arr = np.array(target_coords) if target_coords else np.empty((0, 2))
+
+        for y in ys:
+            row_conf = []
+            row_gdop = []
+            for x in xs:
+                pos = np.array([x, y])
+                if len(coords_arr) >= 2:
+                    try:
+                        diffs = pos - coords_arr
+                        norms = np.linalg.norm(diffs, axis=1)[:, np.newaxis]
+                        norms[norms == 0] = 1e-5
+                        J = diffs / norms
+                        JTJ = J.T @ J
+                        JTJ_inv = np.linalg.inv(JTJ)
+                        trace_inv = np.trace(JTJ_inv)
+                        if trace_inv > 0 and np.isfinite(trace_inv):
+                            gdop_val = float(np.sqrt(trace_inv))
+                        else:
+                            gdop_val = 10.0
+                    except Exception:
+                        gdop_val = 10.0
+                else:
+                    gdop_val = 10.0
+
+                # Convert GDOP to confidence percentage (1.0 GDOP = 100% confidence, 5.0+ GDOP = 0% confidence)
+                conf = max(0.0, min(100.0, 100.0 * math.exp(-max(0.0, gdop_val - 1.0) / 1.8)))
+                row_conf.append(round(conf, 1))
+                row_gdop.append(round(min(15.0, gdop_val), 2))
+
+            grid_z_confidence.append(row_conf)
+            grid_z_gdop.append(row_gdop)
+
+        return {
+            "x": [round(float(x), 2) for x in xs],
+            "y": [round(float(y), 2) for y in ys],
+            "confidence": grid_z_confidence,
+            "gdop": grid_z_gdop
+        }
+
 
 class KalmanFilter2D:
     def __init__(self, dt: float = 1.0, process_noise: float = 0.1, measurement_noise: float = 0.35):
