@@ -109,9 +109,11 @@ class MLTrainingStudio:
         self.log_queue = queue.Queue()
         self.is_training = False
 
-        # Timer & Spinner animation state
+        # Timer, Moving Window & Exponential Smoothing State
         self.start_time = None
         self.current_percent = 0
+        self.progress_history = []      # list of (timestamp, percent)
+        self.smoothed_eta_sec = None    # EMA smoothed remaining seconds
         self.anim_step = 0
         self.timer_job = None
         self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -595,11 +597,12 @@ class MLTrainingStudio:
     # ──────────────────────────────────────────────────────────────────
 
     def update_timer_loop(self):
-        """Updates elapsed time, ETA calculation, and spinner animation continuously during training."""
+        """Updates elapsed time, smoothed ETA calculation, and spinner animation continuously during training."""
         if not self.is_training or self.start_time is None:
             return
 
-        elapsed = time.time() - self.start_time
+        now = time.time()
+        elapsed = now - self.start_time
         elapsed_sec = int(elapsed)
         m, s = divmod(elapsed_sec, 60)
         h, m = divmod(m, 60)
@@ -608,21 +611,48 @@ class MLTrainingStudio:
         else:
             elapsed_fmt = f"{m:02d}:{s:02d}"
 
-        # Calculate ETA based on percent completed
+        # Maintain sliding history window of (timestamp, percent) updates
         pct = self.current_percent
-        if pct > 0 and pct < 100:
-            total_est = elapsed / (pct / 100.0)
-            rem_sec = max(0, int(total_est - elapsed))
-            rm, rs = divmod(rem_sec, 60)
-            rh, rm = divmod(rm, 60)
-            if rh > 0:
-                eta_fmt = f"{rh:02d}:{rm:02d}:{rs:02d}"
-            else:
-                eta_fmt = f"{rm:02d}:{rs:02d}"
+        if not hasattr(self, "progress_history") or self.progress_history is None:
+            self.progress_history = []
+
+        self.progress_history.append((now, pct))
+        if len(self.progress_history) > 30:
+            self.progress_history.pop(0)
+
+        # Warm-up phase: for initial 4 seconds or under 4% progress, display warm-up state
+        if elapsed < 4.0 or pct < 4:
+            eta_fmt = "Learning runtime..."
         elif pct >= 100:
             eta_fmt = "00:00"
         else:
-            eta_fmt = "Calculating..."
+            # 1. Compute moving window velocity (% per second) over last 15-20s if available
+            oldest_t, oldest_pct = self.progress_history[0]
+            time_delta = now - oldest_t
+            pct_delta = pct - oldest_pct
+
+            if time_delta >= 1.5 and pct_delta > 0:
+                speed_pct_per_sec = pct_delta / time_delta
+                raw_rem_sec = (100.0 - pct) / speed_pct_per_sec
+            else:
+                # Fallback to cumulative average pace
+                raw_rem_sec = (elapsed / (pct / 100.0)) - elapsed
+
+            raw_rem_sec = max(0.0, min(7200.0, raw_rem_sec))
+
+            # 2. Apply Exponential Moving Average (EMA) smoothing to eliminate erratic jumps
+            if getattr(self, "smoothed_eta_sec", None) is None:
+                self.smoothed_eta_sec = raw_rem_sec
+            else:
+                self.smoothed_eta_sec = 0.15 * raw_rem_sec + 0.85 * self.smoothed_eta_sec
+
+            rem_sec = int(self.smoothed_eta_sec)
+            rm, rs = divmod(rem_sec, 60)
+            rh, rm = divmod(rm, 60)
+            if rh > 0:
+                eta_fmt = f"≈ {rh:02d}:{rm:02d}:{rs:02d}"
+            else:
+                eta_fmt = f"≈ {rm:02d}:{rs:02d}"
 
         # Spinner animation frame
         spinner = self.spinner_frames[self.anim_step % len(self.spinner_frames)]
@@ -641,17 +671,20 @@ class MLTrainingStudio:
         self.is_training = True
         self.start_time = time.time()
         self.current_percent = 0
+        self.progress_history = []
+        self.smoothed_eta_sec = None
         self.anim_step = 0
         self.train_btn.config(state="disabled")
         self.progress_bar["mode"] = "determinate"
         self.progress_bar["value"] = 0
         self.lbl_status.config(text="Initializing ML pipeline...", foreground=self.colors["accent"])
         if hasattr(self, "lbl_timer"):
-            self.lbl_timer.config(text="⠋ Elapsed: 00:00 | ETA: Calculating...", foreground=self.colors["accent"])
+            self.lbl_timer.config(text="⠋ Elapsed: 00:00 | ETA: Learning runtime...", foreground=self.colors["accent"])
         self.console_text.delete("1.0", tk.END)
 
         # Start timer update loop
         self.update_timer_loop()
+
 
         thread = threading.Thread(target=self.run_pipeline_worker, daemon=True)
         thread.start()
