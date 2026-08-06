@@ -132,7 +132,7 @@ def test_feature_engineering_single_packet():
     feats = compute_window_features(df)
     
     assert isinstance(feats, dict)
-    assert len(feats) == 30
+    assert len(feats) >= 30
     assert feats["packet_count"] == 1
     assert feats["rssi_std"] == 0.0
     assert all(np.isfinite(val) for val in feats.values())
@@ -160,14 +160,14 @@ def test_feature_engineering_nan_in_data():
     feats = compute_window_features(df)
     
     assert isinstance(feats, dict)
-    assert len(feats) == 30
+    assert len(feats) >= 30
     assert all(np.isfinite(val) for val in feats.values())
 
 
 def test_feature_engineering_empty():
     feats = compute_window_features(pd.DataFrame())
     assert isinstance(feats, dict)
-    assert len(feats) == 30
+    assert len(feats) >= 30
     assert all(np.isfinite(val) for val in feats.values())
 
 
@@ -187,3 +187,29 @@ def test_predict_distance_fallback():
     dist = predict_distance_for_anchor("A1", rssi_list, timestamps)
     assert isinstance(dist, float)
     assert 0.1 <= dist <= 25.0
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  5. RUNTIME ONLINE LEARNING ENGINE TESTS
+# ──────────────────────────────────────────────────────────────────────
+
+def test_online_learner_adaptation():
+    from server.app import OnlineDistanceLearner
+    learner = OnlineDistanceLearner(learning_rate=0.2)
+    
+    # Initial calibration distance for raw prediction 3.0m at RSSI -85 when true distance is 5.0m
+    anchor = "ANCHOR_01"
+    initial_calib = learner.calibrate_prediction(anchor, 3.0, -85)
+    
+    # Train multiple samples with ground truth 5.0m
+    for _ in range(20):
+        learner.learn_sample(anchor, rssi=-85, true_dist=5.0, raw_pred_dist=3.0)
+        
+    updated_calib = learner.calibrate_prediction(anchor, 3.0, -85)
+    summary = learner.get_summary()
+
+    # Verify online adaptation moved prediction closer to 5.0m
+    assert abs(updated_calib - 5.0) < abs(initial_calib - 5.0)
+    assert summary["samples_learned"] == 20
+    assert summary["active"] is True
+

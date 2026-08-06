@@ -132,11 +132,23 @@ CROSS_WINDOW_FEATURE_COLUMNS = [
     "rssi_motion_direction", "rssi_snr_rolling_5w"
 ]
 
+# Environmental interaction features (5 explicit terms)
+ENVIRONMENTAL_INTERACTION_COLUMNS = [
+    "obstacle_factor",
+    "rssi_x_height",
+    "pathloss_div_obstacle_factor",
+    "pathloss_free_div_obstacle_factor",
+    "rssi_div_height"
+]
+
 # Physical metadata features
 PHYSICAL_METADATA_COLUMNS = ["height_m"]
 
 # All feature columns
-ALL_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + CROSS_WINDOW_FEATURE_COLUMNS + PHYSICAL_METADATA_COLUMNS
+ALL_FEATURE_COLUMNS = (
+    BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + CROSS_WINDOW_FEATURE_COLUMNS +
+    PHYSICAL_METADATA_COLUMNS + ENVIRONMENTAL_INTERACTION_COLUMNS
+)
 
 TARGET_COLUMN = "distance_m"
 TEST_SIZE = 0.2
@@ -158,18 +170,12 @@ def detect_available_features(df: pd.DataFrame) -> list:
     n_base = sum(1 for c in BASE_FEATURE_COLUMNS if c in available)
     n_temporal = sum(1 for c in TEMPORAL_FEATURE_COLUMNS if c in available)
     n_cross_window = sum(1 for c in CROSS_WINDOW_FEATURE_COLUMNS if c in available)
-    print(f"\n[FEATURE DETECTION] Found {len(available)} features: {n_base} base + {n_temporal} temporal + {n_cross_window} cross-window")
-    if n_temporal == 0:
-        print("  [INFO] No temporal features detected — using legacy 30-feature mode.")
-        print("  [TIP]  Re-run feature engineering to generate the 8 temporal features.")
-    if n_cross_window == 0:
-        print("  [INFO] No cross-window features detected — V1 mode (no motion awareness).")
-        print("  [TIP]  Re-run feature engineering to generate the 11 V2 cross-window features.")
-    elif n_cross_window < len(CROSS_WINDOW_FEATURE_COLUMNS):
-        missing = [c for c in CROSS_WINDOW_FEATURE_COLUMNS if c not in available]
-        print(f"  [WARN] Partial cross-window features. Missing: {missing}")
+    n_environmental = sum(1 for c in ENVIRONMENTAL_INTERACTION_COLUMNS if c in available)
+    print(f"\n[FEATURE DETECTION] Found {len(available)} features: {n_base} base + {n_temporal} temporal + {n_cross_window} cross-window + {n_environmental} environmental interactions")
+    if n_environmental > 0:
+        print(f"  [OK] Environmental Interaction Terms Active: {[c for c in ENVIRONMENTAL_INTERACTION_COLUMNS if c in available]}")
     else:
-        print("  [OK] Full V2 feature mode active (50 features including cross-window temporal).")
+        print("  [INFO] No environmental interaction features detected — generating on-the-fly for compatibility.")
     return available
 
 
@@ -266,7 +272,7 @@ def distance_to_zone(distances: np.ndarray) -> np.ndarray:
     return zones
 
 
-def detect_and_remove_outliers(X: np.ndarray, y: np.ndarray, groups: np.ndarray = None, contamination: float = 0.03) -> tuple:
+def detect_and_remove_outliers(X: np.ndarray, y: np.ndarray, groups: np.ndarray = None, distance_bucket: np.ndarray = None, contamination: float = 0.03) -> tuple:
     """
     Detects hardware & multipath signal outliers on RSSI feature space using IsolationForest.
     Does NOT remove ground-truth target distance measurements (y).
@@ -283,10 +289,11 @@ def detect_and_remove_outliers(X: np.ndarray, y: np.ndarray, groups: np.ndarray 
             print(f"  [SIGNAL OUTLIER] No hardware signal anomalies detected.")
 
         cleaned_groups = groups[inlier_mask] if groups is not None else None
-        return X[inlier_mask], y[inlier_mask], cleaned_groups, int(n_removed)
+        cleaned_distance_bucket = distance_bucket[inlier_mask] if distance_bucket is not None else None
+        return X[inlier_mask], y[inlier_mask], cleaned_groups, cleaned_distance_bucket, int(n_removed)
     except Exception as e:
         print(f"  [SIGNAL OUTLIER] IsolationForest skipped: {e}")
-        return X, y, groups, 0
+        return X, y, groups, distance_bucket, 0
 
 
 def feature_importance_pruning(model, X_train, y_train, feature_cols, threshold=0.001):
@@ -313,6 +320,55 @@ def feature_importance_pruning(model, X_train, y_train, feature_cols, threshold=
     except Exception as e:
         logger.warning(f"Feature pruning failed: {e}")
         return np.ones(len(feature_cols), dtype=bool), np.ones(len(feature_cols))
+
+
+def compute_environmental_interactions(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Computes explicit environmental interaction terms into the feature set to decouple
+    environmental damping / obstacle path attenuation from pure geometric distance decay.
+    """
+    if df is None or df.empty:
+        return df
+
+    df = df.copy()
+
+    # 1. Map Obstacle & Obstacle Type to numerical Obstacle Factor
+    if "obstacle_factor" not in df.columns:
+        obstacle_factors = []
+        for idx, row in df.iterrows():
+            obs = str(row.get("obstacle", "No")).strip().capitalize()
+            obs_type = str(row.get("obstacle_type", "None")).strip().title()
+            if obs in ("No", "False", "0") or obs_type in ("None", "Nan", "", "N/A"):
+                factor = 1.0
+            elif obs_type in ("Cardboard", "Tape", "Wood", "Glass"):
+                factor = 1.3
+            elif obs_type in ("Human", "Body", "Furniture", "Partition"):
+                factor = 1.7
+            elif obs_type in ("Metal", "Wall", "Concrete", "Steel"):
+                factor = 2.2
+            else:
+                factor = 1.5
+            obstacle_factors.append(factor)
+        df["obstacle_factor"] = np.round(obstacle_factors, 2)
+
+    # 2. RSSI × Height interaction
+    if "rssi_mean" in df.columns and "height_m" in df.columns and "rssi_x_height" not in df.columns:
+        df["rssi_x_height"] = np.round(df["rssi_mean"] * df["height_m"].fillna(0.0), 4)
+
+    # 3. PathLoss / ObstacleFactor interaction
+    if "path_loss_indoor" in df.columns and "obstacle_factor" in df.columns and "pathloss_div_obstacle_factor" not in df.columns:
+        obs_safe = df["obstacle_factor"].replace(0.0, 1.0)
+        df["pathloss_div_obstacle_factor"] = np.round(df["path_loss_indoor"] / obs_safe, 4)
+
+    if "path_loss_free_space" in df.columns and "obstacle_factor" in df.columns and "pathloss_free_div_obstacle_factor" not in df.columns:
+        obs_safe = df["obstacle_factor"].replace(0.0, 1.0)
+        df["pathloss_free_div_obstacle_factor"] = np.round(df["path_loss_free_space"] / obs_safe, 4)
+
+    # 4. RSSI / (Height + 1.0)
+    if "rssi_mean" in df.columns and "height_m" in df.columns and "rssi_div_height" not in df.columns:
+        df["rssi_div_height"] = np.round(df["rssi_mean"] / (df["height_m"].fillna(0.0) + 1.0), 4)
+
+    return df
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -345,6 +401,9 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
         df["anchor_height_m"] = 0.0
     else:
         df["anchor_height_m"] = df["anchor_height_m"].fillna(0.0)
+
+    # Compute environmental interaction terms if missing
+    df = compute_environmental_interactions(df)
 
     # Use all available feature columns for NaN dropping
     available_features = [c for c in ALL_FEATURE_COLUMNS if c in df.columns]
@@ -629,30 +688,26 @@ def evaluate_extended_metrics(y_true, y_pred) -> dict:
                 "explained_variance": 0.0, "per_distance_mae": {}}
 
 
-def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int = CV_FOLDS, groups: np.ndarray = None) -> dict:
+def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int = CV_FOLDS, groups: np.ndarray = None, y_strat: np.ndarray = None) -> dict:
     """Run StratifiedGroupKFold or K-Fold cross-validation and return robust mean/std metrics without data leakage."""
     try:
         if groups is not None and len(np.unique(groups)) >= 2:
             n_groups = len(np.unique(groups))
             folds = min(cv_folds, n_groups)
-            n_uniques = len(np.unique(y))
-            if n_uniques > 1:
+            if y_strat is None:
                 try:
-                    # Use distance_bucket for StratifiedGroupKFold if available
-                    if "distance_bucket" in globals() or "distance_bucket" in str(y_bins): # this is a hack, we can't access df here
-                        pass # just a placeholder, wait
+                    y_bins = pd.qcut(y, q=min(5, len(np.unique(y))), labels=False, duplicates="drop")
+                    y_strat = y_bins.astype(str)
                 except Exception:
-                    pass
-                try:
-                    y_bins = pd.qcut(y, q=min(5, n_uniques), labels=False, duplicates="drop")
-                except Exception:
-                    y_bins = np.round(y * 2) / 2  # Fallback rounding to 0.5m bins
-                sgkf = StratifiedGroupKFold(n_splits=folds)
-                cv_splits = list(sgkf.split(X_scaled, y_bins, groups=groups))
+                    y_strat = (np.round(y * 2) / 2).astype(str)
+
+            try:
+                sgkf = StratifiedGroupKFold(n_splits=folds, shuffle=True, random_state=RANDOM_STATE)
+                cv_splits = list(sgkf.split(X_scaled, y_strat, groups=groups))
                 mae_scores = -cross_val_score(model, X_scaled, y, cv=cv_splits, scoring="neg_mean_absolute_error", n_jobs=-1)
                 r2_scores = cross_val_score(model, X_scaled, y, cv=cv_splits, scoring="r2", n_jobs=-1)
                 cv_type = f"StratifiedGroupKFold({folds} session folds)"
-            else:
+            except Exception as e:
                 cv_splitter = GroupKFold(n_splits=folds)
                 mae_scores = -cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring="neg_mean_absolute_error", n_jobs=-1)
                 r2_scores = cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring="r2", n_jobs=-1)
@@ -713,7 +768,7 @@ def train_model(df: pd.DataFrame, tune_hyperparams: bool = False, eval_mode: str
     1. Assign & audit recording session IDs (prevent temporal data leakage)
     2. Detect features (backward-compatible)
     3. Outlier removal
-    4. Session-aware GroupShuffleSplit & GroupKFold
+    4. Session-aware StratifiedGroupKFold train/test split and CV
     5. Feature importance pruning
     6. Train candidates with session CV & composite score selection
     """
@@ -724,12 +779,24 @@ def train_model(df: pd.DataFrame, tune_hyperparams: bool = False, eval_mode: str
     X_raw = df[feature_cols].values
     y_raw = df[TARGET_COLUMN].values
     groups_raw = df["session_id"].values
+    if "distance_bucket" in df.columns:
+        dist_bucket_raw = df["distance_bucket"].values
+    else:
+        dist_bucket_raw = np.round(y_raw * 2) / 2
 
     # ── Stage 1: Outlier Detection ───────────────────────────────────
     print(f"\n{'='*75}")
     print(f"  [STAGE 1] OUTLIER DETECTION & DATA CLEANING")
     print(f"{'='*75}")
-    X_clean, y_clean, groups_clean, n_outliers = detect_and_remove_outliers(X_raw, y_raw, groups_raw)
+    X_clean, y_clean, groups_clean, dist_bucket_clean, n_outliers = detect_and_remove_outliers(
+        X_raw, y_raw, groups_raw, dist_bucket_raw
+    )
+
+    # Convert distance_bucket clean values to string discrete stratification labels
+    try:
+        y_strat = dist_bucket_clean.astype(str)
+    except Exception:
+        y_strat = (np.round(y_clean * 2) / 2).astype(str)
 
     # ── Stage 2: Session-Aware Train/Test Split (Zero Data Leakage) ──
     print(f"\n{'='*75}")
@@ -746,24 +813,20 @@ def train_model(df: pd.DataFrame, tune_hyperparams: bool = False, eval_mode: str
             splitter = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
             train_idx, test_idx = next(splitter.split(X_clean, y_clean, groups=groups_clean))
         else: # Default "session" is now "balanced_session"
-            print("  [LEAKAGE PREVENTION] StratifiedGroupKFold active: BALANCED unseen sessions held out.")
+            print("  [LEAKAGE PREVENTION] StratifiedGroupKFold active: BALANCED unseen sessions held out (grouping on session_id, stratifying on distance_bucket).")
             n_splits = int(1.0 / TEST_SIZE) if TEST_SIZE > 0 else 5
             try:
-                n_uniques = len(np.unique(y_clean))
-                if "distance_bucket" in df.columns:
-                    y_bins = df.iloc[:len(y_clean)]["distance_bucket"].values # Wait, this might be filtered by outliers
-                # Safer: just use qcut on y_clean
-                y_bins = pd.qcut(y_clean, q=min(5, n_uniques), labels=False, duplicates="drop")
-            except Exception:
-                y_bins = np.round(y_clean * 2) / 2
-            
-            # StratifiedGroupKFold guarantees entirely unseen groups while balancing the y_bins
-            splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=RANDOM_STATE)
-            train_idx, test_idx = next(splitter.split(X_clean, y_bins, groups=groups_clean))
+                splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=RANDOM_STATE)
+                train_idx, test_idx = next(splitter.split(X_clean, y_strat, groups=groups_clean))
+            except Exception as split_err:
+                print(f"  [WARN] StratifiedGroupKFold split fallback to GroupShuffleSplit: {split_err}")
+                splitter = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+                train_idx, test_idx = next(splitter.split(X_clean, y_clean, groups=groups_clean))
 
         X_train, X_test = X_clean[train_idx], X_clean[test_idx]
         y_train, y_test = y_clean[train_idx], y_clean[test_idx]
         groups_train, groups_test = groups_clean[train_idx], groups_clean[test_idx]
+        y_strat_train, y_strat_test = y_strat[train_idx], y_strat[test_idx]
 
         train_sess_set = set(groups_train)
         test_sess_set = set(groups_test)
@@ -788,12 +851,12 @@ def train_model(df: pd.DataFrame, tune_hyperparams: bool = False, eval_mode: str
         else:
             print("  [RANDOM SPLIT] Using standard Random Stratified Split as requested.")
         groups_train, groups_test = None, None
+        y_strat_train = y_strat
         try:
             n_uniques = len(np.unique(y_clean))
             if n_uniques > 1 and len(y_clean) >= 10:
-                y_bins = pd.qcut(y_clean, q=min(5, n_uniques), labels=False, duplicates="drop")
                 X_train, X_test, y_train, y_test = train_test_split(
-                    X_clean, y_clean, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y_bins
+                    X_clean, y_clean, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y_strat
                 )
             else:
                 X_train, X_test, y_train, y_test = train_test_split(
@@ -872,8 +935,8 @@ def train_model(df: pd.DataFrame, tune_hyperparams: bool = False, eval_mode: str
 
             pipeline = Pipeline(steps)
 
-            # Session-Aware GroupKFold Cross-Validation on Training Set ONLY
-            cv_results = run_cross_validation(pipeline, X_train, y_train, name, groups=groups_train)
+            # Session-Aware StratifiedGroupKFold Cross-Validation on Training Set ONLY
+            cv_results = run_cross_validation(pipeline, X_train, y_train, name, cv_folds=CV_FOLDS, groups=groups_train, y_strat=y_strat_train)
 
             # Fit pipeline on full X_train and evaluate on held-out X_test
             pipeline.fit(X_train, y_train)

@@ -109,6 +109,13 @@ class MLTrainingStudio:
         self.log_queue = queue.Queue()
         self.is_training = False
 
+        # Timer & Spinner animation state
+        self.start_time = None
+        self.current_percent = 0
+        self.anim_step = 0
+        self.timer_job = None
+        self.spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
         # Apply Modern Dark Theme Colors
         self.colors = {
             "bg": "#1e1e2e",
@@ -295,11 +302,17 @@ class MLTrainingStudio:
         progress_box = ttk.Frame(self.tab_train, padding=(0, 5))
         progress_box.pack(fill="x", pady=(0, 10))
 
-        self.progress_bar = ttk.Progressbar(progress_box, mode="indeterminate")
+        self.progress_bar = ttk.Progressbar(progress_box, mode="determinate")
         self.progress_bar.pack(fill="x", pady=(0, 5))
 
-        self.lbl_status = ttk.Label(progress_box, text="System Ready. Click 'RUN END-TO-END ML PIPELINE' to start.", font=("Segoe UI", 9, "italic"), foreground=self.colors["subtext"])
+        status_bar = ttk.Frame(progress_box)
+        status_bar.pack(fill="x")
+
+        self.lbl_status = ttk.Label(status_bar, text="System Ready. Click 'RUN END-TO-END ML PIPELINE' to start.", font=("Segoe UI", 9, "italic"), foreground=self.colors["subtext"])
         self.lbl_status.pack(side="left")
+
+        self.lbl_timer = ttk.Label(status_bar, text="⏱️ Elapsed: 00:00 | ETA: --:--", font=("Segoe UI", 9, "bold"), foreground=self.colors["accent"])
+        self.lbl_timer.pack(side="right")
 
         # Main Split Frame (Log Console | Diagnostics Plot Image)
         split_frame = ttk.Frame(self.tab_train)
@@ -581,16 +594,64 @@ class MLTrainingStudio:
     # PIPELINE THREAD & EXECUTION
     # ──────────────────────────────────────────────────────────────────
 
+    def update_timer_loop(self):
+        """Updates elapsed time, ETA calculation, and spinner animation continuously during training."""
+        if not self.is_training or self.start_time is None:
+            return
+
+        elapsed = time.time() - self.start_time
+        elapsed_sec = int(elapsed)
+        m, s = divmod(elapsed_sec, 60)
+        h, m = divmod(m, 60)
+        if h > 0:
+            elapsed_fmt = f"{h:02d}:{m:02d}:{s:02d}"
+        else:
+            elapsed_fmt = f"{m:02d}:{s:02d}"
+
+        # Calculate ETA based on percent completed
+        pct = self.current_percent
+        if pct > 0 and pct < 100:
+            total_est = elapsed / (pct / 100.0)
+            rem_sec = max(0, int(total_est - elapsed))
+            rm, rs = divmod(rem_sec, 60)
+            rh, rm = divmod(rm, 60)
+            if rh > 0:
+                eta_fmt = f"{rh:02d}:{rm:02d}:{rs:02d}"
+            else:
+                eta_fmt = f"{rm:02d}:{rs:02d}"
+        elif pct >= 100:
+            eta_fmt = "00:00"
+        else:
+            eta_fmt = "Calculating..."
+
+        # Spinner animation frame
+        spinner = self.spinner_frames[self.anim_step % len(self.spinner_frames)]
+        self.anim_step += 1
+
+        if hasattr(self, "lbl_timer"):
+            self.lbl_timer.config(text=f"{spinner} Elapsed: {elapsed_fmt} | ETA: {eta_fmt}")
+
+        if self.is_training:
+            self.timer_job = self.root.after(200, self.update_timer_loop)
+
     def start_pipeline_thread(self):
         if self.is_training:
             return
 
         self.is_training = True
+        self.start_time = time.time()
+        self.current_percent = 0
+        self.anim_step = 0
         self.train_btn.config(state="disabled")
         self.progress_bar["mode"] = "determinate"
         self.progress_bar["value"] = 0
         self.lbl_status.config(text="Initializing ML pipeline...", foreground=self.colors["accent"])
+        if hasattr(self, "lbl_timer"):
+            self.lbl_timer.config(text="⠋ Elapsed: 00:00 | ETA: Calculating...", foreground=self.colors["accent"])
         self.console_text.delete("1.0", tk.END)
+
+        # Start timer update loop
+        self.update_timer_loop()
 
         thread = threading.Thread(target=self.run_pipeline_worker, daemon=True)
         thread.start()
@@ -652,6 +713,7 @@ class MLTrainingStudio:
         idx = data.get("index", 0)
         total = data.get("total", 0)
         pct = data.get("percent", 0)
+        self.current_percent = pct
 
         if hasattr(self, "model_tree"):
             # Check if row exists in treeview
@@ -697,6 +759,7 @@ class MLTrainingStudio:
         percent = data.get("percent", 0)
         stage = data.get("stage", "")
         metrics = data.get("metrics", {})
+        self.current_percent = percent
 
         self.progress_bar["mode"] = "determinate"
         self.progress_bar["value"] = percent
@@ -734,8 +797,21 @@ class MLTrainingStudio:
 
     def on_pipeline_success(self):
         self.is_training = False
+        if self.timer_job:
+            self.root.after_cancel(self.timer_job)
+            self.timer_job = None
+
         self.progress_bar["value"] = 100
         self.train_btn.config(state="normal")
+
+        if self.start_time:
+            total_sec = int(time.time() - self.start_time)
+            m, s = divmod(total_sec, 60)
+            h, m = divmod(m, 60)
+            time_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
+            if hasattr(self, "lbl_timer"):
+                self.lbl_timer.config(text=f"✅ Finished in {time_str}", foreground=self.colors["green"])
+
         self.lbl_status.config(text="✅ Model training and evaluation complete!", foreground=self.colors["green"])
 
         self.load_trained_model()
@@ -748,8 +824,21 @@ class MLTrainingStudio:
 
     def on_pipeline_error(self):
         self.is_training = False
+        if self.timer_job:
+            self.root.after_cancel(self.timer_job)
+            self.timer_job = None
+
         self.progress_bar["value"] = 0
         self.train_btn.config(state="normal")
+
+        if self.start_time:
+            total_sec = int(time.time() - self.start_time)
+            m, s = divmod(total_sec, 60)
+            h, m = divmod(m, 60)
+            time_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
+            if hasattr(self, "lbl_timer"):
+                self.lbl_timer.config(text=f"❌ Stopped at {time_str}", foreground=self.colors["red"])
+
         self.lbl_status.config(text="❌ Training failed. Check log console below.", foreground=self.colors["red"])
 
     # ──────────────────────────────────────────────────────────────────

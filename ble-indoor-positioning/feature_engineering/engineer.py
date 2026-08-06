@@ -42,8 +42,9 @@ def compute_window_features(group: pd.DataFrame) -> dict:
         }
 
     try:
-        rssi_raw = pd.to_numeric(group["rssi"], errors="coerce").dropna().values.astype(float)
-        ts_raw = pd.to_numeric(group["timestamp"], errors="coerce").dropna().values.astype(float)
+        valid_df = group[["rssi", "timestamp"]].dropna()
+        rssi_raw = pd.to_numeric(valid_df["rssi"], errors="coerce").fillna(-70.0).values.astype(float)
+        ts_raw = pd.to_numeric(valid_df["timestamp"], errors="coerce").fillna(0.0).values.astype(float)
     except Exception:
         rssi_raw = np.array([-70.0])
         ts_raw = np.array([0.0])
@@ -117,8 +118,9 @@ def compute_window_features(group: pd.DataFrame) -> dict:
     n_free_space = 2.0
     n_indoor_obs = 3.0
 
-    exp_fs = (-60.0 - rssi_mean) / (10.0 * n_free_space)
-    exp_in = (-60.0 - rssi_mean) / (10.0 * n_indoor_obs)
+    tx_power_1m = -77.8
+    exp_fs = (tx_power_1m - rssi_mean) / (10.0 * n_free_space)
+    exp_in = (tx_power_1m - rssi_mean) / (10.0 * n_indoor_obs)
 
     path_loss_free_space = 10.0 ** max(-2.0, min(3.0, exp_fs))
     path_loss_indoor = 10.0 ** max(-2.0, min(3.0, exp_in))
@@ -405,17 +407,93 @@ def compute_cross_window_features(window_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+CANONICAL_PRESETS = np.array([0.5, 0.6, 0.7, 1.0, 1.1, 1.5, 1.9, 2.0, 3.0, 3.4, 4.3, 4.5, 4.6, 5.0, 5.3])
+
+def normalize_distance_preset(val: float) -> float:
+    """
+    Normalizes raw distance readings to 1 decimal place and snaps close values (within 0.15m)
+    to canonical distance presets. For instance, 4.33 and 4.3 map to 4.3, 3.36 maps to 3.4, 5.27 maps to 5.3.
+    """
+    try:
+        f_val = float(val)
+        if not np.isfinite(f_val):
+            return 0.0
+        idx = np.argmin(np.abs(CANONICAL_PRESETS - f_val))
+        if abs(CANONICAL_PRESETS[idx] - f_val) <= 0.15:
+            return float(CANONICAL_PRESETS[idx])
+        return float(round(f_val, 1))
+    except Exception:
+        return 0.0
+
+
+def compute_environmental_interactions(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Computes explicit environmental interaction terms into the feature set to decouple
+    environmental damping / obstacle path attenuation from pure geometric distance decay.
+
+    Features created:
+      1. obstacle_factor                      — Material damping factor derived from obstacle & obstacle_type
+      2. rssi_x_height                        — RSSI × Height (elevation-dependent attenuation decoupling)
+      3. pathloss_div_obstacle_factor         — Indoor PathLoss / ObstacleFactor
+      4. pathloss_free_div_obstacle_factor    — FreeSpace PathLoss / ObstacleFactor
+      5. rssi_div_height                      — RSSI / (Height + 1.0)
+    """
+    if df is None or df.empty:
+        return df
+
+    df = df.copy()
+
+    # 1. Map Obstacle & Obstacle Type to numerical Obstacle Factor
+    if "obstacle_factor" not in df.columns:
+        obstacle_factors = []
+        for idx, row in df.iterrows():
+            obs = str(row.get("obstacle", "No")).strip().capitalize()
+            obs_type = str(row.get("obstacle_type", "None")).strip().title()
+            if obs in ("No", "False", "0") or obs_type in ("None", "Nan", "", "N/A"):
+                factor = 1.0
+            elif obs_type in ("Cardboard", "Tape", "Wood", "Glass"):
+                factor = 1.3
+            elif obs_type in ("Human", "Body", "Furniture", "Partition"):
+                factor = 1.7
+            elif obs_type in ("Metal", "Wall", "Concrete", "Steel"):
+                factor = 2.2
+            else:
+                factor = 1.5
+            obstacle_factors.append(factor)
+        df["obstacle_factor"] = np.round(obstacle_factors, 2)
+
+    # 2. RSSI × Height interaction
+    if "rssi_mean" in df.columns and "height_m" in df.columns and "rssi_x_height" not in df.columns:
+        df["rssi_x_height"] = np.round(df["rssi_mean"] * df["height_m"].fillna(0.0), 4)
+
+    # 3. PathLoss / ObstacleFactor interaction
+    if "path_loss_indoor" in df.columns and "obstacle_factor" in df.columns and "pathloss_div_obstacle_factor" not in df.columns:
+        obs_safe = df["obstacle_factor"].replace(0.0, 1.0)
+        df["pathloss_div_obstacle_factor"] = np.round(df["path_loss_indoor"] / obs_safe, 4)
+
+    if "path_loss_free_space" in df.columns and "obstacle_factor" in df.columns and "pathloss_free_div_obstacle_factor" not in df.columns:
+        obs_safe = df["obstacle_factor"].replace(0.0, 1.0)
+        df["pathloss_free_div_obstacle_factor"] = np.round(df["path_loss_free_space"] / obs_safe, 4)
+
+    # 4. RSSI / (Height + 1.0)
+    if "rssi_mean" in df.columns and "height_m" in df.columns and "rssi_div_height" not in df.columns:
+        df["rssi_div_height"] = np.round(df["rssi_mean"] / (df["height_m"].fillna(0.0) + 1.0), 4)
+
+    return df
+
+
 def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
     Comprehensive Data Normalization & Sanitization Pipeline:
-      1. Distance Normalization: Rounds floats to 2 decimal places so 0.9 and 0.90 yield identical 0.9 (different from 0.92).
-      2. String Trimming & Case Normalization:
+      1. Distance Normalization: Rounds floats to 1 decimal place and snaps to canonical presets (4.33 -> 4.3).
+      2. Environmental Interactions: Computes explicit interaction terms (RSSI x Height, PathLoss / ObstacleFactor).
+      3. String Trimming & Case Normalization:
          - anchor_id -> UPPERCASE stripped (e.g. 'anchor_01 ' -> 'ANCHOR_01')
          - obstacle_type -> Title Case stripped (e.g. 'tape', 'Tape', 'TAPE ' -> 'Tape')
          - obstacle -> Capitalized stripped ('yes ' -> 'Yes', 'no' -> 'No')
          - motion -> lowercase stripped ('STATIONARY ' -> 'stationary')
-      3. Deduplication: Removes duplicate observation windows.
-      4. Numerical Sanitization: Replaces NaN/Inf values.
+      4. Deduplication: Removes duplicate observation windows.
+      5. Numerical Sanitization: Replaces NaN/Inf values.
     """
     if df is None or df.empty:
         return df
@@ -424,16 +502,8 @@ def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     # 1. Distance Normalization & Canonical Preset Snapping
     if "distance_m" in df.columns:
-        df["distance_m"] = pd.to_numeric(df["distance_m"], errors="coerce")
-        canonical_presets = np.array([0.5, 0.6, 0.7, 1.0, 1.1, 1.5, 1.9, 2.0, 3.0, 4.5, 5.0, 5.3])
-        def _snap_distance(v):
-            if not np.isfinite(v):
-                return v
-            idx = np.argmin(np.abs(canonical_presets - float(v)))
-            if abs(canonical_presets[idx] - float(v)) <= 0.2:
-                return float(canonical_presets[idx])
-            return round(float(v), 2)
-        df["distance_bucket"] = df["distance_m"].apply(_snap_distance)
+        df["distance_m"] = pd.to_numeric(df["distance_m"], errors="coerce").apply(normalize_distance_preset)
+        df["distance_bucket"] = df["distance_m"]
 
     # 2. String Trimming & Case Normalization
     if "anchor_id" in df.columns:
@@ -448,7 +518,10 @@ def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         df["motion"] = df["motion"].astype(str).str.strip().str.lower()
         df["motion"] = df["motion"].replace({"nan": "stationary", "": "stationary"})
 
-    # 3. Deduplication
+    # 3. Environmental Interaction Features
+    df = compute_environmental_interactions(df)
+
+    # 4. Deduplication
     dedup_cols = [c for c in ["window_start", "anchor_id"] if c in df.columns]
     if len(dedup_cols) == 2:
         before_count = len(df)
@@ -457,7 +530,7 @@ def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         if before_count > after_count:
             logger.info(f"Deduplication: removed {before_count - after_count} duplicate window records.")
 
-    # 4. Numerical Sanitization across all float/int columns
+    # 5. Numerical Sanitization across all float/int columns
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     for col in numeric_cols:
         df[col] = df[col].fillna(0.0)
@@ -523,7 +596,7 @@ def process_raw_csv(filepath: str, target_mac: str = None, drop_duplicates: bool
         first = group.iloc[0]
         features["window_start"] = int(t_min + window_id * WINDOW_SIZE_MS)
         features["anchor_id"] = str(anchor).strip().upper()
-        features["distance_m"] = round(float(first["distance_m"]), 2)
+        features["distance_m"] = normalize_distance_preset(first["distance_m"])
         features["height_m"] = round(float(first.get("height_m", 0.0)), 2)
         features["obstacle"] = str(first.get("obstacle", "No")).strip().capitalize()
         features["obstacle_type"] = str(first.get("obstacle_type", "None")).strip().title()
@@ -555,6 +628,9 @@ def process_raw_csv(filepath: str, target_mac: str = None, drop_duplicates: bool
     else:
         # Single window — fill cross-window features with defaults
         result = compute_cross_window_features(result)
+
+    # Compute environmental interaction terms
+    result = compute_environmental_interactions(result)
 
     meta_cols = ["window_start", "anchor_id", "session_id", "distance_m", "distance_bucket", "height_m", "obstacle", "obstacle_type", "motion"]
     feat_cols = [c for c in result.columns if c not in meta_cols]
