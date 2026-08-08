@@ -40,7 +40,7 @@ public class BLESimulator : MonoBehaviour
 
     [Header("Calibrated Dataset RSSI Parameters")]
     public float txPowerAt1m = -77.8f; 
-    public float pathLossExponentClear = 2.4f;
+    public float pathLossExponentClear = 2.7f;
     public float pathLossExponentObstacle = 3.6f;
     public float noiseStdDev = 0.5f; 
 
@@ -354,10 +354,21 @@ public class HumanWalker : MonoBehaviour
     public float pauseTimeAtWaypoint = 2.0f;
     public TextMesh labelText;
 
+    [Header("Procedural Limb References")]
+    public Transform leftLeg;
+    public Transform rightLeg;
+    public Transform leftArm;
+    public Transform rightArm;
+    public Transform headMesh;
+
     private int currentWaypointIndex = 0;
+    private bool isWalking = false;
+    private float walkCycleTimer = 0f;
 
     void Start()
     {
+        AutoFindLimbs();
+
         if (waypoints == null || waypoints.Length == 0)
         {
             waypoints = new Vector3[] {
@@ -370,6 +381,15 @@ public class HumanWalker : MonoBehaviour
         StartCoroutine(PatrolRoutine());
     }
 
+    public void AutoFindLimbs()
+    {
+        if (leftLeg == null && transform.Find("LeftLeg") != null) leftLeg = transform.Find("LeftLeg");
+        if (rightLeg == null && transform.Find("RightLeg") != null) rightLeg = transform.Find("RightLeg");
+        if (leftArm == null && transform.Find("LeftArm") != null) leftArm = transform.Find("LeftArm");
+        if (rightArm == null && transform.Find("RightArm") != null) rightArm = transform.Find("RightArm");
+        if (headMesh == null && transform.Find("MelaninHeadMesh") != null) headMesh = transform.Find("MelaninHeadMesh");
+    }
+
     IEnumerator PatrolRoutine()
     {
         while (true)
@@ -377,8 +397,9 @@ public class HumanWalker : MonoBehaviour
             Vector3 targetPos = waypoints[currentWaypointIndex];
             targetPos.y = 0.9f;
 
+            isWalking = true;
             while (Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z), 
-                                     new Vector3(targetPos.x, 0, targetPos.z)) > 0.2f)
+                                     new Vector3(targetPos.x, 0, targetPos.z)) > 0.25f)
             {
                 Vector3 dir = (targetPos - transform.position).normalized;
                 
@@ -400,6 +421,7 @@ public class HumanWalker : MonoBehaviour
                 yield return null;
             }
 
+            isWalking = false;
             yield return new WaitForSeconds(pauseTimeAtWaypoint);
             currentWaypointIndex = (currentWaypointIndex + 1) % waypoints.Length;
         }
@@ -407,6 +429,35 @@ public class HumanWalker : MonoBehaviour
 
     void Update()
     {
+        // 1. Procedural Walking Gait Animation (Leg & Arm Swinging)
+        if (isWalking)
+        {
+            walkCycleTimer += Time.deltaTime * walkSpeed * 8.0f;
+            float legAngle = Mathf.Sin(walkCycleTimer) * 28.0f;
+            float armAngle = Mathf.Sin(walkCycleTimer) * 24.0f;
+
+            if (leftLeg != null) leftLeg.localRotation = Quaternion.Euler(legAngle, 0, 0);
+            if (rightLeg != null) rightLeg.localRotation = Quaternion.Euler(-legAngle, 0, 0);
+
+            if (leftArm != null) leftArm.localRotation = Quaternion.Euler(-armAngle, 0, 0);
+            if (rightArm != null) rightArm.localRotation = Quaternion.Euler(armAngle, 0, 0);
+
+            // Added bobbing and swaying for realism
+            float bob = Mathf.Abs(Mathf.Sin(walkCycleTimer)) * 0.08f;
+            float sway = Mathf.Sin(walkCycleTimer / 2f) * 2f;
+            if (transform.childCount > 0) transform.GetChild(0).localPosition = new Vector3(0, bob, 0);
+            if (headMesh != null) headMesh.localRotation = Quaternion.Euler(0, 0, sway);
+        }
+        else
+        {
+            // Smoothly return limbs to upright standing idle posture
+            if (leftLeg != null) leftLeg.localRotation = Quaternion.Slerp(leftLeg.localRotation, Quaternion.identity, Time.deltaTime * 8.0f);
+            if (rightLeg != null) rightLeg.localRotation = Quaternion.Slerp(rightLeg.localRotation, Quaternion.identity, Time.deltaTime * 8.0f);
+            if (leftArm != null) leftArm.localRotation = Quaternion.Slerp(leftArm.localRotation, Quaternion.identity, Time.deltaTime * 8.0f);
+            if (rightArm != null) rightArm.localRotation = Quaternion.Slerp(rightArm.localRotation, Quaternion.identity, Time.deltaTime * 8.0f);
+        }
+
+        // 2. Billboarding floating HUD text towards camera
         if (labelText != null && Camera.main != null)
         {
             labelText.transform.rotation = Quaternion.LookRotation(labelText.transform.position - Camera.main.transform.position);
@@ -420,29 +471,62 @@ public class HumanWalker : MonoBehaviour
 
 public class DoorController : MonoBehaviour
 {
+    [Header("Door Motion Settings")]
     public float openDistance = 2.4f;
-    public float openSpeed = 5.0f;
-    public Vector3 slideOffset = Vector3.zero;
+    public float openSpeed = 4.5f;
+    public Transform leftPanel;
+    public Transform rightPanel;
+    public Light statusLedLight;
+    public Renderer statusLedRenderer;
 
-    private Vector3 closedPos;
-    private Vector3 openPos;
+    private Vector3 closedPosLeft;
+    private Vector3 openPosLeft;
+    private Vector3 closedPosRight;
+    private Vector3 openPosRight;
+
+    private Vector3 singleClosedPos;
+    private Vector3 singleOpenPos;
+    private Vector3 smoothVelocityLeft;
+    private Vector3 smoothVelocityRight;
+
     private Collider doorCollider;
+    private float currentOpenFactor = 0f; // 0 = Closed, 1 = Fully Open
 
     void Start()
     {
-        closedPos = transform.position;
         doorCollider = GetComponent<Collider>();
 
-        if (transform.localScale.x > transform.localScale.z)
+        // Auto-find panels if child objects exist
+        if (leftPanel == null && transform.Find("LeftLeaf") != null) leftPanel = transform.Find("LeftLeaf");
+        if (rightPanel == null && transform.Find("RightLeaf") != null) rightPanel = transform.Find("RightLeaf");
+
+        if (leftPanel != null && rightPanel != null)
         {
-            slideOffset = new Vector3(-1.4f, 0, 0);
+            closedPosLeft = leftPanel.localPosition;
+            closedPosRight = rightPanel.localPosition;
+
+            bool isHorizontal = transform.localScale.x > transform.localScale.z;
+            Vector3 offset = isHorizontal ? new Vector3(-0.85f, 0, 0) : new Vector3(0, 0, 0.85f);
+            openPosLeft = closedPosLeft + offset;
+            openPosRight = closedPosRight - offset;
         }
         else
         {
-            slideOffset = new Vector3(0, 0, 1.4f);
+            singleClosedPos = transform.position;
+            Vector3 offset = (transform.localScale.x > transform.localScale.z) ? new Vector3(-1.4f, 0, 0) : new Vector3(0, 0, 1.4f);
+            singleOpenPos = singleClosedPos + offset;
         }
 
-        openPos = closedPos + slideOffset;
+        // Auto-find LED indicator
+        if (statusLedLight == null)
+        {
+            Transform ledChild = transform.Find("StatusLED");
+            if (ledChild != null)
+            {
+                statusLedLight = ledChild.GetComponent<Light>();
+                statusLedRenderer = ledChild.GetComponent<Renderer>();
+            }
+        }
     }
 
     void Update()
@@ -458,7 +542,8 @@ public class DoorController : MonoBehaviour
                 hit.name.Contains("Dr_") || 
                 hit.name.Contains("Nurse_") || 
                 hit.name.Contains("Visitor_") || 
-                hit.GetComponent<HumanWalker>() != null
+                hit.GetComponent<HumanWalker>() != null ||
+                hit.GetComponentInParent<HumanWalker>() != null
             ))
             {
                 shouldOpen = true;
@@ -466,13 +551,39 @@ public class DoorController : MonoBehaviour
             }
         }
 
-        Vector3 targetPos = shouldOpen ? openPos : closedPos;
-        transform.position = Vector3.Lerp(transform.position, targetPos, Time.deltaTime * openSpeed);
+        float targetFactor = shouldOpen ? 1.0f : 0.0f;
+        // Realistic overshoot bounce easing transition
+        currentOpenFactor = Mathf.MoveTowards(currentOpenFactor, targetFactor, Time.deltaTime * openSpeed * 0.5f);
+        float t = currentOpenFactor;
+        float smoothEased = t < 0.5f ? 4f * t * t * t : 1f - Mathf.Pow(-2f * t + 2f, 3f) / 2f;
+        if (t > 0.8f) smoothEased += Mathf.Sin((t - 0.8f) * 15f) * 0.05f * (1f - t);
+
+        if (leftPanel != null && rightPanel != null)
+        {
+            leftPanel.localPosition = Vector3.Lerp(closedPosLeft, openPosLeft, smoothEased);
+            rightPanel.localPosition = Vector3.Lerp(closedPosRight, openPosRight, smoothEased);
+        }
+        else
+        {
+            transform.position = Vector3.Lerp(singleClosedPos, singleOpenPos, smoothEased);
+        }
+
+        // Update Door Status LED light (Red when closed, glowing Green when open)
+        Color ledColor = Color.Lerp(new Color(1f, 0.1f, 0.1f), new Color(0.1f, 1f, 0.3f), smoothEased);
+        if (statusLedLight != null)
+        {
+            statusLedLight.color = ledColor;
+            statusLedLight.intensity = Mathf.Lerp(0.5f, 1.5f, smoothEased);
+        }
+        if (statusLedRenderer != null && statusLedRenderer.sharedMaterial != null)
+        {
+            statusLedRenderer.material.color = ledColor;
+            statusLedRenderer.material.SetColor("_EmissionColor", ledColor * (0.5f + smoothEased * 1.5f));
+        }
 
         if (doorCollider != null)
         {
-            float distToOpen = Vector3.Distance(transform.position, openPos);
-            doorCollider.isTrigger = (distToOpen < 0.35f);
+            doorCollider.isTrigger = (currentOpenFactor > 0.4f);
         }
     }
 }
@@ -752,14 +863,14 @@ public class SceneBuilder : EditorWindow
     {
         EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
 
-        // 1. Room Floor (10m x 10m Hospital Complex)
+        // 1. Room Floor (10m x 10m Hospital Complex with Tile Grid Material)
         GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
         floor.name = "Hospital_Floor_Complex";
         floor.transform.position = new Vector3(5.0f, 0, 5.0f);
         floor.transform.localScale = new Vector3(1.0f, 1, 1.0f);
         Material floorMat = new Material(Shader.Find("Standard"));
         floorMat.color = new Color(0.85f, 0.88f, 0.90f);
-        floorMat.SetFloat("_Glossiness", 0.4f);
+        floorMat.SetFloat("_Glossiness", 0.5f);
         floor.GetComponent<Renderer>().sharedMaterial = floorMat;
 
         // Tag Manager setup
@@ -806,7 +917,7 @@ public class SceneBuilder : EditorWindow
         Material woodMat = new Material(Shader.Find("Standard"));
         woodMat.color = new Color(0.6f, 0.4f, 0.25f);
 
-        // Zimbabwean Melanin Skin Tone Palettes
+        // Melanin Skin Tone Palettes & Hair Materials
         Material zimDoctorSkin = new Material(Shader.Find("Standard"));
         zimDoctorSkin.color = new Color(0.22f, 0.14f, 0.08f); 
 
@@ -816,6 +927,9 @@ public class SceneBuilder : EditorWindow
         Material zimVisitorSkin = new Material(Shader.Find("Standard"));
         zimVisitorSkin.color = new Color(0.20f, 0.12f, 0.07f); 
 
+        Material hairBlackMat = new Material(Shader.Find("Standard"));
+        hairBlackMat.color = new Color(0.08f, 0.06f, 0.05f);
+
         Material doctorCoatMat = new Material(Shader.Find("Standard"));
         doctorCoatMat.color = new Color(0.95f, 0.95f, 0.98f);
 
@@ -824,6 +938,18 @@ public class SceneBuilder : EditorWindow
 
         Material visitorMat = new Material(Shader.Find("Standard"));
         visitorMat.color = new Color(0.85f, 0.35f, 0.2f); 
+
+        Material trouserDark = new Material(Shader.Find("Standard"));
+        trouserDark.color = new Color(0.15f, 0.18f, 0.25f);
+
+        Material shoeBlack = new Material(Shader.Find("Standard"));
+        shoeBlack.color = new Color(0.1f, 0.1f, 0.1f);
+
+        Material eyeWhiteMat = new Material(Shader.Find("Standard"));
+        eyeWhiteMat.color = Color.white;
+
+        Material eyePupilMat = new Material(Shader.Find("Standard"));
+        eyePupilMat.color = Color.black;
 
         Material sunflowerYellow = new Material(Shader.Find("Standard"));
         sunflowerYellow.color = new Color(1.0f, 0.85f, 0.0f);
@@ -848,35 +974,42 @@ public class SceneBuilder : EditorWindow
         BuildWindow("Window_North_RoomA", new Vector3(2.5f, 1.4f, 9.95f), new Vector3(1.6f, 1.0f, 0.08f), windowGlassMat, frameMat);
         BuildWindow("Window_North_RoomB", new Vector3(7.5f, 1.4f, 9.95f), new Vector3(1.6f, 1.0f, 0.08f), windowGlassMat, frameMat);
 
-        // 3. Interior Isolation Dividing Walls with Animated Automatic Doors
-        BuildWall("Wall_Div_H_Left", new Vector3(1.5f, 1.25f, 5.0f), new Vector3(3.0f, 2.5f, 0.2f), wallMat);
-        BuildWall("Wall_Div_H_Right", new Vector3(8.5f, 1.25f, 5.0f), new Vector3(3.0f, 2.5f, 0.2f), wallMat);
-        BuildDoor("SlidingDoor_RoomA_to_C", new Vector3(4.0f, 1.1f, 5.0f), doorWoodMat);
+        // 3. Interior Realistic Hospital Ward Schematic (Central Hallway)
+        BuildWall("Wall_Hall_Left", new Vector3(4.0f, 1.25f, 5.0f), new Vector3(0.2f, 2.5f, 10.0f), wallMat);
+        BuildWall("Wall_Hall_Right", new Vector3(6.0f, 1.25f, 5.0f), new Vector3(0.2f, 2.5f, 10.0f), wallMat);
+        BuildWall("Wall_Room1_2_Div", new Vector3(2.0f, 1.25f, 5.0f), new Vector3(4.0f, 2.5f, 0.2f), wallMat);
+        BuildWall("Wall_Room3_4_Div", new Vector3(8.0f, 1.25f, 5.0f), new Vector3(4.0f, 2.5f, 0.2f), wallMat);
+        BuildSlidingDoorWithLED("SlidingDoor_Room1", new Vector3(4.0f, 1.1f, 2.5f), false, doorWoodMat, frameMat);
+        BuildSlidingDoorWithLED("SlidingDoor_Room2", new Vector3(4.0f, 1.1f, 7.5f), false, doorWoodMat, frameMat);
+        BuildSlidingDoorWithLED("SlidingDoor_Room3", new Vector3(6.0f, 1.1f, 2.5f), false, doorWoodMat, frameMat);
+        BuildSlidingDoorWithLED("SlidingDoor_Room4", new Vector3(6.0f, 1.1f, 7.5f), false, doorWoodMat, frameMat);
 
-        BuildWall("Wall_Div_V_Bottom", new Vector3(5.0f, 1.25f, 1.5f), new Vector3(0.2f, 2.5f, 3.0f), wallMat);
-        BuildWall("Wall_Div_V_Top", new Vector3(5.0f, 1.25f, 8.5f), new Vector3(0.2f, 2.5f, 3.0f), wallMat);
-        BuildDoor("SlidingDoor_RoomA_to_B", new Vector3(5.0f, 1.1f, 6.0f), doorWoodMat);
+        // 4. Room Ceiling Lights Setup (4 Rooms)
+        BuildRoomCeilingLight("CeilingLight_Room1", new Vector3(2.0f, 2.3f, 7.5f));
+        BuildRoomCeilingLight("CeilingLight_Room2", new Vector3(8.0f, 2.3f, 7.5f));
+        BuildRoomCeilingLight("CeilingLight_Room3", new Vector3(2.0f, 2.3f, 2.5f));
+        BuildRoomCeilingLight("CeilingLight_Room4", new Vector3(8.0f, 2.3f, 2.5f));
 
-        // 4. 4-Room Furniture & Patient Setup
-        BuildBedWithPatient("Bed_RoomA", new Vector3(1.4f, 0, 7.5f), bedFrameMat, mattressMat, blanketMat, zimDoctorSkin, "Patient Rufaro (ICU Bed A)");
-        CreateSunflowerPot(new Vector3(0.5f, 0, 9.5f), "Sunflower_RoomA", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+        // 5. 4-Room Furniture & Realistic Patient Setup with Faces & Hair
+        BuildBedWithDetailedPatient("Bed_Room1", new Vector3(2.0f, 0, 7.5f), bedFrameMat, mattressMat, blanketMat, zimDoctorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, "Patient Rufaro (ICU)");
+        CreateSunflowerPot(new Vector3(0.5f, 0, 0.5f), "Sunflower_Room1", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
 
-        BuildBedWithPatient("Bed_RoomB", new Vector3(6.4f, 0, 7.5f), bedFrameMat, mattressMat, blanketMat, zimNurseSkin, "Patient Nyasha (Bed B)");
-        CreateSunflowerPot(new Vector3(9.5f, 0, 9.5f), "Sunflower_RoomB", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+        BuildBedWithDetailedPatient("Bed_Room2", new Vector3(8.0f, 0, 7.5f), bedFrameMat, mattressMat, blanketMat, zimNurseSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, "Patient Nyasha");
+        CreateSunflowerPot(new Vector3(0.5f, 0, 9.5f), "Sunflower_Room2", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
 
         GameObject deskC = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        deskC.name = "Nurse_Desk_RoomC";
+        deskC.name = "Nurse_Desk_Room3";
         deskC.tag = "Obstacle";
-        deskC.transform.position = new Vector3(2.5f, 0.4f, 2.5f);
+        deskC.transform.position = new Vector3(8.0f, 0.4f, 2.5f);
         deskC.transform.localScale = new Vector3(1.8f, 0.8f, 0.8f);
         deskC.GetComponent<Renderer>().sharedMaterial = woodMat;
         deskC.AddComponent<DraggableObstacle>();
-        CreateSunflowerPot(new Vector3(0.5f, 0, 0.5f), "Sunflower_RoomC", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+        CreateSunflowerPot(new Vector3(9.5f, 0, 0.5f), "Sunflower_Room3", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
 
-        BuildBedWithPatient("Emergency_Bed_RoomD", new Vector3(8.5f, 0, 2.5f), bedFrameMat, mattressMat, blanketMat, zimVisitorSkin, "Emergency Triage Bed");
-        CreateSunflowerPot(new Vector3(9.5f, 0, 0.5f), "Sunflower_RoomD", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+        BuildBedWithDetailedPatient("Emergency_Bed_Room4", new Vector3(8.0f, 0, 2.5f), bedFrameMat, mattressMat, blanketMat, zimVisitorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, "Emergency Triage");
+        CreateSunflowerPot(new Vector3(9.5f, 0, 9.5f), "Sunflower_Room4", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
 
-        // 5. 12 Beacon Anchors (3 per room)
+        // 6. 12 Beacon Anchors (3 per room) with Dynamic Emitter Glow Lights
         Vector3[] anchorPositions = { 
             new Vector3(0.2f, 0, 5.2f), new Vector3(4.8f, 0, 5.2f), new Vector3(2.5f, 0, 9.8f), // Room A
             new Vector3(5.2f, 0, 5.2f), new Vector3(9.8f, 0, 5.2f), new Vector3(7.5f, 0, 9.8f), // Room B
@@ -912,11 +1045,22 @@ public class SceneBuilder : EditorWindow
             emitter.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
             emitter.GetComponent<Renderer>().sharedMaterial = emitterMat;
 
+            // Beacon Point Light
+            GameObject beaconLightObj = new GameObject("BeaconGlowLight");
+            beaconLightObj.transform.SetParent(emitter.transform);
+            beaconLightObj.transform.localPosition = Vector3.zero;
+            Light bl = beaconLightObj.AddComponent<Light>();
+            bl.type = LightType.Point;
+            bl.color = new Color(0f, 0.9f, 0.6f);
+            bl.intensity = 0.8f;
+            bl.range = 3.5f;
+
             GameObject labelObj = new GameObject("Label");
             labelObj.transform.SetParent(anchorRoot.transform);
             labelObj.transform.localPosition = new Vector3(0, 2.2f, 0);
             TextMesh tm = labelObj.AddComponent<TextMesh>();
-            tm.text = anchorNames[i] + string.Format("\\n({0:F1}, {1:F1})", anchorPositions[i].x, anchorPositions[i].z);
+            tm.text = anchorNames[i] + string.Format("
+({0:F1}, {1:F1})", anchorPositions[i].x, anchorPositions[i].z);
             tm.fontSize = 22;
             tm.characterSize = 0.07f;
             tm.color = Color.cyan;
@@ -924,20 +1068,20 @@ public class SceneBuilder : EditorWindow
             tm.anchor = TextAnchor.MiddleCenter;
         }
 
-        // 6. Detailed Zimbabwean Healthcare Staff & Visitor Walking Entities
-        CreateWalkingHuman("Dr_Tendai", new Vector3(2.5f, 0.9f, 2.5f), doctorCoatMat, zimDoctorSkin, new Vector3[] {
-            new Vector3(2.5f, 0.9f, 2.5f), new Vector3(2.5f, 0.9f, 7.5f), new Vector3(7.5f, 0.9f, 7.5f), new Vector3(7.5f, 0.9f, 2.5f)
-        }, "👨‍⚕️ Dr. Tendai (Consultant)");
+        // 7. Detailed 3D Humanoid Entities (Legs, Arms, Hair, Face Features & Walking Animation)
+        CreateRealisticHumanoid("Dr_Tendai", new Vector3(2.0f, 0.9f, 2.5f), doctorCoatMat, trouserDark, zimDoctorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
+            new Vector3(2.0f, 0.9f, 2.5f), new Vector3(2.0f, 0.9f, 7.5f), new Vector3(8.0f, 0.9f, 7.5f), new Vector3(8.0f, 0.9f, 2.5f)
+        }, "👨‍⚕️ Dr. Tendai (Consultant)", true, false);
 
-        CreateWalkingHuman("Nurse_Chipo", new Vector3(7.5f, 0.9f, 2.5f), nurseMat, zimNurseSkin, new Vector3[] {
-            new Vector3(7.5f, 0.9f, 2.5f), new Vector3(7.5f, 0.9f, 7.5f), new Vector3(2.5f, 0.9f, 7.5f), new Vector3(2.5f, 0.9f, 2.5f)
-        }, "👩‍⚕️ Nurse Chipo (Ward Lead)");
+        CreateRealisticHumanoid("Nurse_Chipo", new Vector3(8.0f, 0.9f, 2.5f), nurseMat, nurseMat, zimNurseSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
+            new Vector3(8.0f, 0.9f, 2.5f), new Vector3(8.0f, 0.9f, 7.5f), new Vector3(2.0f, 0.9f, 7.5f), new Vector3(2.0f, 0.9f, 2.5f)
+        }, "👩‍⚕️ Nurse Chipo (Ward Lead)", false, true);
 
-        CreateWalkingHuman("Visitor_Farai", new Vector3(6.5f, 0.9f, 6.5f), visitorMat, zimVisitorSkin, new Vector3[] {
-            new Vector3(6.5f, 0.9f, 6.5f), new Vector3(3.0f, 0.9f, 3.0f), new Vector3(8.0f, 0.9f, 3.0f), new Vector3(6.5f, 0.9f, 6.5f)
-        }, "🏃 Visitor Farai");
+        CreateRealisticHumanoid("Visitor_Farai", new Vector3(5.0f, 0.9f, 5.0f), visitorMat, trouserDark, zimVisitorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
+            new Vector3(5.0f, 0.9f, 5.0f), new Vector3(5.0f, 0.9f, 8.0f), new Vector3(5.0f, 0.9f, 2.0f), new Vector3(5.0f, 0.9f, 5.0f)
+        }, "🏃 Visitor Farai", false, false);
 
-        // 7. Patient Smartphone Tag Device (True Tag)
+        // 8. Patient Smartphone Tag Device (True Tag)
         GameObject trueTag = new GameObject("True_Tag (Drag Me)");
         trueTag.transform.position = new Vector3(2.5f, 0.4f, 7.5f);
         BoxCollider tagCol = trueTag.AddComponent<BoxCollider>();
@@ -978,7 +1122,7 @@ public class SceneBuilder : EditorWindow
         BLESimulator sim = trueTag.AddComponent<BLESimulator>();
         sim.hudText = trueTm;
 
-        // 8. Predicted Holographic Tag Device (Ghost Tag)
+        // 9. Predicted Holographic Tag Device (Ghost Tag)
         GameObject ghostTag = new GameObject("Ghost_Tag (Predicted)");
         ghostTag.transform.position = new Vector3(2.5f, 0.4f, 7.5f);
 
@@ -1022,11 +1166,11 @@ public class SceneBuilder : EditorWindow
         TagVisualizer vis = ghostTag.AddComponent<TagVisualizer>();
         vis.hudText = ghostTm;
 
-        // 9. Attach Bottom Live Telemetry Table HUD
+        // 10. Attach Bottom Live Telemetry Table HUD
         GameObject tableManager = new GameObject("HUDTableManager");
         tableManager.AddComponent<HUDTableUI>();
 
-        // 10. Camera Controller Setup
+        // 11. Camera & Dynamic Lighting Controller Setup
         Camera.main.transform.position = new Vector3(5.0f, 11.5f, -2.5f);
         Camera.main.transform.rotation = Quaternion.Euler(60f, 0f, 0f);
         Camera.main.backgroundColor = new Color(0.88f, 0.92f, 0.95f);
@@ -1042,8 +1186,15 @@ public class SceneBuilder : EditorWindow
             l.type = LightType.Directional;
         }
         lightObj.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+        Light mainSun = lightObj.GetComponent<Light>();
+        mainSun.shadows = LightShadows.Soft;
 
-        Debug.Log("Successfully generated High-Detail Zimbabwean Hospital with Bulletproof Ghost Tag Deserialization!");
+        // Attach DayNightCycle to main light or light manager
+        if (lightObj.GetComponent<DayNightCycle>() == null) {
+            lightObj.AddComponent<DayNightCycle>();
+        }
+
+        Debug.Log("Successfully generated High-Detail Zimbabwean Hospital with Realistic 3D People, Smooth LED Doors & Dynamic Lighting!");
     }
 
     private static void BuildWall(string name, Vector3 pos, Vector3 scale, Material mat)
@@ -1076,18 +1227,88 @@ public class SceneBuilder : EditorWindow
         frame.GetComponent<Renderer>().sharedMaterial = frameMat;
     }
 
-    private static void BuildDoor(string name, Vector3 pos, Material doorMat)
+    private static void BuildRoomCeilingLight(string name, Vector3 pos)
     {
-        GameObject door = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        door.name = name;
-        door.tag = "Obstacle";
-        door.transform.position = pos;
-        door.transform.localScale = name.Contains("RoomA_to_C") ? new Vector3(1.2f, 2.2f, 0.1f) : new Vector3(0.1f, 2.2f, 1.2f);
-        door.GetComponent<Renderer>().sharedMaterial = doorMat;
-        door.AddComponent<DoorController>();
+        GameObject lightRoot = new GameObject(name);
+        lightRoot.transform.position = pos;
+
+        GameObject fixture = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        fixture.transform.SetParent(lightRoot.transform);
+        fixture.transform.localPosition = Vector3.zero;
+        fixture.transform.localScale = new Vector3(0.5f, 0.05f, 0.5f);
+        Material fixMat = new Material(Shader.Find("Standard"));
+        fixMat.color = new Color(0.9f, 0.95f, 1.0f);
+        fixMat.EnableKeyword("_EMISSION");
+        fixMat.SetColor("_EmissionColor", new Color(0.8f, 0.85f, 0.9f));
+        fixture.GetComponent<Renderer>().sharedMaterial = fixMat;
+
+        Light pointL = lightRoot.AddComponent<Light>();
+        pointL.type = LightType.Point;
+        pointL.color = new Color(0.95f, 0.95f, 1.0f);
+        pointL.intensity = 0.9f;
+        pointL.range = 8.0f;
+        pointL.shadows = LightShadows.Soft;
     }
 
-    private static void BuildBedWithPatient(string name, Vector3 pos, Material frameMat, Material matMat, Material blanketMat, Material skinMat, string patientName)
+    private static void BuildSlidingDoorWithLED(string name, Vector3 pos, bool isHorizontal, Material doorMat, Material frameMat)
+    {
+        GameObject doorRoot = new GameObject(name);
+        doorRoot.tag = "Obstacle";
+        doorRoot.transform.position = pos;
+
+        BoxCollider mainCol = doorRoot.AddComponent<BoxCollider>();
+        mainCol.size = isHorizontal ? new Vector3(1.8f, 2.2f, 0.3f) : new Vector3(0.3f, 2.2f, 1.8f);
+
+        // Top Frame Track
+        GameObject track = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        track.name = "DoorTrackFrame";
+        track.transform.SetParent(doorRoot.transform);
+        track.transform.localPosition = new Vector3(0, 1.15f, 0);
+        track.transform.localScale = isHorizontal ? new Vector3(1.9f, 0.12f, 0.2f) : new Vector3(0.2f, 0.12f, 1.9f);
+        track.GetComponent<Renderer>().sharedMaterial = frameMat;
+
+        // LED Indicator Light
+        GameObject led = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        led.name = "StatusLED";
+        led.transform.SetParent(doorRoot.transform);
+        led.transform.localPosition = new Vector3(0, 1.25f, 0);
+        led.transform.localScale = new Vector3(0.12f, 0.12f, 0.12f);
+        Material ledMat = new Material(Shader.Find("Standard"));
+        ledMat.color = new Color(1f, 0.1f, 0.1f);
+        ledMat.EnableKeyword("_EMISSION");
+        ledMat.SetColor("_EmissionColor", new Color(1f, 0.1f, 0.1f));
+        led.GetComponent<Renderer>().sharedMaterial = ledMat;
+
+        Light ledLight = led.AddComponent<Light>();
+        ledLight.type = LightType.Point;
+        ledLight.color = new Color(1f, 0.1f, 0.1f);
+        ledLight.intensity = 0.6f;
+        ledLight.range = 1.5f;
+
+        // Left Sliding Leaf
+        GameObject leftLeaf = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        leftLeaf.name = "LeftLeaf";
+        leftLeaf.transform.SetParent(doorRoot.transform);
+        leftLeaf.transform.localPosition = isHorizontal ? new Vector3(-0.42f, 0, 0) : new Vector3(0, 0, -0.42f);
+        leftLeaf.transform.localScale = isHorizontal ? new Vector3(0.85f, 2.1f, 0.08f) : new Vector3(0.08f, 2.1f, 0.85f);
+        leftLeaf.GetComponent<Renderer>().sharedMaterial = doorMat;
+
+        // Right Sliding Leaf
+        GameObject rightLeaf = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        rightLeaf.name = "RightLeaf";
+        rightLeaf.transform.SetParent(doorRoot.transform);
+        rightLeaf.transform.localPosition = isHorizontal ? new Vector3(0.42f, 0, 0) : new Vector3(0, 0, 0.42f);
+        rightLeaf.transform.localScale = isHorizontal ? new Vector3(0.85f, 2.1f, 0.08f) : new Vector3(0.08f, 2.1f, 0.85f);
+        rightLeaf.GetComponent<Renderer>().sharedMaterial = doorMat;
+
+        DoorController controller = doorRoot.AddComponent<DoorController>();
+        controller.leftPanel = leftLeaf.transform;
+        controller.rightPanel = rightLeaf.transform;
+        controller.statusLedLight = ledLight;
+        controller.statusLedRenderer = led.GetComponent<Renderer>();
+    }
+
+    private static void BuildBedWithDetailedPatient(string name, Vector3 pos, Material frameMat, Material matMat, Material blanketMat, Material skinMat, Material hairMat, Material eyeWhiteMat, Material eyePupilMat, string patientName)
     {
         GameObject bed = new GameObject(name);
         bed.transform.position = pos;
@@ -1100,6 +1321,13 @@ public class SceneBuilder : EditorWindow
         mattress.transform.localScale = new Vector3(1.2f, 0.35f, 2.1f);
         mattress.GetComponent<Renderer>().sharedMaterial = matMat;
 
+        // Pillow under head
+        GameObject pillow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        pillow.name = "Pillow";
+        pillow.transform.SetParent(bed.transform);
+        pillow.transform.localPosition = new Vector3(0, 0.65f, 0.7f);
+        pillow.transform.localScale = new Vector3(0.8f, 0.12f, 0.45f);
+
         GameObject blanket = GameObject.CreatePrimitive(PrimitiveType.Cube);
         blanket.name = "Blanket";
         blanket.transform.SetParent(bed.transform);
@@ -1107,12 +1335,30 @@ public class SceneBuilder : EditorWindow
         blanket.transform.localScale = new Vector3(1.15f, 0.15f, 1.4f);
         blanket.GetComponent<Renderer>().sharedMaterial = blanketMat;
 
+        // Detailed Patient Head with Face Features & Hair
         GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         head.name = "PatientHead";
         head.transform.SetParent(bed.transform);
-        head.transform.localPosition = new Vector3(0, 0.72f, 0.7f);
+        head.transform.localPosition = new Vector3(0, 0.75f, 0.7f);
         head.transform.localScale = new Vector3(0.35f, 0.35f, 0.35f);
         head.GetComponent<Renderer>().sharedMaterial = skinMat;
+
+        BuildFaceFeatures(head.transform, eyeWhiteMat, eyePupilMat, skinMat, hairMat);
+
+        // Resting arms on blanket
+        GameObject leftArm = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        leftArm.transform.SetParent(bed.transform);
+        leftArm.transform.localPosition = new Vector3(-0.45f, 0.72f, 0.2f);
+        leftArm.transform.localRotation = Quaternion.Euler(0, 0, 10f);
+        leftArm.transform.localScale = new Vector3(0.08f, 0.35f, 0.08f);
+        leftArm.GetComponent<Renderer>().sharedMaterial = skinMat;
+
+        GameObject rightArm = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        rightArm.transform.SetParent(bed.transform);
+        rightArm.transform.localPosition = new Vector3(0.45f, 0.72f, 0.2f);
+        rightArm.transform.localRotation = Quaternion.Euler(0, 0, -10f);
+        rightArm.transform.localScale = new Vector3(0.08f, 0.35f, 0.08f);
+        rightArm.GetComponent<Renderer>().sharedMaterial = skinMat;
 
         GameObject labelObj = new GameObject("Label");
         labelObj.transform.SetParent(bed.transform);
@@ -1126,29 +1372,123 @@ public class SceneBuilder : EditorWindow
         tm.anchor = TextAnchor.MiddleCenter;
     }
 
-    private static void CreateWalkingHuman(string name, Vector3 pos, Material outfitMat, Material skinMat, Vector3[] waypoints, string label)
+    private static void CreateRealisticHumanoid(string name, Vector3 pos, Material outfitMat, Material trouserMat, Material skinMat, Material hairMat, Material eyeWhiteMat, Material eyePupilMat, Material shoeMat, Vector3[] waypoints, string label, bool isDoctor, bool isNurse)
     {
         GameObject human = new GameObject(name);
         human.tag = "Obstacle";
         human.transform.position = pos;
 
-        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        body.name = "OutfitMesh";
-        body.transform.SetParent(human.transform);
-        body.transform.localPosition = Vector3.zero;
-        body.transform.localScale = new Vector3(0.5f, 0.9f, 0.5f);
-        body.GetComponent<Renderer>().sharedMaterial = outfitMat;
+        // 1. Torso / Chest
+        GameObject chest = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        chest.name = "ChestTorso";
+        chest.transform.SetParent(human.transform);
+        chest.transform.localPosition = new Vector3(0, 0.95f, 0);
+        chest.transform.localScale = new Vector3(0.45f, 0.55f, 0.26f);
+        chest.GetComponent<Renderer>().sharedMaterial = outfitMat;
 
+        // Doctor Stethoscope / Badge details
+        if (isDoctor)
+        {
+            GameObject steth = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            steth.name = "Stethoscope";
+            steth.transform.SetParent(chest.transform);
+            steth.transform.localPosition = new Vector3(0, 0.1f, 0.52f);
+            steth.transform.localScale = new Vector3(0.35f, 0.05f, 0.35f);
+            Material stethMat = new Material(Shader.Find("Standard"));
+            stethMat.color = Color.black;
+            steth.GetComponent<Renderer>().sharedMaterial = stethMat;
+        }
+
+        // 2. Neck
+        GameObject neck = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        neck.name = "Neck";
+        neck.transform.SetParent(human.transform);
+        neck.transform.localPosition = new Vector3(0, 1.26f, 0);
+        neck.transform.localScale = new Vector3(0.12f, 0.08f, 0.12f);
+        neck.GetComponent<Renderer>().sharedMaterial = skinMat;
+
+        // 3. Head & Facial Features
         GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         head.name = "MelaninHeadMesh";
         head.transform.SetParent(human.transform);
-        head.transform.localPosition = new Vector3(0, 1.1f, 0);
-        head.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
+        head.transform.localPosition = new Vector3(0, 1.45f, 0);
+        head.transform.localScale = new Vector3(0.35f, 0.35f, 0.35f);
         head.GetComponent<Renderer>().sharedMaterial = skinMat;
 
+        BuildFaceFeatures(head.transform, eyeWhiteMat, eyePupilMat, skinMat, hairMat);
+
+        // 4. Left Arm Joint Pivot & Mesh (UpperArm, Forearm, Hand)
+        GameObject leftArmPivot = new GameObject("LeftArm");
+        leftArmPivot.transform.SetParent(human.transform);
+        leftArmPivot.transform.localPosition = new Vector3(-0.28f, 1.15f, 0);
+
+        GameObject lUpperArm = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        lUpperArm.transform.SetParent(leftArmPivot.transform);
+        lUpperArm.transform.localPosition = new Vector3(0, -0.16f, 0);
+        lUpperArm.transform.localScale = new Vector3(0.1f, 0.16f, 0.1f);
+        lUpperArm.GetComponent<Renderer>().sharedMaterial = outfitMat;
+
+        GameObject lHand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        lHand.transform.SetParent(leftArmPivot.transform);
+        lHand.transform.localPosition = new Vector3(0, -0.34f, 0);
+        lHand.transform.localScale = new Vector3(0.11f, 0.11f, 0.11f);
+        lHand.GetComponent<Renderer>().sharedMaterial = skinMat;
+
+        // 5. Right Arm Joint Pivot & Mesh
+        GameObject rightArmPivot = new GameObject("RightArm");
+        rightArmPivot.transform.SetParent(human.transform);
+        rightArmPivot.transform.localPosition = new Vector3(0.28f, 1.15f, 0);
+
+        GameObject rUpperArm = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        rUpperArm.transform.SetParent(rightArmPivot.transform);
+        rUpperArm.transform.localPosition = new Vector3(0, -0.16f, 0);
+        rUpperArm.transform.localScale = new Vector3(0.1f, 0.16f, 0.1f);
+        rUpperArm.GetComponent<Renderer>().sharedMaterial = outfitMat;
+
+        GameObject rHand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        rHand.transform.SetParent(rightArmPivot.transform);
+        rHand.transform.localPosition = new Vector3(0, -0.34f, 0);
+        rHand.transform.localScale = new Vector3(0.11f, 0.11f, 0.11f);
+        rHand.GetComponent<Renderer>().sharedMaterial = skinMat;
+
+        // 6. Left Leg Joint Pivot & Mesh (Thigh, Calf, Shoe)
+        GameObject leftLegPivot = new GameObject("LeftLeg");
+        leftLegPivot.transform.SetParent(human.transform);
+        leftLegPivot.transform.localPosition = new Vector3(-0.13f, 0.68f, 0);
+
+        GameObject lThigh = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        lThigh.transform.SetParent(leftLegPivot.transform);
+        lThigh.transform.localPosition = new Vector3(0, -0.3f, 0);
+        lThigh.transform.localScale = new Vector3(0.13f, 0.3f, 0.13f);
+        lThigh.GetComponent<Renderer>().sharedMaterial = trouserMat;
+
+        GameObject lShoe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        lShoe.transform.SetParent(leftLegPivot.transform);
+        lShoe.transform.localPosition = new Vector3(0, -0.62f, 0.05f);
+        lShoe.transform.localScale = new Vector3(0.14f, 0.08f, 0.22f);
+        lShoe.GetComponent<Renderer>().sharedMaterial = shoeMat;
+
+        // 7. Right Leg Joint Pivot & Mesh
+        GameObject rightLegPivot = new GameObject("RightLeg");
+        rightLegPivot.transform.SetParent(human.transform);
+        rightLegPivot.transform.localPosition = new Vector3(0.13f, 0.68f, 0);
+
+        GameObject rThigh = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        rThigh.transform.SetParent(rightLegPivot.transform);
+        rThigh.transform.localPosition = new Vector3(0, -0.3f, 0);
+        rThigh.transform.localScale = new Vector3(0.13f, 0.3f, 0.13f);
+        rThigh.GetComponent<Renderer>().sharedMaterial = trouserMat;
+
+        GameObject rShoe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        rShoe.transform.SetParent(rightLegPivot.transform);
+        rShoe.transform.localPosition = new Vector3(0, -0.62f, 0.05f);
+        rShoe.transform.localScale = new Vector3(0.14f, 0.08f, 0.22f);
+        rShoe.GetComponent<Renderer>().sharedMaterial = shoeMat;
+
+        // Floating HUD Label
         GameObject labelObj = new GameObject("Label");
         labelObj.transform.SetParent(human.transform);
-        labelObj.transform.localPosition = new Vector3(0, 1.6f, 0);
+        labelObj.transform.localPosition = new Vector3(0, 1.85f, 0);
         TextMesh tm = labelObj.AddComponent<TextMesh>();
         tm.text = label;
         tm.fontSize = 22;
@@ -1160,6 +1500,93 @@ public class SceneBuilder : EditorWindow
         HumanWalker walker = human.AddComponent<HumanWalker>();
         walker.waypoints = waypoints;
         walker.labelText = tm;
+        walker.leftLeg = leftLegPivot.transform;
+        walker.rightLeg = rightLegPivot.transform;
+        walker.leftArm = leftArmPivot.transform;
+        walker.rightArm = rightArmPivot.transform;
+        walker.headMesh = head.transform;
+    }
+
+    private static void BuildFaceFeatures(Transform headTransform, Material eyeWhiteMat, Material eyePupilMat, Material skinMat, Material hairMat)
+    {
+        // 1. Left Eye (White Sclera + Dark Pupil)
+        GameObject lEyeWhite = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        lEyeWhite.name = "LeftEyeWhite";
+        lEyeWhite.transform.SetParent(headTransform);
+        lEyeWhite.transform.localPosition = new Vector3(-0.16f, 0.08f, 0.42f);
+        lEyeWhite.transform.localScale = new Vector3(0.18f, 0.18f, 0.12f);
+        lEyeWhite.GetComponent<Renderer>().sharedMaterial = eyeWhiteMat;
+
+        GameObject lPupil = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        lPupil.name = "LeftPupil";
+        lPupil.transform.SetParent(lEyeWhite.transform);
+        lPupil.transform.localPosition = new Vector3(0, 0, 0.45f);
+        lPupil.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+        lPupil.GetComponent<Renderer>().sharedMaterial = eyePupilMat;
+
+        // 2. Right Eye (White Sclera + Dark Pupil)
+        GameObject rEyeWhite = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        rEyeWhite.name = "RightEyeWhite";
+        rEyeWhite.transform.SetParent(headTransform);
+        rEyeWhite.transform.localPosition = new Vector3(0.16f, 0.08f, 0.42f);
+        rEyeWhite.transform.localScale = new Vector3(0.18f, 0.18f, 0.12f);
+        rEyeWhite.GetComponent<Renderer>().sharedMaterial = eyeWhiteMat;
+
+        GameObject rPupil = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        rPupil.name = "RightPupil";
+        rPupil.transform.SetParent(rEyeWhite.transform);
+        rPupil.transform.localPosition = new Vector3(0, 0, 0.45f);
+        rPupil.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+        rPupil.GetComponent<Renderer>().sharedMaterial = eyePupilMat;
+
+        // 3. Eyebrows
+        GameObject lBrow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        lBrow.transform.SetParent(headTransform);
+        lBrow.transform.localPosition = new Vector3(-0.16f, 0.22f, 0.42f);
+        lBrow.transform.localScale = new Vector3(0.22f, 0.04f, 0.06f);
+        lBrow.GetComponent<Renderer>().sharedMaterial = hairMat;
+
+        GameObject rBrow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        rBrow.transform.SetParent(headTransform);
+        rBrow.transform.localPosition = new Vector3(0.16f, 0.22f, 0.42f);
+        rBrow.transform.localScale = new Vector3(0.22f, 0.04f, 0.06f);
+        rBrow.GetComponent<Renderer>().sharedMaterial = hairMat;
+
+        // 4. Nose
+        GameObject nose = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        nose.name = "Nose";
+        nose.transform.SetParent(headTransform);
+        nose.transform.localPosition = new Vector3(0, -0.04f, 0.48f);
+        nose.transform.localScale = new Vector3(0.1f, 0.14f, 0.12f);
+        nose.GetComponent<Renderer>().sharedMaterial = skinMat;
+
+        // 5. Mouth / Lips
+        GameObject mouth = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        mouth.name = "Lips";
+        mouth.transform.SetParent(headTransform);
+        mouth.transform.localPosition = new Vector3(0, -0.22f, 0.44f);
+        mouth.transform.localScale = new Vector3(0.22f, 0.06f, 0.06f);
+        Material lipMat = new Material(Shader.Find("Standard"));
+        lipMat.color = new Color(0.35f, 0.18f, 0.15f);
+        mouth.GetComponent<Renderer>().sharedMaterial = lipMat;
+
+        // 6. Styled Hair Cluster (Afro / Textured Hair Spheres)
+        GameObject hairCluster = new GameObject("HairMeshCluster");
+        hairCluster.transform.SetParent(headTransform);
+        hairCluster.transform.localPosition = Vector3.zero;
+
+        Vector3[] hairOffsets = {
+            new Vector3(0, 0.28f, -0.05f), new Vector3(-0.18f, 0.24f, 0), new Vector3(0.18f, 0.24f, 0),
+            new Vector3(0, 0.26f, 0.15f), new Vector3(-0.12f, 0.26f, -0.16f), new Vector3(0.12f, 0.26f, -0.16f)
+        };
+        foreach (var offset in hairOffsets)
+        {
+            GameObject puff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            puff.transform.SetParent(hairCluster.transform);
+            puff.transform.localPosition = offset;
+            puff.transform.localScale = new Vector3(0.55f, 0.55f, 0.55f);
+            puff.GetComponent<Renderer>().sharedMaterial = hairMat;
+        }
     }
 
     private static void CreateSunflowerPot(Vector3 pos, string name, Material potMat, Material stemMat, Material centerMat, Material petalMat)

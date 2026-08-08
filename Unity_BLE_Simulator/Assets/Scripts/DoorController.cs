@@ -83,9 +83,11 @@ public class DoorController : MonoBehaviour
         }
 
         float targetFactor = shouldOpen ? 1.0f : 0.0f;
-        // Smooth damped easing transition
+        // Realistic overshoot bounce easing transition
         currentOpenFactor = Mathf.MoveTowards(currentOpenFactor, targetFactor, Time.deltaTime * openSpeed * 0.5f);
-        float smoothEased = Mathf.SmoothStep(0f, 1f, currentOpenFactor);
+        float t = currentOpenFactor;
+        float smoothEased = t < 0.5f ? 4f * t * t * t : 1f - Mathf.Pow(-2f * t + 2f, 3f) / 2f;
+        if (t > 0.8f) smoothEased += Mathf.Sin((t - 0.8f) * 15f) * 0.05f * (1f - t);
 
         if (leftPanel != null && rightPanel != null)
         {

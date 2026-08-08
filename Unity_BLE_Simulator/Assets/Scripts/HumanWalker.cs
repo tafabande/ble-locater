@@ -95,6 +95,12 @@ public class HumanWalker : MonoBehaviour
 
             if (leftArm != null) leftArm.localRotation = Quaternion.Euler(-armAngle, 0, 0);
             if (rightArm != null) rightArm.localRotation = Quaternion.Euler(armAngle, 0, 0);
+
+            // Added bobbing and swaying for realism
+            float bob = Mathf.Abs(Mathf.Sin(walkCycleTimer)) * 0.08f;
+            float sway = Mathf.Sin(walkCycleTimer / 2f) * 2f;
+            if (transform.childCount > 0) transform.GetChild(0).localPosition = new Vector3(0, bob, 0);
+            if (headMesh != null) headMesh.localRotation = Quaternion.Euler(0, 0, sway);
         }
         else
         {
