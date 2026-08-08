@@ -8,7 +8,6 @@ public class HUDTableUI : MonoBehaviour
     private GUIStyle headerStyle;
     private GUIStyle valueStyle;
     private GUIStyle buttonStyle;
-    private GUIStyle learningBadgeStyle;
     private Texture2D bgTexture;
 
     void Start()
@@ -54,16 +53,10 @@ public class HUDTableUI : MonoBehaviour
             buttonStyle.fontSize = 11;
             buttonStyle.fontStyle = FontStyle.Bold;
             buttonStyle.normal.textColor = Color.yellow;
-
-            learningBadgeStyle = new GUIStyle(GUI.skin.label);
-            learningBadgeStyle.fontSize = 10;
-            learningBadgeStyle.fontStyle = FontStyle.Bold;
-            learningBadgeStyle.normal.textColor = new Color(0.2f, 1.0f, 0.5f);
-            learningBadgeStyle.alignment = TextAnchor.MiddleCenter;
         }
 
         float width = Screen.width;
-        float height = 82f;
+        float height = 75f;
         float top = Screen.height - height;
 
         GUI.DrawTexture(new Rect(0, top, width, height), bgTexture);
@@ -78,33 +71,28 @@ public class HUDTableUI : MonoBehaviour
         float error = ghostTag != null ? ghostTag.trackingError : 0f;
         string zone = ghostTag != null ? ghostTag.currentZone : "Unknown";
 
-        float colWidth = width / 6f;
+        float colWidth = width / 5f;
 
         // Column 1: Actual Room & Coordinates
-        GUI.Label(new Rect(0 * colWidth, top + 6, colWidth, 20), "🏢 ACTUAL ROOM & LOCATION", headerStyle);
-        GUI.Label(new Rect(0 * colWidth, top + 30, colWidth, 30), string.Format("{0}\n({1:F2}m, {2:F2}m)", actualRoom, trueX, trueZ), valueStyle);
+        GUI.Label(new Rect(0 * colWidth, top + 8, colWidth, 20), "🏢 ACTUAL ROOM & LOCATION", headerStyle);
+        GUI.Label(new Rect(0 * colWidth, top + 32, colWidth, 30), string.Format("{0}\n({1:F2}m, {2:F2}m)", actualRoom, trueX, trueZ), valueStyle);
 
         // Column 2: Ghost Room & Coordinates
-        GUI.Label(new Rect(1 * colWidth, top + 6, colWidth, 20), "🎯 PREDICTED GHOST LOCATION", headerStyle);
-        GUI.Label(new Rect(1 * colWidth, top + 30, colWidth, 30), string.Format("{0}\n({1:F2}m, {2:F2}m)", ghostRoom, ghostX, ghostZ), valueStyle);
+        GUI.Label(new Rect(1 * colWidth, top + 8, colWidth, 20), "🎯 PREDICTED GHOST LOCATION", headerStyle);
+        GUI.Label(new Rect(1 * colWidth, top + 32, colWidth, 30), string.Format("{0}\n({1:F2}m, {2:F2}m)", ghostRoom, ghostX, ghostZ), valueStyle);
 
         // Column 3: Real-Time MAE Error Rate
-        GUI.Label(new Rect(2 * colWidth, top + 6, colWidth, 20), "📏 TRACKING ERROR RATE", headerStyle);
-        GUI.Label(new Rect(2 * colWidth, top + 32, colWidth, 30), string.Format("{0:F2} METERS", error), valueStyle);
+        GUI.Label(new Rect(2 * colWidth, top + 8, colWidth, 20), "📏 TRACKING ERROR RATE", headerStyle);
+        GUI.Label(new Rect(2 * colWidth, top + 34, colWidth, 30), string.Format("{0:F2} METERS", error), valueStyle);
 
         // Column 4: Predicted ML Zone
-        GUI.Label(new Rect(3 * colWidth, top + 6, colWidth, 20), "🏷️ PREDICTED ML ZONE", headerStyle);
-        GUI.Label(new Rect(3 * colWidth, top + 32, colWidth, 30), zone, valueStyle);
+        GUI.Label(new Rect(3 * colWidth, top + 8, colWidth, 20), "🏷️ PREDICTED ML ZONE", headerStyle);
+        GUI.Label(new Rect(3 * colWidth, top + 34, colWidth, 30), zone, valueStyle);
 
-        // Column 5: Runtime Online ML Learning Status
-        GUI.Label(new Rect(4 * colWidth, top + 6, colWidth, 20), "🧠 RUNTIME ML SELF-LEARNING", headerStyle);
-        GUI.Label(new Rect(4 * colWidth, top + 28, colWidth, 20), "🟢 ONLINE ADAPTATION ACTIVE", learningBadgeStyle);
-        GUI.Label(new Rect(4 * colWidth, top + 46, colWidth, 25), "Learning ground truth live...", learningBadgeStyle);
-
-        // Column 6: Camera Mode & Switcher Button
+        // Column 5: Camera Mode & Switcher Button
         string modeStr = camCtrl != null ? camCtrl.currentMode.ToString().ToUpper() : "OVERVIEW";
-        GUI.Label(new Rect(5 * colWidth, top + 6, colWidth, 18), "📷 VIEW: " + modeStr, headerStyle);
-        if (GUI.Button(new Rect(5 * colWidth + 15, top + 28, colWidth - 30, 34), "SWITCH VIEW (C)", buttonStyle))
+        GUI.Label(new Rect(4 * colWidth, top + 6, colWidth, 18), "📷 CAMERA VIEW: " + modeStr, headerStyle);
+        if (GUI.Button(new Rect(4 * colWidth + 20, top + 28, colWidth - 40, 32), "SWITCH VIEW (C)", buttonStyle))
         {
             if (camCtrl != null) camCtrl.CycleCameraMode();
         }
