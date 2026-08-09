@@ -92,7 +92,11 @@ public class HumanWalker : MonoBehaviour
         // 1. Procedural Walking Gait Animation (Leg & Arm Swinging)
         if (isWalking)
         {
+<<<<<<< HEAD
             walkCycleTimer += Time.deltaTime * walkSpeed * 5.5f;
+=======
+            walkCycleTimer += Time.deltaTime * walkSpeed * 8.0f;
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
             float legAngle = Mathf.Sin(walkCycleTimer) * 28.0f;
             float armAngle = Mathf.Sin(walkCycleTimer) * 24.0f;
 
@@ -101,6 +105,15 @@ public class HumanWalker : MonoBehaviour
 
             if (leftArm != null) leftArm.localRotation = Quaternion.Euler(-armAngle, 0, 0);
             if (rightArm != null) rightArm.localRotation = Quaternion.Euler(armAngle, 0, 0);
+<<<<<<< HEAD
+=======
+
+            // Added bobbing and swaying for realism
+            float bob = Mathf.Abs(Mathf.Sin(walkCycleTimer)) * 0.08f;
+            float sway = Mathf.Sin(walkCycleTimer / 2f) * 2f;
+            if (transform.childCount > 0) transform.GetChild(0).localPosition = new Vector3(0, bob, 0);
+            if (headMesh != null) headMesh.localRotation = Quaternion.Euler(0, 0, sway);
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         }
         else
         {

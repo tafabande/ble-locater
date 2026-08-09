@@ -17,6 +17,11 @@ public class DoorController : MonoBehaviour
 
     private Vector3 singleClosedPos;
     private Vector3 singleOpenPos;
+<<<<<<< HEAD
+=======
+    private Vector3 smoothVelocityLeft;
+    private Vector3 smoothVelocityRight;
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
     private Collider doorCollider;
     private float currentOpenFactor = 0f; // 0 = Closed, 1 = Fully Open
@@ -81,9 +86,17 @@ public class DoorController : MonoBehaviour
         }
 
         float targetFactor = shouldOpen ? 1.0f : 0.0f;
+<<<<<<< HEAD
         // Smooth damped easing transition
         currentOpenFactor = Mathf.MoveTowards(currentOpenFactor, targetFactor, Time.deltaTime * openSpeed * 0.5f);
         float smoothEased = Mathf.SmoothStep(0f, 1f, currentOpenFactor);
+=======
+        // Realistic overshoot bounce easing transition
+        currentOpenFactor = Mathf.MoveTowards(currentOpenFactor, targetFactor, Time.deltaTime * openSpeed * 0.5f);
+        float t = currentOpenFactor;
+        float smoothEased = t < 0.5f ? 4f * t * t * t : 1f - Mathf.Pow(-2f * t + 2f, 3f) / 2f;
+        if (t > 0.8f) smoothEased += Mathf.Sin((t - 0.8f) * 15f) * 0.05f * (1f - t);
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
         if (leftPanel != null && rightPanel != null)
         {

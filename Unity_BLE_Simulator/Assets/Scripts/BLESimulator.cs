@@ -24,7 +24,7 @@ public class BLESimulator : MonoBehaviour
 
     [Header("Calibrated Dataset RSSI Parameters")]
     public float txPowerAt1m = -77.8f; 
-    public float pathLossExponentClear = 2.4f;
+    public float pathLossExponentClear = 2.7f;
     public float pathLossExponentObstacle = 3.6f;
     public float noiseStdDev = 0.5f; 
 

@@ -40,7 +40,7 @@ public class BLESimulator : MonoBehaviour
 
     [Header("Calibrated Dataset RSSI Parameters")]
     public float txPowerAt1m = -77.8f; 
-    public float pathLossExponentClear = 2.4f;
+    public float pathLossExponentClear = 2.7f;
     public float pathLossExponentObstacle = 3.6f;
     public float noiseStdDev = 0.5f; 
 
@@ -447,7 +447,11 @@ public class HumanWalker : MonoBehaviour
         // 1. Procedural Walking Gait Animation (Leg & Arm Swinging)
         if (isWalking)
         {
+<<<<<<< HEAD
             walkCycleTimer += Time.deltaTime * walkSpeed * 5.5f;
+=======
+            walkCycleTimer += Time.deltaTime * walkSpeed * 8.0f;
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
             float legAngle = Mathf.Sin(walkCycleTimer) * 28.0f;
             float armAngle = Mathf.Sin(walkCycleTimer) * 24.0f;
 
@@ -456,6 +460,15 @@ public class HumanWalker : MonoBehaviour
 
             if (leftArm != null) leftArm.localRotation = Quaternion.Euler(-armAngle, 0, 0);
             if (rightArm != null) rightArm.localRotation = Quaternion.Euler(armAngle, 0, 0);
+<<<<<<< HEAD
+=======
+
+            // Added bobbing and swaying for realism
+            float bob = Mathf.Abs(Mathf.Sin(walkCycleTimer)) * 0.08f;
+            float sway = Mathf.Sin(walkCycleTimer / 2f) * 2f;
+            if (transform.childCount > 0) transform.GetChild(0).localPosition = new Vector3(0, bob, 0);
+            if (headMesh != null) headMesh.localRotation = Quaternion.Euler(0, 0, sway);
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         }
         else
         {
@@ -495,6 +508,11 @@ public class DoorController : MonoBehaviour
 
     private Vector3 singleClosedPos;
     private Vector3 singleOpenPos;
+<<<<<<< HEAD
+=======
+    private Vector3 smoothVelocityLeft;
+    private Vector3 smoothVelocityRight;
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
     private Collider doorCollider;
     private float currentOpenFactor = 0f; // 0 = Closed, 1 = Fully Open
@@ -559,9 +577,17 @@ public class DoorController : MonoBehaviour
         }
 
         float targetFactor = shouldOpen ? 1.0f : 0.0f;
+<<<<<<< HEAD
         // Smooth damped easing transition
         currentOpenFactor = Mathf.MoveTowards(currentOpenFactor, targetFactor, Time.deltaTime * openSpeed * 0.5f);
         float smoothEased = Mathf.SmoothStep(0f, 1f, currentOpenFactor);
+=======
+        // Realistic overshoot bounce easing transition
+        currentOpenFactor = Mathf.MoveTowards(currentOpenFactor, targetFactor, Time.deltaTime * openSpeed * 0.5f);
+        float t = currentOpenFactor;
+        float smoothEased = t < 0.5f ? 4f * t * t * t : 1f - Mathf.Pow(-2f * t + 2f, 3f) / 2f;
+        if (t > 0.8f) smoothEased += Mathf.Sin((t - 0.8f) * 15f) * 0.05f * (1f - t);
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
         if (leftPanel != null && rightPanel != null)
         {
@@ -1093,6 +1119,7 @@ public class SceneBuilder : EditorWindow
         BuildWindow("Window_North_RoomA", new Vector3(2.5f, 1.4f, 9.95f), new Vector3(1.6f, 1.0f, 0.08f), windowGlassMat, frameMat);
         BuildWindow("Window_North_RoomB", new Vector3(7.5f, 1.4f, 9.95f), new Vector3(1.6f, 1.0f, 0.08f), windowGlassMat, frameMat);
 
+<<<<<<< HEAD
         // 3. Interior Isolation Dividing Walls with Animated Dual Sliding Automatic Doors & LED Status
         BuildWall("Wall_Div_H_Left", new Vector3(1.5f, 1.25f, 5.0f), new Vector3(3.0f, 2.5f, 0.2f), wallMat);
         BuildWall("Wall_Div_H_Right", new Vector3(8.5f, 1.25f, 5.0f), new Vector3(3.0f, 2.5f, 0.2f), wallMat);
@@ -1114,18 +1141,47 @@ public class SceneBuilder : EditorWindow
 
         BuildBedWithDetailedPatient("Bed_RoomB", new Vector3(6.4f, 0, 7.5f), bedFrameMat, mattressMat, blanketMat, zimNurseSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, "Patient Nyasha (Bed B)");
         CreateSunflowerPot(new Vector3(9.5f, 0, 9.5f), "Sunflower_RoomB", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+=======
+        // 3. Interior Realistic Hospital Ward Schematic (Central Hallway)
+        BuildWall("Wall_Hall_Left", new Vector3(4.0f, 1.25f, 5.0f), new Vector3(0.2f, 2.5f, 10.0f), wallMat);
+        BuildWall("Wall_Hall_Right", new Vector3(6.0f, 1.25f, 5.0f), new Vector3(0.2f, 2.5f, 10.0f), wallMat);
+        BuildWall("Wall_Room1_2_Div", new Vector3(2.0f, 1.25f, 5.0f), new Vector3(4.0f, 2.5f, 0.2f), wallMat);
+        BuildWall("Wall_Room3_4_Div", new Vector3(8.0f, 1.25f, 5.0f), new Vector3(4.0f, 2.5f, 0.2f), wallMat);
+        BuildSlidingDoorWithLED("SlidingDoor_Room1", new Vector3(4.0f, 1.1f, 2.5f), false, doorWoodMat, frameMat);
+        BuildSlidingDoorWithLED("SlidingDoor_Room2", new Vector3(4.0f, 1.1f, 7.5f), false, doorWoodMat, frameMat);
+        BuildSlidingDoorWithLED("SlidingDoor_Room3", new Vector3(6.0f, 1.1f, 2.5f), false, doorWoodMat, frameMat);
+        BuildSlidingDoorWithLED("SlidingDoor_Room4", new Vector3(6.0f, 1.1f, 7.5f), false, doorWoodMat, frameMat);
+
+        // 4. Room Ceiling Lights Setup (4 Rooms)
+        BuildRoomCeilingLight("CeilingLight_Room1", new Vector3(2.0f, 2.3f, 7.5f));
+        BuildRoomCeilingLight("CeilingLight_Room2", new Vector3(8.0f, 2.3f, 7.5f));
+        BuildRoomCeilingLight("CeilingLight_Room3", new Vector3(2.0f, 2.3f, 2.5f));
+        BuildRoomCeilingLight("CeilingLight_Room4", new Vector3(8.0f, 2.3f, 2.5f));
+
+        // 5. 4-Room Furniture & Realistic Patient Setup with Faces & Hair
+        BuildBedWithDetailedPatient("Bed_Room1", new Vector3(2.0f, 0, 7.5f), bedFrameMat, mattressMat, blanketMat, zimDoctorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, "Patient Rufaro (ICU)");
+        CreateSunflowerPot(new Vector3(0.5f, 0, 0.5f), "Sunflower_Room1", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+
+        BuildBedWithDetailedPatient("Bed_Room2", new Vector3(8.0f, 0, 7.5f), bedFrameMat, mattressMat, blanketMat, zimNurseSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, "Patient Nyasha");
+        CreateSunflowerPot(new Vector3(0.5f, 0, 9.5f), "Sunflower_Room2", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
         GameObject deskC = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        deskC.name = "Nurse_Desk_RoomC";
+        deskC.name = "Nurse_Desk_Room3";
         deskC.tag = "Obstacle";
-        deskC.transform.position = new Vector3(2.5f, 0.4f, 2.5f);
+        deskC.transform.position = new Vector3(8.0f, 0.4f, 2.5f);
         deskC.transform.localScale = new Vector3(1.8f, 0.8f, 0.8f);
         deskC.GetComponent<Renderer>().sharedMaterial = woodMat;
         deskC.AddComponent<DraggableObstacle>();
-        CreateSunflowerPot(new Vector3(0.5f, 0, 0.5f), "Sunflower_RoomC", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+        CreateSunflowerPot(new Vector3(9.5f, 0, 0.5f), "Sunflower_Room3", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
 
+<<<<<<< HEAD
         BuildBedWithDetailedPatient("Emergency_Bed_RoomD", new Vector3(8.5f, 0, 2.5f), bedFrameMat, mattressMat, blanketMat, zimVisitorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, "Emergency Triage Bed");
         CreateSunflowerPot(new Vector3(9.5f, 0, 0.5f), "Sunflower_RoomD", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+=======
+        BuildBedWithDetailedPatient("Emergency_Bed_Room4", new Vector3(8.0f, 0, 2.5f), bedFrameMat, mattressMat, blanketMat, zimVisitorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, "Emergency Triage");
+        CreateSunflowerPot(new Vector3(9.5f, 0, 9.5f), "Sunflower_Room4", potMat, stemGreen, sunflowerBrown, sunflowerYellow);
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
         // 6. 12 Beacon Anchors (3 per room) with Dynamic Emitter Glow Lights
         Vector3[] anchorPositions = { 
@@ -1177,7 +1233,8 @@ public class SceneBuilder : EditorWindow
             labelObj.transform.SetParent(anchorRoot.transform);
             labelObj.transform.localPosition = new Vector3(0, 2.2f, 0);
             TextMesh tm = labelObj.AddComponent<TextMesh>();
-            tm.text = anchorNames[i] + string.Format("\\n({0:F1}, {1:F1})", anchorPositions[i].x, anchorPositions[i].z);
+            tm.text = anchorNames[i] + string.Format("
+({0:F1}, {1:F1})", anchorPositions[i].x, anchorPositions[i].z);
             tm.fontSize = 22;
             tm.characterSize = 0.07f;
             tm.color = Color.cyan;
@@ -1186,6 +1243,7 @@ public class SceneBuilder : EditorWindow
         }
 
         // 7. Detailed 3D Humanoid Entities (Legs, Arms, Hair, Face Features & Walking Animation)
+<<<<<<< HEAD
         CreateRealisticHumanoid("Dr_Tendai", new Vector3(2.5f, 0.9f, 2.5f), doctorCoatMat, trouserDark, zimDoctorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
             new Vector3(2.5f, 0.9f, 2.5f), new Vector3(2.5f, 0.9f, 7.5f), new Vector3(7.5f, 0.9f, 7.5f), new Vector3(7.5f, 0.9f, 2.5f)
         }, "\\ud83d\\udc68\\u200d\\u2695\\ufe0f Dr. Tendai (Consultant)", true, false);
@@ -1197,6 +1255,19 @@ public class SceneBuilder : EditorWindow
         CreateRealisticHumanoid("Visitor_Farai", new Vector3(6.5f, 0.9f, 6.5f), visitorMat, trouserDark, zimVisitorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
             new Vector3(6.5f, 0.9f, 6.5f), new Vector3(3.0f, 0.9f, 3.0f), new Vector3(8.0f, 0.9f, 3.0f), new Vector3(6.5f, 0.9f, 6.5f)
         }, "\\ud83c\\udfc3 Visitor Farai", false, false);
+=======
+        CreateRealisticHumanoid("Dr_Tendai", new Vector3(2.0f, 0.9f, 2.5f), doctorCoatMat, trouserDark, zimDoctorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
+            new Vector3(2.0f, 0.9f, 2.5f), new Vector3(2.0f, 0.9f, 7.5f), new Vector3(8.0f, 0.9f, 7.5f), new Vector3(8.0f, 0.9f, 2.5f)
+        }, "👨‍⚕️ Dr. Tendai (Consultant)", true, false);
+
+        CreateRealisticHumanoid("Nurse_Chipo", new Vector3(8.0f, 0.9f, 2.5f), nurseMat, nurseMat, zimNurseSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
+            new Vector3(8.0f, 0.9f, 2.5f), new Vector3(8.0f, 0.9f, 7.5f), new Vector3(2.0f, 0.9f, 7.5f), new Vector3(2.0f, 0.9f, 2.5f)
+        }, "👩‍⚕️ Nurse Chipo (Ward Lead)", false, true);
+
+        CreateRealisticHumanoid("Visitor_Farai", new Vector3(5.0f, 0.9f, 5.0f), visitorMat, trouserDark, zimVisitorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
+            new Vector3(5.0f, 0.9f, 5.0f), new Vector3(5.0f, 0.9f, 8.0f), new Vector3(5.0f, 0.9f, 2.0f), new Vector3(5.0f, 0.9f, 5.0f)
+        }, "🏃 Visitor Farai", false, false);
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
         // 8. Patient Smartphone Tag Device (True Tag)
         GameObject trueTag = new GameObject("True_Tag (Drag Me)");
@@ -1306,7 +1377,11 @@ public class SceneBuilder : EditorWindow
         Light mainSun = lightObj.GetComponent<Light>();
         mainSun.shadows = LightShadows.Soft;
 
+<<<<<<< HEAD
         // Attach DayNightCycle to main light
+=======
+        // Attach DayNightCycle to main light or light manager
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         if (lightObj.GetComponent<DayNightCycle>() == null) {
             lightObj.AddComponent<DayNightCycle>();
         }
@@ -1503,7 +1578,11 @@ public class SceneBuilder : EditorWindow
         chest.transform.localScale = new Vector3(0.45f, 0.55f, 0.26f);
         chest.GetComponent<Renderer>().sharedMaterial = outfitMat;
 
+<<<<<<< HEAD
         // Doctor Stethoscope details
+=======
+        // Doctor Stethoscope / Badge details
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         if (isDoctor)
         {
             GameObject steth = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -1534,7 +1613,11 @@ public class SceneBuilder : EditorWindow
 
         BuildFaceFeatures(head.transform, eyeWhiteMat, eyePupilMat, skinMat, hairMat);
 
+<<<<<<< HEAD
         // 4. Left Arm Joint Pivot & Mesh
+=======
+        // 4. Left Arm Joint Pivot & Mesh (UpperArm, Forearm, Hand)
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         GameObject leftArmPivot = new GameObject("LeftArm");
         leftArmPivot.transform.SetParent(human.transform);
         leftArmPivot.transform.localPosition = new Vector3(-0.28f, 1.15f, 0);
@@ -1568,7 +1651,11 @@ public class SceneBuilder : EditorWindow
         rHand.transform.localScale = new Vector3(0.11f, 0.11f, 0.11f);
         rHand.GetComponent<Renderer>().sharedMaterial = skinMat;
 
+<<<<<<< HEAD
         // 6. Left Leg Joint Pivot & Mesh
+=======
+        // 6. Left Leg Joint Pivot & Mesh (Thigh, Calf, Shoe)
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         GameObject leftLegPivot = new GameObject("LeftLeg");
         leftLegPivot.transform.SetParent(human.transform);
         leftLegPivot.transform.localPosition = new Vector3(-0.13f, 0.68f, 0);
@@ -1626,7 +1713,11 @@ public class SceneBuilder : EditorWindow
 
     private static void BuildFaceFeatures(Transform headTransform, Material eyeWhiteMat, Material eyePupilMat, Material skinMat, Material hairMat)
     {
+<<<<<<< HEAD
         // 1. Left Eye
+=======
+        // 1. Left Eye (White Sclera + Dark Pupil)
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         GameObject lEyeWhite = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         lEyeWhite.name = "LeftEyeWhite";
         lEyeWhite.transform.SetParent(headTransform);
@@ -1641,7 +1732,11 @@ public class SceneBuilder : EditorWindow
         lPupil.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
         lPupil.GetComponent<Renderer>().sharedMaterial = eyePupilMat;
 
+<<<<<<< HEAD
         // 2. Right Eye
+=======
+        // 2. Right Eye (White Sclera + Dark Pupil)
+>>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         GameObject rEyeWhite = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         rEyeWhite.name = "RightEyeWhite";
         rEyeWhite.transform.SetParent(headTransform);
