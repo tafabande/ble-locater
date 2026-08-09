@@ -55,13 +55,19 @@ public class HumanWalker : MonoBehaviour
             while (Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z), 
                                      new Vector3(targetPos.x, 0, targetPos.z)) > 0.25f)
             {
-                Vector3 dir = (targetPos - transform.position).normalized;
+                Vector3 rawDir = (targetPos - transform.position);
+                // Flatten to XZ plane to prevent Y-component leakage into horizontal movement
+                Vector3 dir = new Vector3(rawDir.x, 0f, rawDir.z).normalized;
                 
                 if (Physics.Raycast(transform.position, dir, out RaycastHit hit, 0.8f))
                 {
                     if (!hit.collider.isTrigger && !hit.collider.name.Contains("Door"))
                     {
-                        dir = Vector3.Cross(hit.normal, Vector3.up).normalized;
+                        // Use dot product to pick the cross direction that moves towards target
+                        Vector3 cross1 = Vector3.Cross(hit.normal, Vector3.up).normalized;
+                        Vector3 cross2 = -cross1;
+                        Vector3 toTarget = new Vector3(rawDir.x, 0f, rawDir.z).normalized;
+                        dir = (Vector3.Dot(cross1, toTarget) >= Vector3.Dot(cross2, toTarget)) ? cross1 : cross2;
                     }
                 }
 
@@ -86,7 +92,7 @@ public class HumanWalker : MonoBehaviour
         // 1. Procedural Walking Gait Animation (Leg & Arm Swinging)
         if (isWalking)
         {
-            walkCycleTimer += Time.deltaTime * walkSpeed * 8.0f;
+            walkCycleTimer += Time.deltaTime * walkSpeed * 5.5f;
             float legAngle = Mathf.Sin(walkCycleTimer) * 28.0f;
             float armAngle = Mathf.Sin(walkCycleTimer) * 24.0f;
 

@@ -63,7 +63,7 @@ public class TagVisualizer : MonoBehaviour
         }
 
         if (hudText != null && Camera.main != null) {
-            hudText.text = string.Format("🎯 PREDICTED GHOST\nPos: ({0:F2}m, {1:F2}m)", 
+            hudText.text = string.Format("\ud83c\udfaf PREDICTED GHOST\nPos: ({0:F2}m, {1:F2}m)", 
                 transform.position.x, transform.position.z);
             hudText.transform.rotation = Quaternion.LookRotation(hudText.transform.position - Camera.main.transform.position);
         }

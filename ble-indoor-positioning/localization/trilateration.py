@@ -200,16 +200,15 @@ class KalmanFilter2D:
         """
         2D Constant Velocity Kalman Filter to smooth location estimates.
         State vector x = [pos_x, pos_y, vel_x, vel_y]^T
+
+        Uses adaptive dt tracking — the state transition matrix F is recomputed
+        on each filter() call based on the actual elapsed time since the last
+        measurement, preventing velocity prediction drift when packets arrive
+        at varying rates.
         """
         self.dt = float(dt) if np.isfinite(dt) and dt > 0 else 1.0
         self.initialized = False
-
-        self.F = np.array([
-            [1, 0, self.dt, 0],
-            [0, 1, 0, self.dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ], dtype=float)
+        self._last_update_time = None  # Adaptive dt tracking
 
         self.H = np.array([
             [1, 0, 0, 0],
@@ -219,28 +218,52 @@ class KalmanFilter2D:
         p_noise = float(process_noise) if np.isfinite(process_noise) and process_noise >= 0 else 0.1
         m_noise = float(measurement_noise) if np.isfinite(measurement_noise) and measurement_noise >= 0 else 0.35
 
+        self._process_noise = p_noise
         self.Q = np.eye(4) * p_noise
         self.R = np.eye(2) * m_noise
         self.P = np.eye(4) * 1.0
         self.x = np.zeros(4, dtype=float)
 
+    def _build_F(self, dt: float) -> np.ndarray:
+        """Build state transition matrix for a given timestep."""
+        return np.array([
+            [1, 0, dt, 0],
+            [0, 1, 0, dt],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
+        ], dtype=float)
+
+    def _update_dt(self):
+        """Compute elapsed time since last update and refresh F matrix and Q."""
+        import time as _time
+        now = _time.monotonic()
+        if self._last_update_time is not None:
+            elapsed = now - self._last_update_time
+            # Clamp to reasonable range: 10ms to 5s
+            self.dt = max(0.01, min(5.0, elapsed))
+        self._last_update_time = now
+
     def initialize(self, x0: float, y0: float):
+        import time as _time
         try:
             x_val = float(x0) if np.isfinite(x0) else 0.0
             y_val = float(y0) if np.isfinite(y0) else 0.0
             self.x = np.array([x_val, y_val, 0.0, 0.0], dtype=float)
             self.P = np.eye(4) * 1.0
             self.initialized = True
+            self._last_update_time = _time.monotonic()
         except Exception:
             self.x = np.zeros(4, dtype=float)
             self.P = np.eye(4) * 1.0
             self.initialized = True
+            self._last_update_time = _time.monotonic()
 
     def predict(self):
-        """Predict the next state."""
+        """Predict the next state using adaptive dt."""
         try:
-            self.x = self.F @ self.x
-            self.P = self.F @ self.P @ self.F.T + self.Q
+            F = self._build_F(self.dt)
+            self.x = F @ self.x
+            self.P = F @ self.P @ F.T + self.Q
         except Exception as e:
             logger.error(f"Kalman prediction error: {e}")
 
@@ -263,7 +286,12 @@ class KalmanFilter2D:
             logger.error(f"Kalman update error: {e}")
 
     def filter(self, x_meas: float, y_meas: float) -> tuple:
-        """Runs one predict-update step and returns smoothed (x, y)."""
+        """Runs one predict-update step and returns smoothed (x, y).
+        
+        Automatically adapts the dt based on actual wall-clock elapsed time
+        since the last call, ensuring velocity predictions stay accurate
+        regardless of packet arrival rate.
+        """
         try:
             if not (np.isfinite(x_meas) and np.isfinite(y_meas)):
                 if self.initialized:
@@ -274,6 +302,7 @@ class KalmanFilter2D:
                 self.initialize(x_meas, y_meas)
                 return float(x_meas), float(y_meas)
 
+            self._update_dt()
             self.predict()
             self.update(x_meas, y_meas)
             return float(self.x[0]), float(self.x[1])

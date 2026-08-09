@@ -17,8 +17,6 @@ public class DoorController : MonoBehaviour
 
     private Vector3 singleClosedPos;
     private Vector3 singleOpenPos;
-    private Vector3 smoothVelocityLeft;
-    private Vector3 smoothVelocityRight;
 
     private Collider doorCollider;
     private float currentOpenFactor = 0f; // 0 = Closed, 1 = Fully Open

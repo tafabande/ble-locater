@@ -50,7 +50,16 @@ public class PlayerController : MonoBehaviour
             targetPos.z = Mathf.Clamp(targetPos.z, 0.2f, 9.8f);
             targetPos.y = 0.4f;
 
-            if (!Physics.CheckSphere(targetPos, 0.35f, LayerMask.GetMask("Default"), QueryTriggerInteraction.Ignore))
+            // Raycast-based obstacle check that properly ignores floor plane
+            bool blocked = false;
+            if (Physics.Raycast(transform.position, moveDir.normalized, out RaycastHit wallHit, moveDir.magnitude + 0.15f))
+            {
+                if (wallHit.collider.CompareTag("Obstacle") && !wallHit.collider.isTrigger)
+                {
+                    blocked = true;
+                }
+            }
+            if (!blocked)
             {
                 transform.position = targetPos;
             }

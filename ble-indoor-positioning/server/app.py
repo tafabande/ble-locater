@@ -195,48 +195,7 @@ class OnlineDistanceLearner:
         }
 
 
-class GeofenceEngine:
-    """
-    Geofence Alert Engine.
-    Monitors patient boundary violations and room-to-room transitions.
-    Generates event objects broadcasted over WebSocket to Unity and Streamlit.
-    """
-    def __init__(self):
-        self.transition_rules = {
-            ("Room A", "Room D"): {"severity": "HIGH", "message": "🚨 CRITICAL: Patient exited ICU (Room A) directly into Emergency Ward (Room D)!"},
-            ("Room A", "Room B"): {"severity": "WARNING", "message": "⚠️ WARNING: Patient exited ICU (Room A) into Patient Bedroom 2 (Room B)."},
-            ("Room A", "Room C"): {"severity": "WARNING", "message": "⚠️ WARNING: Patient exited ICU (Room A) into Medical Station (Room C)."},
-            ("Room C", "Room D"): {"severity": "LOW", "message": "ℹ️ INFO: Tag moved from Medical Station (Room C) to Emergency Ward (Room D)."},
-        }
-
-    def evaluate_transition(self, tag_id: str, old_room: str, new_room: str) -> Optional[dict]:
-        if not old_room or not new_room or old_room == new_room:
-            return None
-
-        rule = None
-        for (f_p, t_p), r in self.transition_rules.items():
-            if f_p in old_room and t_p in new_room:
-                rule = r
-                break
-
-        if not rule:
-            if "Room A" in old_room:
-                rule = {"severity": "HIGH", "message": f"🚨 CRITICAL: Tag {tag_id} exited ICU (Room A) into {new_room}!"}
-            else:
-                rule = {"severity": "LOW", "message": f"ℹ️ Tag {tag_id} moved from {old_room} to {new_room}."}
-
-        timestamp_str = time.strftime("%H:%M:%S", time.localtime())
-        alert_event = {
-            "type": "GEOFENCE_ALERT",
-            "severity": rule["severity"],
-            "patient": tag_id,
-            "from": old_room,
-            "to": new_room,
-            "time": timestamp_str,
-            "timestamp_ms": int(time.time() * 1000),
-            "message": rule["message"]
-        }
-        return alert_event
+# GeofenceEngine is imported from engineering.geofence_engine (line 37)
 
 
 state = {
@@ -448,14 +407,35 @@ def perform_localization():
         # 4. Kalman trajectory smoothing
         smoothed_x, smoothed_y = state["kalman_filter"].filter(pos[0], pos[1])
 
-        # 5. XGBoost ML Zone Prediction
+        # 5. XGBoost ML Zone Prediction via majority voting across active anchors
         zone_str = "Unknown"
-        dist_from_origin = np.sqrt(smoothed_x**2 + smoothed_y**2)
-        if dist_from_origin <= 0.75: zone_str = "Very Close (<=0.75m)"
-        elif dist_from_origin <= 1.5: zone_str = "Close (0.75-1.5m)"
-        elif dist_from_origin <= 2.5: zone_str = "Mid (1.5-2.5m)"
-        elif dist_from_origin <= 4.0: zone_str = "Far (2.5-4m)"
-        else: zone_str = "Very Far (4m+)"
+        if state["zone_model"] is not None and state["model_metadata"] is not None:
+            try:
+                feature_cols = state["model_metadata"].get("feature_cols", [])
+                zone_votes = []
+                for anchor_id in active_distances.keys():
+                    hist = state["anchor_window_history"].get(anchor_id, [])
+                    if hist and feature_cols:
+                        latest = hist[-1]
+                        if all(col in latest for col in feature_cols):
+                            X_z = np.array([[latest[col] for col in feature_cols]], dtype=float)
+                            if np.all(np.isfinite(X_z)):
+                                if state["zone_scaler"] is not None:
+                                    X_z = state["zone_scaler"].transform(X_z)
+                                zone_votes.append(str(state["zone_model"].predict(X_z)[0]))
+                if zone_votes:
+                    from collections import Counter
+                    zone_str = Counter(zone_votes).most_common(1)[0][0]
+            except Exception as e:
+                logger.warning(f"Zone majority voting failed: {e}")
+        # Fallback to distance-based heuristic if ML classifier unavailable
+        if zone_str == "Unknown":
+            dist_from_origin = np.sqrt(smoothed_x**2 + smoothed_y**2)
+            if dist_from_origin <= 0.75: zone_str = "Very Close (<=0.75m)"
+            elif dist_from_origin <= 1.5: zone_str = "Close (0.75-1.5m)"
+            elif dist_from_origin <= 2.5: zone_str = "Mid (1.5-2.5m)"
+            elif dist_from_origin <= 4.0: zone_str = "Far (2.5-4m)"
+            else: zone_str = "Very Far (4m+)"
         state["zone_prediction"] = zone_str
 
         # 6. Room resolution with hysteresis & Geofence Alert Evaluation
@@ -549,12 +529,20 @@ def add_raw_packets_batch(packets: List[PacketData]):
             if anchor_id:
                 tx = getattr(packet, "true_x", None)
                 ty = getattr(packet, "true_y", None)
-                if tx is not None and ty is not None and anchor_id in state["anchors_config"]:
-                    ax, ay = state["anchors_config"][anchor_id]
-                    import math
-                    true_dist = math.sqrt((tx - ax)**2 + (ty - ay)**2)
-                    raw_est = state["estimated_distances"].get(anchor_id, true_dist)
-                    state["online_learner"].learn_sample(anchor_id, rssi_val, true_dist, raw_est)
+                if tx is not None and ty is not None:
+                    # Persist synthetic training data to CSV (same as single-packet endpoint)
+                    file_exists = os.path.exists(SYNTHETIC_DATA_PATH)
+                    with open(SYNTHETIC_DATA_PATH, "a", encoding="utf-8") as f:
+                        if not file_exists:
+                            f.write("timestamp,anchor,mac,rssi,true_x,true_y\n")
+                        f.write(f"{pkt_time},{anchor_id},{packet.mac},{rssi_val},{tx:.3f},{ty:.3f}\n")
+
+                    if anchor_id in state["anchors_config"]:
+                        ax, ay = state["anchors_config"][anchor_id]
+                        import math
+                        true_dist = math.sqrt((tx - ax)**2 + (ty - ay)**2)
+                        raw_est = state["estimated_distances"].get(anchor_id, true_dist)
+                        state["online_learner"].learn_sample(anchor_id, rssi_val, true_dist, raw_est)
 
                 state["last_raw_packets"][anchor_id].append((pkt_time, rssi_val))
 
@@ -677,6 +665,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "distances": state["estimated_distances"],
                     "history": state["history"],
                     "zone": state["zone_prediction"],
+                    "room": state["current_room"],
                     "alert": state["latest_alert"]
                 }
             }

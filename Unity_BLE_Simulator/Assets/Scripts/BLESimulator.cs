@@ -66,7 +66,7 @@ public class BLESimulator : MonoBehaviour
     {
         if (hudText != null && Camera.main != null)
         {
-            hudText.text = string.Format("📱 PATIENT TAG (TAG_01)\nPos: ({0:F2}m, {1:F2}m)", 
+            hudText.text = string.Format("\ud83d\udcf1 PATIENT TAG (TAG_01)\nPos: ({0:F2}m, {1:F2}m)", 
                 transform.position.x, transform.position.z);
             hudText.transform.rotation = Quaternion.LookRotation(hudText.transform.position - Camera.main.transform.position);
         }

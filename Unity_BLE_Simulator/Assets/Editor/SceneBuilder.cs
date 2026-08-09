@@ -216,15 +216,15 @@ public class SceneBuilder : EditorWindow
         // 7. Detailed 3D Humanoid Entities (Legs, Arms, Hair, Face Features & Walking Animation)
         CreateRealisticHumanoid("Dr_Tendai", new Vector3(2.5f, 0.9f, 2.5f), doctorCoatMat, trouserDark, zimDoctorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
             new Vector3(2.5f, 0.9f, 2.5f), new Vector3(2.5f, 0.9f, 7.5f), new Vector3(7.5f, 0.9f, 7.5f), new Vector3(7.5f, 0.9f, 2.5f)
-        }, "👨‍⚕️ Dr. Tendai (Consultant)", true, false);
+        }, "\ud83d\udc68\u200d\u2695\ufe0f Dr. Tendai (Consultant)", true, false);
 
         CreateRealisticHumanoid("Nurse_Chipo", new Vector3(7.5f, 0.9f, 2.5f), nurseMat, nurseMat, zimNurseSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
             new Vector3(7.5f, 0.9f, 2.5f), new Vector3(7.5f, 0.9f, 7.5f), new Vector3(2.5f, 0.9f, 7.5f), new Vector3(2.5f, 0.9f, 2.5f)
-        }, "👩‍⚕️ Nurse Chipo (Ward Lead)", false, true);
+        }, "\ud83d\udc69\u200d\u2695\ufe0f Nurse Chipo (Ward Lead)", false, true);
 
         CreateRealisticHumanoid("Visitor_Farai", new Vector3(6.5f, 0.9f, 6.5f), visitorMat, trouserDark, zimVisitorSkin, hairBlackMat, eyeWhiteMat, eyePupilMat, shoeBlack, new Vector3[] {
             new Vector3(6.5f, 0.9f, 6.5f), new Vector3(3.0f, 0.9f, 3.0f), new Vector3(8.0f, 0.9f, 3.0f), new Vector3(6.5f, 0.9f, 6.5f)
-        }, "🏃 Visitor Farai", false, false);
+        }, "\ud83c\udfc3 Visitor Farai", false, false);
 
         // 8. Patient Smartphone Tag Device (True Tag)
         GameObject trueTag = new GameObject("True_Tag (Drag Me)");
@@ -334,7 +334,7 @@ public class SceneBuilder : EditorWindow
         Light mainSun = lightObj.GetComponent<Light>();
         mainSun.shadows = LightShadows.Soft;
 
-        // Attach DayNightCycle to main light or light manager
+        // Attach DayNightCycle to main light
         if (lightObj.GetComponent<DayNightCycle>() == null) {
             lightObj.AddComponent<DayNightCycle>();
         }
@@ -509,7 +509,7 @@ public class SceneBuilder : EditorWindow
         labelObj.transform.SetParent(bed.transform);
         labelObj.transform.localPosition = new Vector3(0, 1.3f, 0.7f);
         TextMesh tm = labelObj.AddComponent<TextMesh>();
-        tm.text = "🛌 " + patientName;
+        tm.text = "\ud83d\udecf\ufe0f " + patientName;
         tm.fontSize = 20;
         tm.characterSize = 0.06f;
         tm.color = Color.white;
@@ -531,7 +531,7 @@ public class SceneBuilder : EditorWindow
         chest.transform.localScale = new Vector3(0.45f, 0.55f, 0.26f);
         chest.GetComponent<Renderer>().sharedMaterial = outfitMat;
 
-        // Doctor Stethoscope / Badge details
+        // Doctor Stethoscope details
         if (isDoctor)
         {
             GameObject steth = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -562,7 +562,7 @@ public class SceneBuilder : EditorWindow
 
         BuildFaceFeatures(head.transform, eyeWhiteMat, eyePupilMat, skinMat, hairMat);
 
-        // 4. Left Arm Joint Pivot & Mesh (UpperArm, Forearm, Hand)
+        // 4. Left Arm Joint Pivot & Mesh
         GameObject leftArmPivot = new GameObject("LeftArm");
         leftArmPivot.transform.SetParent(human.transform);
         leftArmPivot.transform.localPosition = new Vector3(-0.28f, 1.15f, 0);
@@ -596,7 +596,7 @@ public class SceneBuilder : EditorWindow
         rHand.transform.localScale = new Vector3(0.11f, 0.11f, 0.11f);
         rHand.GetComponent<Renderer>().sharedMaterial = skinMat;
 
-        // 6. Left Leg Joint Pivot & Mesh (Thigh, Calf, Shoe)
+        // 6. Left Leg Joint Pivot & Mesh
         GameObject leftLegPivot = new GameObject("LeftLeg");
         leftLegPivot.transform.SetParent(human.transform);
         leftLegPivot.transform.localPosition = new Vector3(-0.13f, 0.68f, 0);
@@ -654,7 +654,7 @@ public class SceneBuilder : EditorWindow
 
     private static void BuildFaceFeatures(Transform headTransform, Material eyeWhiteMat, Material eyePupilMat, Material skinMat, Material hairMat)
     {
-        // 1. Left Eye (White Sclera + Dark Pupil)
+        // 1. Left Eye
         GameObject lEyeWhite = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         lEyeWhite.name = "LeftEyeWhite";
         lEyeWhite.transform.SetParent(headTransform);
@@ -669,7 +669,7 @@ public class SceneBuilder : EditorWindow
         lPupil.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
         lPupil.GetComponent<Renderer>().sharedMaterial = eyePupilMat;
 
-        // 2. Right Eye (White Sclera + Dark Pupil)
+        // 2. Right Eye
         GameObject rEyeWhite = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         rEyeWhite.name = "RightEyeWhite";
         rEyeWhite.transform.SetParent(headTransform);
