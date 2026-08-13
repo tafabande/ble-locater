@@ -13,6 +13,11 @@ __pycache__/
 catboost_info/
 .pytest_cache/
 
+# Node / Web
+node_modules/
+dist/
+.figma/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -1,22 +1,70 @@
 {
     "version": 1,
+    "building_name": "Hospital Main Wing (Floor 1)",
+    "firmware_version": "2.4.0-esp32",
+    "training_sessions": 1,
     "anchors": {
-        "ANCHOR_01": {
-            "eta": 2.7,
-            "bias": 0.0,
-            "samples": 0
+        "ANCHOR_05": {
+            "eta": 2.0666,
+            "bias": 0.807,
+            "samples": 9
+        },
+        "ANCHOR_10": {
+            "eta": 2.0666,
+            "bias": 1.0031,
+            "samples": 9
+        },
+        "ANCHOR_11": {
+            "eta": 2.2909,
+            "bias": 0.7609,
+            "samples": 5
+        },
+        "ANCHOR_04": {
+            "eta": 2.4473,
+            "bias": 0.3996,
+            "samples": 9
+        },
+        "ANCHOR_09": {
+            "eta": 2.0666,
+            "bias": 0.6324,
+            "samples": 9
+        },
+        "ANCHOR_12": {
+            "eta": 2.1694,
+            "bias": 0.1438,
+            "samples": 7
+        },
+        "ANCHOR_08": {
+            "eta": 2.0666,
+            "bias": 1.0033,
+            "samples": 9
         },
         "ANCHOR_02": {
-            "eta": 2.7,
-            "bias": 0.0,
-            "samples": 0
+            "eta": 2.4473,
+            "bias": 0.3885,
+            "samples": 9
+        },
+        "ANCHOR_06": {
+            "eta": 2.0666,
+            "bias": 0.829,
+            "samples": 9
+        },
+        "ANCHOR_07": {
+            "eta": 2.1694,
+            "bias": 0.9258,
+            "samples": 7
         },
         "ANCHOR_03": {
-            "eta": 2.7,
-            "bias": 0.0,
-            "samples": 0
+            "eta": 2.0666,
+            "bias": 0.6578,
+            "samples": 9
+        },
+        "ANCHOR_01": {
+            "eta": 2.0666,
+            "bias": 0.6365,
+            "samples": 9
         }
     },
-    "total_samples": 0,
-    "last_updated": "2026-08-06T14:43:50Z"
+    "total_samples": 100,
+    "last_updated": "2026-08-13T18:16:20Z"
 }

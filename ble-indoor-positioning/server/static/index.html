@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indoor Asset Locator & Navigation</title>
+    <meta name="description" content="Search-first local indoor positioning and asset tracking system.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Top Navigation Header -->
+    <header id="appHeader">
+        <div class="header-left">
+            <div class="logo">⚡ RTLS</div>
+            <div class="header-title">Indoor Asset Locator</div>
+        </div>
+        <div class="header-center">
+            <!-- User Location Context Switcher -->
+            <div class="location-context-box">
+                <span class="location-label">📍 YOUR LOCATION:</span>
+                <select id="userRoomSelect" class="room-select">
+                    <option value="Room A (ICU Bedroom 1)">Room A (ICU Bedroom 1)</option>
+                    <option value="Room B (Patient Bedroom 2)">Room B (Patient Bedroom 2)</option>
+                    <option value="Room C (Medical Station)">Room C (Medical Station)</option>
+                    <option value="Room D (Emergency Ward)">Room D (Emergency Ward)</option>
+                </select>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="status-pill connected" id="wsStatusPill">
+                <span class="status-dot"></span>
+                <span class="status-text" id="wsStatusText">Live</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Global Alert Banner -->
+    <div id="alertBanner" class="alert-banner hidden">
+        <span class="alert-icon">🚨</span>
+        <span class="alert-message" id="alertMessage"></span>
+        <button class="alert-dismiss" id="alertDismiss">✕</button>
+    </div>
+
+    <!-- Main Container -->
+    <main id="mainContainer">
+        <!-- 🔍 SEARCH BAR SECTION -->
+        <section class="search-hero">
+            <div class="search-wrapper">
+                <span class="search-icon">🔎</span>
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-input" 
+                    placeholder="Search for a person, equipment, or tag (e.g. ECG, Printer, Nurse, Wheelchair)..."
+                    autocomplete="off"
+                />
+                <button id="searchClearBtn" class="search-clear-btn hidden">✕</button>
+            </div>
+            <!-- Quick Filter Chips -->
+            <div class="filter-chips">
+                <button class="chip active" data-filter="all">All Assets</button>
+                <button class="chip" data-filter="medical_equipment">🩺 Medical Equipment</button>
+                <button class="chip" data-filter="mobility">♿ Mobility</button>
+                <button class="chip" data-filter="staff">👤 Staff</button>
+                <button class="chip" data-filter="patient">🏥 Patients</button>
+                <button class="chip" data-filter="office_equipment">🖨️ Office & Supplies</button>
+            </div>
+        </section>
+
+        <!-- SEARCH RESULTS VIEW (Hidden by default, shown when user searches) -->
+        <section id="searchResultsSection" class="search-results-section hidden">
+            <div class="section-title-bar">
+                <h2 id="searchResultsTitle">Search Results</h2>
+                <span id="searchResultsCount" class="results-badge">0 found</span>
+            </div>
+            <div id="searchResultsList" class="results-grid">
+                <!-- Search result cards dynamically injected here -->
+            </div>
+        </section>
+
+        <!-- DEFAULT DASHBOARD VIEW (Shown when search bar is empty) -->
+        <div id="defaultDashboard" class="dashboard-grid">
+            
+            <!-- LEFT / CENTER: CONTEXTUAL LOCAL MAP -->
+            <section class="card map-card">
+                <div class="card-header">
+                    <h2>🗺️ Contextual Map (Nearby Rooms)</h2>
+                    <div class="map-controls">
+                        <span class="sub-text">Centered on your room</span>
+                    </div>
+                </div>
+                <div class="map-canvas-container">
+                    <canvas id="contextMapCanvas"></canvas>
+                </div>
+                <div class="map-legend">
+                    <span class="legend-item"><span class="legend-dot" style="background:#89b4fa"></span> You are here</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#a6e3a1"></span> Adjacent room</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#fab387"></span> 2 rooms away</span>
+                    <span class="legend-item"><span class="legend-icon">📍</span> Live Tag Position</span>
+                </div>
+            </section>
+
+            <!-- RIGHT: NEARBY ASSETS & QUICK LIST -->
+            <aside class="card nearby-card">
+                <div class="card-header">
+                    <h2>📡 Nearby Right Now</h2>
+                    <span id="nearbyCount" class="count-badge">0</span>
+                </div>
+                <p class="section-desc">Assets in your room and adjacent rooms:</p>
+                <div id="nearbyList" class="nearby-list">
+                    <!-- Nearby items injected here -->
+                </div>
+            </aside>
+        </div>
+
+        <!-- ASSET DETAIL MODAL / SLIDE-OVER -->
+        <div id="assetModalOverlay" class="modal-overlay hidden">
+            <div class="modal-card">
+                <button id="modalCloseBtn" class="modal-close">✕</button>
+                <div class="modal-header">
+                    <span id="modalIcon" class="modal-icon">📦</span>
+                    <div>
+                        <h2 id="modalTitle">Asset Name</h2>
+                        <span id="modalDept" class="modal-badge">Department</span>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Current Room</span>
+                            <span id="modalRoom" class="detail-val highlight">—</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Distance from You</span>
+                            <span id="modalProximity" class="detail-val">—</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Last Seen</span>
+                            <span id="modalLastSeen" class="detail-val">—</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Asset Type</span>
+                            <span id="modalType" class="detail-val">—</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">BLE Tag MAC</span>
+                            <span id="modalMac" class="detail-val code">—</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Live Coordinates</span>
+                            <span id="modalCoords" class="detail-val">—</span>
+                        </div>
+                    </div>
+                    <div class="route-box">
+                        <h3>🗺️ Location Route</h3>
+                        <div id="modalRouteStep" class="route-steps">
+                            <!-- Step-by-step route guidance -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
