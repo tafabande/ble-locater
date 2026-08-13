@@ -190,7 +190,8 @@ class ControlCenterGUI:
         self.lbl_active_procs = ttk.Label(svc_box, text="0 / 6 Running", font=("Segoe UI", 11, "bold"), foreground=self.colors["green"], background=self.colors["panel"])
         self.lbl_active_procs.pack(anchor="w")
 
-        # Emergency Turn Off All
+        # Top Header Action Buttons
+        ttk.Button(top_bar, text="🌐 Launch Web Dashboard", style="Success.TButton", command=self.launch_dashboard_and_open).pack(side="right", padx=(0, 10))
         ttk.Button(top_bar, text="🛑 Turn Off Everything", style="Danger.TButton", command=self.stop_all_services).pack(side="right")
 
         ttk.Separator(self.root, orient="horizontal").pack(fill="x")
@@ -598,6 +599,11 @@ class ControlCenterGUI:
         self.start_backend()
         self.root.after(1200, self.start_dashboard)
         self.root.after(2500, self.start_sim)
+
+    def launch_dashboard_and_open(self):
+        """Starts location engine, live motion, and opens the Web Dashboard in browser."""
+        self.launch_all_services()
+        self.root.after(1500, lambda: webbrowser.open("http://localhost:8000"))
 
     def stop_all_services(self):
         """Stops all active subprocesses."""
