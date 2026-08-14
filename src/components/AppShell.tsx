@@ -3,7 +3,7 @@ import { clockTime } from '../lib/format'
 import type { ConnStatus, Mode } from '../lib/datasource'
 import { SearchBar, type SearchItem } from './SearchBar'
 
-export type View = 'monitor' | 'admin'
+export type View = 'monitor' | 'control' | 'training' | 'admin'
 
 interface Props {
   view: View
@@ -34,8 +34,27 @@ const NAV: { id: View; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    id: 'control',
+    label: 'Control Desk',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'training',
+    label: 'AI Studio',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
+        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+  },
+  {
     id: 'admin',
-    label: 'Admin',
+    label: 'Admin & Rules',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
         <path d="M4 6h16M4 12h16M4 18h10" />

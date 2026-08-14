@@ -3,6 +3,8 @@ import { useSimulation, DEFAULT_MAP, type MapItem } from './lib/simulation'
 import { useLiveSource, EMPTY_STATE, type Mode } from './lib/datasource'
 import { AppShell, type View } from './components/AppShell'
 import { MonitorView } from './components/monitor/MonitorView'
+import { ControlView } from './components/control/ControlView'
+import { TrainingView } from './components/training/TrainingView'
 import { AdminView } from './components/admin/AdminView'
 import { ConnectionScreen } from './components/ConnectionScreen'
 import { AlertToasts } from './components/AlertToasts'
@@ -68,7 +70,7 @@ export default function App() {
       focus={focus}
       onFocus={onFocus}
     >
-      {view === 'monitor' ? (
+      {view === 'monitor' && (
         showConnection ? (
           <ConnectionScreen
             status={live.status}
@@ -80,7 +82,10 @@ export default function App() {
         ) : (
           <MonitorView sim={sim} mapItems={mapItems} selected={selected} onSelect={setSelected} focus={focus} onFocus={onFocus} />
         )
-      ) : (
+      )}
+      {view === 'control' && <ControlView />}
+      {view === 'training' && <TrainingView />}
+      {view === 'admin' && (
         <AdminView
           sim={sim}
           mode={mode}
