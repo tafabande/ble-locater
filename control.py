@@ -50,7 +50,6 @@ class ControlCenterGUI:
         self.processes = {
             "backend": None,
             "dashboard": None,
-            "training_gui": None,
             "collector": None,
             "simulator": None,
             "tests": None
@@ -254,6 +253,17 @@ class ControlCenterGUI:
                 "stop_fn": self.stop_backend
             },
             {
+                "key": "collector",
+                "title": "📡 Physical Room Sensor Collector (Hardware GUI)",
+                "desc": "Receives real Bluetooth signals from physical sensors mounted on room walls.",
+                "url": None,
+                "what": "Listens for physical signals from real room hardware plugged into USB ports.",
+                "when": "Use when deployed with real physical room sensors.",
+                "what_will_happen": "Clicking 'Turn On' starts reading real physical signals into the server.",
+                "start_fn": self.start_collector,
+                "stop_fn": self.stop_collector
+            },
+            {
                 "key": "simulator",
                 "title": "🎮 Demo Item Movement Generator (Virtual Test)",
                 "desc": "Generates moving fake equipment tags across rooms so you can try searching without physical hardware.",
@@ -266,7 +276,7 @@ class ControlCenterGUI:
             },
             {
                 "key": "dashboard",
-                "title": "🗺️ React Interactive Floorplan Map (Vite App)",
+                "title": "🗺️ React Building Floorplan Web Portal",
                 "desc": "Single visual map page showing 2D/3D floorplan, item motion, geofence alerts, and analytics.",
                 "url": "http://127.0.0.1:5173",
                 "what": "Displays the standardized React/Vite interactive map of the floorplan with live markers.",
@@ -274,28 +284,6 @@ class ControlCenterGUI:
                 "what_will_happen": "Clicking 'Open Webpage' opens the React floorplan app in your browser.",
                 "start_fn": self.start_dashboard,
                 "stop_fn": self.stop_dashboard
-            },
-            {
-                "key": "collector",
-                "title": "📡 Physical Room Sensor Collector (Hardware)",
-                "desc": "Receives real Bluetooth signals from physical sensors mounted on room walls.",
-                "url": None,
-                "what": "Listens for physical signals from real room hardware plugged into USB ports.",
-                "when": "Use when deployed with real physical room sensors.",
-                "what_will_happen": "Clicking 'Turn On' starts reading real physical signals into the server.",
-                "start_fn": self.start_collector,
-                "stop_fn": self.stop_collector
-            },
-            {
-                "key": "training_gui",
-                "title": "🧠 AI Model Trainer & Data Studio (Developer Tool)",
-                "desc": "On-demand ML tool to train CatBoost/XGBoost models using recorded signal data.",
-                "url": None,
-                "what": "Teaches the computer how to estimate room distances accurately during offline training.",
-                "when": "Use only when calibrating or retraining AI models for new layouts (Not needed during live tracking).",
-                "what_will_happen": "Clicking 'Launch Tool' opens the ML model training workspace.",
-                "start_fn": self.launch_training_gui,
-                "stop_fn": self.stop_training_gui
             }
         ]
 
@@ -548,14 +536,6 @@ class ControlCenterGUI:
 
     def stop_dashboard(self):
         pass
-
-    def launch_training_gui(self):
-        if not self.processes["training_gui"]:
-            script = os.path.join(PROJECT_ROOT, "training_gui.py")
-            self.run_process_in_thread("training_gui", [VENV_PYTHON, script], PROJECT_ROOT)
-
-    def stop_training_gui(self):
-        self.kill_proc("training_gui")
 
     def start_collector(self):
         if not self.processes["collector"]:
