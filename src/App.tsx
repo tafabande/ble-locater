@@ -14,7 +14,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('demo')
   const [selected, setSelected] = useState<string | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
-  const [interval, setIntervalMs] = useState(1500)
+  const [interval, setIntervalMs] = useState(2500)
   const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT)
   const [mapItems, setMapItems] = useState<MapItem[]>(DEFAULT_MAP)
   const [now, setNow] = useState(Date.now())

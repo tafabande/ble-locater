@@ -1,0 +1,13 @@
+{
+  "session_filename": "dataset_2026-08-04_164316.csv",
+  "start_timestamp": "2026-08-04 16:43:16",
+  "end_timestamp": "2026-08-04 16:45:38",
+  "distance_m": 1.16,
+  "height_m": 0.76,
+  "motion": "stationary",
+  "obstacle": "Yes",
+  "obstacle_type": "Wooden Door",
+  "dirty_environment_mode": "Custom / Manual",
+  "target_mac": "52:06:26:03:01:DA",
+  "total_samples": 113
+}

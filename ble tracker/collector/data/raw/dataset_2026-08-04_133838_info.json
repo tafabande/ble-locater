@@ -1,0 +1,13 @@
+{
+  "session_filename": "dataset_2026-08-04_133838.csv",
+  "start_timestamp": "2026-08-04 13:38:38",
+  "end_timestamp": "2026-08-04 13:38:43",
+  "distance_m": 5.29,
+  "height_m": 0.0,
+  "motion": "stationary",
+  "obstacle": "No",
+  "obstacle_type": "None",
+  "dirty_environment_mode": "Clean / Direct Line-of-Sight (LOS)",
+  "target_mac": "52:06:26:03:01:DA",
+  "total_samples": 0
+}

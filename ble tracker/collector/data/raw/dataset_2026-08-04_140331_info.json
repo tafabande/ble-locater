@@ -1,0 +1,13 @@
+{
+  "session_filename": "dataset_2026-08-04_140331.csv",
+  "start_timestamp": "2026-08-04 14:03:31",
+  "end_timestamp": "2026-08-04 14:03:45",
+  "distance_m": 5.29,
+  "height_m": 0.0,
+  "motion": "moving_away",
+  "obstacle": "Yes",
+  "obstacle_type": "laptop",
+  "dirty_environment_mode": "Custom / Manual",
+  "target_mac": "52:06:26:03:01:DA",
+  "total_samples": 12
+}

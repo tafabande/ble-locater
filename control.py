@@ -210,7 +210,7 @@ class ControlCenterGUI:
         ttk.Button(stepper_bar, text="2️⃣ Open Search Webpage", style="Success.TButton", command=lambda: webbrowser.open("http://localhost:8000")).pack(side="left", padx=4)
         ttk.Label(stepper_bar, text="➔", font=("Segoe UI", 12), foreground=self.colors["subtext"], background=self.colors["panel"]).pack(side="left", padx=4)
 
-        ttk.Button(stepper_bar, text="3️⃣ Open Building Floorplan Map", style="Secondary.TButton", command=lambda: webbrowser.open("http://localhost:8501")).pack(side="left", padx=4)
+        ttk.Button(stepper_bar, text="3️⃣ Open React Building Floorplan", style="Secondary.TButton", command=lambda: webbrowser.open("http://localhost:5173")).pack(side="left", padx=4)
 
         ttk.Separator(self.root, orient="horizontal").pack(fill="x")
 
@@ -266,12 +266,12 @@ class ControlCenterGUI:
             },
             {
                 "key": "dashboard",
-                "title": "🗺️ Interactive Building Floorplan Map",
-                "desc": "Visual map page showing room layouts, item movement paths, and signal health diagnostics.",
-                "url": "http://127.0.0.1:8501",
-                "what": "Displays an interactive map of the floorplan with live moving markers.",
-                "when": "Use when you want to view a 3D floorplan view or detailed room statistics.",
-                "what_will_happen": "Clicking 'Open Webpage' opens the visual floorplan map in your browser.",
+                "title": "🗺️ React Interactive Floorplan Map (Vite App)",
+                "desc": "Single visual map page showing 2D/3D floorplan, item motion, geofence alerts, and analytics.",
+                "url": "http://127.0.0.1:5173",
+                "what": "Displays the standardized React/Vite interactive map of the floorplan with live markers.",
+                "when": "Use when you want to view the live asset floorplan view or room statistics.",
+                "what_will_happen": "Clicking 'Open Webpage' opens the React floorplan app in your browser.",
                 "start_fn": self.start_dashboard,
                 "stop_fn": self.stop_dashboard
             },
@@ -288,12 +288,12 @@ class ControlCenterGUI:
             },
             {
                 "key": "training_gui",
-                "title": "🧠 AI Model Trainer & Data Studio",
-                "desc": "Advanced tool to train and improve location accuracy using recorded signal data.",
+                "title": "🧠 AI Model Trainer & Data Studio (Developer Tool)",
+                "desc": "On-demand ML tool to train CatBoost/XGBoost models using recorded signal data.",
                 "url": None,
-                "what": "Teaches the computer how to estimate room distances accurately.",
-                "when": "Use when calibrating or tuning accuracy for a new building layout.",
-                "what_will_happen": "Clicking 'Launch Tool' opens the advanced AI training window.",
+                "what": "Teaches the computer how to estimate room distances accurately during offline training.",
+                "when": "Use only when calibrating or retraining AI models for new layouts (Not needed during live tracking).",
+                "what_will_happen": "Clicking 'Launch Tool' opens the ML model training workspace.",
                 "start_fn": self.launch_training_gui,
                 "stop_fn": self.stop_training_gui
             }
@@ -543,17 +543,11 @@ class ControlCenterGUI:
         self.kill_proc("backend")
 
     def start_dashboard(self):
-        if not self.processes["dashboard"]:
-            dash_script = os.path.join(PROJECT_ROOT, "dashboard", "app.py")
-            streamlit_exe = os.path.join(PROJECT_ROOT, ".venv", "Scripts", "streamlit.exe")
-            if os.path.exists(streamlit_exe):
-                cmd = [streamlit_exe, "run", dash_script]
-            else:
-                cmd = [VENV_PYTHON, "-m", "streamlit", "run", dash_script]
-            self.run_process_in_thread("dashboard", cmd, PROJECT_ROOT)
+        webbrowser.open("http://127.0.0.1:5173")
+        self.log_queue.put("[SYSTEM] Opened React building floorplan app in browser (http://127.0.0.1:5173).\n")
 
     def stop_dashboard(self):
-        self.kill_proc("dashboard")
+        pass
 
     def launch_training_gui(self):
         if not self.processes["training_gui"]:
@@ -595,15 +589,14 @@ class ControlCenterGUI:
                 self.log_queue.put(f"[ERROR] Could not turn off '{name}': {e}\n")
 
     def launch_all_services(self):
-        """Launches core backend and dashboard services."""
+        """Launches core backend and demo simulator services."""
         self.start_backend()
-        self.root.after(1200, self.start_dashboard)
-        self.root.after(2500, self.start_sim)
+        self.root.after(1500, self.start_sim)
 
     def launch_dashboard_and_open(self):
-        """Starts location engine, live motion, and opens the Web Dashboard in browser."""
+        """Starts location engine, live motion, and opens the React Dashboard in browser."""
         self.launch_all_services()
-        self.root.after(1500, lambda: webbrowser.open("http://localhost:8000"))
+        self.root.after(1500, lambda: webbrowser.open("http://localhost:5173"))
 
     def stop_all_services(self):
         """Stops all active subprocesses."""
@@ -734,7 +727,7 @@ class ControlCenterGUI:
             color = self.colors["green"] if self.test_state["failed"] == 0 else self.colors["red"]
             self.lbl_test_badge.config(text=badge_str, foreground=color)
 
-        self.root.after(1000, self.update_system_telemetry)
+        self.root.after(2500, self.update_system_telemetry)
 
     def draw_system_sparkline(self):
         c = self.spark_sys_canvas
@@ -812,7 +805,7 @@ class ControlCenterGUI:
                 card["btn_stop"].config(state="disabled")
                 card["lbl_meta"].config(text="Status: Ready to start")
 
-        self.root.after(1000, self.update_process_states)
+        self.root.after(2500, self.update_process_states)
 
     def refresh_diagnostics(self):
         meta_path = os.path.join(PROJECT_ROOT, "models", "model_metadata.json")
@@ -840,7 +833,7 @@ class ControlCenterGUI:
                 self.append_log_line(msg)
             except queue.Empty:
                 break
-        self.root.after(100, self.process_queue_logs)
+        self.root.after(250, self.process_queue_logs)
 
     def append_log_line(self, msg: str):
         tag = "SYSTEM"

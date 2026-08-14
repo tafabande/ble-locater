@@ -1,0 +1,1197 @@
+{
+  "champion_model": "Bagging Ensemble",
+  "feature_cols": [
+    "packet_count",
+    "scan_duration_ms",
+    "rssi_mean",
+    "rssi_median",
+    "rssi_min",
+    "rssi_max",
+    "rssi_std",
+    "rssi_variance",
+    "rssi_range",
+    "rssi_p05",
+    "rssi_p10",
+    "rssi_p25",
+    "rssi_p75",
+    "rssi_p90",
+    "rssi_p95",
+    "rssi_iqr",
+    "rssi_p90_10_range",
+    "rssi_mad",
+    "rssi_snr",
+    "rssi_skewness",
+    "rssi_kurtosis",
+    "rssi_delta_mean",
+    "rssi_delta_std",
+    "rssi_delta_max",
+    "observed_adv_interval",
+    "adv_interval_std",
+    "path_loss_free_space",
+    "path_loss_indoor",
+    "rssi_mean_to_std_ratio",
+    "rssi_median_mean_diff",
+    "rssi_slope",
+    "rssi_trend_strength",
+    "rssi_ema_diff",
+    "rssi_first_half_mean",
+    "rssi_second_half_mean",
+    "rssi_half_diff",
+    "rssi_autocorrelation",
+    "rssi_energy",
+    "rssi_mean_delta",
+    "rssi_mean_slope_3w",
+    "rssi_mean_slope_5w",
+    "rssi_rolling_mean_3w",
+    "rssi_rolling_std_3w",
+    "rssi_rolling_mean_5w",
+    "rssi_rolling_std_5w",
+    "rssi_ema_cross_window",
+    "rssi_velocity",
+    "rssi_acceleration",
+    "signal_stability_index",
+    "rssi_rolling_mean_10w",
+    "rssi_rolling_std_10w",
+    "rssi_motion_direction",
+    "rssi_snr_rolling_5w",
+    "height_m",
+    "obstacle_factor",
+    "rssi_x_height",
+    "pathloss_div_obstacle_factor",
+    "pathloss_free_div_obstacle_factor",
+    "rssi_div_height"
+  ],
+  "all_feature_cols": [
+    "packet_count",
+    "scan_duration_ms",
+    "rssi_mean",
+    "rssi_median",
+    "rssi_min",
+    "rssi_max",
+    "rssi_std",
+    "rssi_variance",
+    "rssi_range",
+    "rssi_p05",
+    "rssi_p10",
+    "rssi_p25",
+    "rssi_p75",
+    "rssi_p90",
+    "rssi_p95",
+    "rssi_iqr",
+    "rssi_p90_10_range",
+    "rssi_mad",
+    "rssi_snr",
+    "rssi_skewness",
+    "rssi_kurtosis",
+    "rssi_delta_mean",
+    "rssi_delta_std",
+    "rssi_delta_max",
+    "observed_adv_interval",
+    "adv_interval_std",
+    "path_loss_free_space",
+    "path_loss_indoor",
+    "rssi_mean_to_std_ratio",
+    "rssi_median_mean_diff",
+    "rssi_slope",
+    "rssi_trend_strength",
+    "rssi_ema_diff",
+    "rssi_first_half_mean",
+    "rssi_second_half_mean",
+    "rssi_half_diff",
+    "rssi_autocorrelation",
+    "rssi_energy",
+    "rssi_mean_delta",
+    "rssi_mean_slope_3w",
+    "rssi_mean_slope_5w",
+    "rssi_rolling_mean_3w",
+    "rssi_rolling_std_3w",
+    "rssi_rolling_mean_5w",
+    "rssi_rolling_std_5w",
+    "rssi_ema_cross_window",
+    "rssi_velocity",
+    "rssi_acceleration",
+    "signal_stability_index",
+    "rssi_rolling_mean_10w",
+    "rssi_rolling_std_10w",
+    "rssi_motion_direction",
+    "rssi_snr_rolling_5w",
+    "height_m",
+    "obstacle_factor",
+    "rssi_x_height",
+    "pathloss_div_obstacle_factor",
+    "pathloss_free_div_obstacle_factor",
+    "rssi_div_height"
+  ],
+  "keep_mask": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "metrics": {
+    "train_mae": 0.4216,
+    "test_mae": 0.8751,
+    "test_rmse": 1.1756,
+    "test_r2": 0.5834,
+    "test_median_ae": 0.8482,
+    "tolerances": {
+      "within_10cm": 17.66,
+      "within_25cm": 25.68,
+      "within_50cm": 38.94,
+      "within_75cm": 46.33,
+      "within_100cm": 58.48,
+      "within_150cm": 81.36
+    },
+    "extended": {
+      "mape": 41.67,
+      "max_error": 5.8256,
+      "p95_error": 2.2757,
+      "explained_variance": 0.5834,
+      "per_distance_mae": {
+        "0.5m": 0.0605,
+        "0.7m": 0.0436,
+        "1.0m": 1.128,
+        "2.0m": 0.2416,
+        "3.0m": 0.7394,
+        "3.4m": 1.045,
+        "5.3m": 1.6978,
+        "7.0m": 1.0266
+      }
+    },
+    "champion_name": "Bagging Ensemble",
+    "cv_metrics": {
+      "cv_mae_mean": 1.562,
+      "cv_mae_std": 0.4471,
+      "cv_r2_mean": -0.2313,
+      "cv_r2_std": 0.4672,
+      "cv_type": "StratifiedGroupKFold(5 session folds)"
+    },
+    "n_outliers_removed": 1013,
+    "n_features_active": 59,
+    "n_features_total": 59
+  },
+  "importances": {
+    "rssi_rolling_mean_10w": 0.470544,
+    "height_m": 0.263915,
+    "obstacle_factor": 0.239488,
+    "rssi_rolling_std_10w": 0.124808,
+    "rssi_ema_cross_window": 0.04952,
+    "rssi_div_height": 0.038518,
+    "pathloss_div_obstacle_factor": 0.035052,
+    "path_loss_indoor": 0.020432,
+    "path_loss_free_space": 0.017433,
+    "rssi_rolling_mean_5w": 0.017369,
+    "rssi_x_height": 0.011324,
+    "rssi_energy": 0.006231,
+    "rssi_mean_slope_5w": 0.004177,
+    "signal_stability_index": 0.004111,
+    "rssi_acceleration": 0.002297,
+    "rssi_mean_delta": 0.002211,
+    "rssi_p05": 0.001394,
+    "rssi_first_half_mean": 0.000988,
+    "rssi_median": 0.000798,
+    "rssi_rolling_std_5w": 0.000798,
+    "pathloss_free_div_obstacle_factor": 0.000753,
+    "rssi_max": 0.000733,
+    "rssi_mean_to_std_ratio": 0.000617,
+    "rssi_motion_direction": 0.000508,
+    "rssi_p25": 0.000214,
+    "rssi_p90": 4.2e-05,
+    "scan_duration_ms": 7e-06,
+    "packet_count": 5e-06,
+    "observed_adv_interval": 3e-06,
+    "rssi_std": 0.0,
+    "rssi_variance": 0.0,
+    "rssi_range": 0.0,
+    "rssi_iqr": 0.0,
+    "rssi_p90_10_range": 0.0,
+    "rssi_mad": 0.0,
+    "rssi_snr": 0.0,
+    "rssi_skewness": 0.0,
+    "rssi_kurtosis": 0.0,
+    "rssi_delta_mean": 0.0,
+    "rssi_delta_std": 0.0,
+    "rssi_delta_max": 0.0,
+    "adv_interval_std": 0.0,
+    "rssi_median_mean_diff": 0.0,
+    "rssi_slope": 0.0,
+    "rssi_trend_strength": 0.0,
+    "rssi_ema_diff": 0.0,
+    "rssi_half_diff": 0.0,
+    "rssi_autocorrelation": 0.0,
+    "rssi_snr_rolling_5w": -3e-06,
+    "rssi_p95": -0.000259,
+    "rssi_p10": -0.00027,
+    "rssi_velocity": -0.000793,
+    "rssi_mean": -0.000796,
+    "rssi_second_half_mean": -0.000907,
+    "rssi_min": -0.001093,
+    "rssi_p75": -0.001265,
+    "rssi_rolling_mean_3w": -0.004472,
+    "rssi_rolling_std_3w": -0.007114,
+    "rssi_mean_slope_3w": -0.010438
+  },
+  "tournament": [
+    {
+      "name": "Bagging Ensemble",
+      "mae": 0.8750766555067627,
+      "rmse": 1.1756180580839604,
+      "r2": 0.5834338946304429,
+      "med_ae": 0.8481952709737635,
+      "tolerances": {
+        "within_10cm": 17.66,
+        "within_25cm": 25.68,
+        "within_50cm": 38.94,
+        "within_75cm": 46.33,
+        "within_100cm": 58.48,
+        "within_150cm": 81.36
+      },
+      "ext_metrics": {
+        "mape": 41.67,
+        "max_error": 5.8256,
+        "p95_error": 2.2757,
+        "explained_variance": 0.5834,
+        "per_distance_mae": {
+          "0.5m": 0.0605,
+          "0.7m": 0.0436,
+          "1.0m": 1.128,
+          "2.0m": 0.2416,
+          "3.0m": 0.7394,
+          "3.4m": 1.045,
+          "5.3m": 1.6978,
+          "7.0m": 1.0266
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.562,
+        "cv_mae_std": 0.4471,
+        "cv_r2_mean": -0.2313,
+        "cv_r2_std": 0.4672,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.1498459933040577
+    },
+    {
+      "name": "MLP Neural Network",
+      "mae": 0.890664430632827,
+      "rmse": 1.2464860315289985,
+      "r2": 0.5316977276342248,
+      "med_ae": 0.514531465569914,
+      "tolerances": {
+        "within_10cm": 12.13,
+        "within_25cm": 25.74,
+        "within_50cm": 49.31,
+        "within_75cm": 59.64,
+        "within_100cm": 66.61,
+        "within_150cm": 72.62
+      },
+      "ext_metrics": {
+        "mape": 43.89,
+        "max_error": 6.2796,
+        "p95_error": 2.3422,
+        "explained_variance": 0.5317,
+        "per_distance_mae": {
+          "0.5m": 0.1139,
+          "0.7m": 0.0815,
+          "1.0m": 1.0716,
+          "2.0m": 0.3862,
+          "3.0m": 0.659,
+          "3.4m": 1.7786,
+          "5.3m": 0.3492,
+          "7.0m": 1.2025
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.5728,
+        "cv_mae_std": 0.5956,
+        "cv_r2_mean": -3.5706,
+        "cv_r2_std": 7.0435,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.1635186583796961
+    },
+    {
+      "name": "ElasticNet",
+      "mae": 1.1484872162216304,
+      "rmse": 1.477553966592129,
+      "r2": 0.3419814492829406,
+      "med_ae": 1.0978666884929345,
+      "tolerances": {
+        "within_10cm": 6.67,
+        "within_25cm": 18.1,
+        "within_50cm": 32.83,
+        "within_75cm": 40.87,
+        "within_100cm": 46.7,
+        "within_150cm": 70.24
+      },
+      "ext_metrics": {
+        "mape": 65.59,
+        "max_error": 4.9045,
+        "p95_error": 3.2211,
+        "explained_variance": 0.342,
+        "per_distance_mae": {
+          "0.5m": 1.219,
+          "0.7m": 0.5975,
+          "1.0m": 1.22,
+          "2.0m": 0.3032,
+          "3.0m": 0.3132,
+          "3.4m": 1.3043,
+          "5.3m": 1.5048,
+          "7.0m": 3.5275
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.3487,
+        "cv_mae_std": 0.3229,
+        "cv_r2_mean": 0.0876,
+        "cv_r2_std": 0.322,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2285723297329783
+    },
+    {
+      "name": "Hist Gradient Boosting",
+      "mae": 1.0164607498213494,
+      "rmse": 1.3516891172744145,
+      "r2": 0.44931269160375853,
+      "med_ae": 0.8148216982441379,
+      "tolerances": {
+        "within_10cm": 14.92,
+        "within_25cm": 23.44,
+        "within_50cm": 41.55,
+        "within_75cm": 47.78,
+        "within_100cm": 55.84,
+        "within_150cm": 69.93
+      },
+      "ext_metrics": {
+        "mape": 46.68,
+        "max_error": 5.9104,
+        "p95_error": 2.5069,
+        "explained_variance": 0.4493,
+        "per_distance_mae": {
+          "0.5m": 0.0343,
+          "0.7m": 0.0735,
+          "1.0m": 1.2298,
+          "2.0m": 0.2827,
+          "3.0m": 0.6612,
+          "3.4m": 1.4065,
+          "5.3m": 2.123,
+          "7.0m": 1.044
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.5945,
+        "cv_mae_std": 0.4741,
+        "cv_r2_mean": -0.317,
+        "cv_r2_std": 0.5259,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2476764498928097
+    },
+    {
+      "name": "XGBoost (Deep Tuned)",
+      "mae": 0.9886183735624352,
+      "rmse": 1.3224125794307957,
+      "r2": 0.47290927199197097,
+      "med_ae": 0.9257142543792725,
+      "tolerances": {
+        "within_10cm": 16.78,
+        "within_25cm": 26.62,
+        "within_50cm": 39.02,
+        "within_75cm": 44.58,
+        "within_100cm": 53.4,
+        "within_150cm": 80.35
+      },
+      "ext_metrics": {
+        "mape": 43.81,
+        "max_error": 5.6527,
+        "p95_error": 2.5646,
+        "explained_variance": 0.4729,
+        "per_distance_mae": {
+          "0.5m": 0.0634,
+          "0.7m": 0.0359,
+          "1.0m": 1.0835,
+          "2.0m": 0.2434,
+          "3.0m": 0.8583,
+          "3.4m": 1.266,
+          "5.3m": 2.214,
+          "7.0m": 1.0148
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6613,
+        "cv_mae_std": 0.4359,
+        "cv_r2_mean": -0.3835,
+        "cv_r2_std": 0.5027,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2576910241374613
+    },
+    {
+      "name": "Voting Ensemble",
+      "mae": 1.0064140073883596,
+      "rmse": 1.320496243560881,
+      "r2": 0.4744358016368352,
+      "med_ae": 0.8895348707657034,
+      "tolerances": {
+        "within_10cm": 16.88,
+        "within_25cm": 24.73,
+        "within_50cm": 38.85,
+        "within_75cm": 45.06,
+        "within_100cm": 53.57,
+        "within_150cm": 64.7
+      },
+      "ext_metrics": {
+        "mape": 47.6,
+        "max_error": 5.6831,
+        "p95_error": 2.4422,
+        "explained_variance": 0.4744,
+        "per_distance_mae": {
+          "0.5m": 0.0592,
+          "0.7m": 0.0643,
+          "1.0m": 1.2551,
+          "2.0m": 0.2245,
+          "3.0m": 0.7847,
+          "3.4m": 1.556,
+          "5.3m": 1.6199,
+          "7.0m": 1.0102
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6356,
+        "cv_mae_std": 0.3849,
+        "cv_r2_mean": -0.3419,
+        "cv_r2_std": 0.4323,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2580884044330158
+    },
+    {
+      "name": "XGBoost Regressor",
+      "mae": 0.9937115450219314,
+      "rmse": 1.3289155774036716,
+      "r2": 0.4677125613483044,
+      "med_ae": 0.8659849166870117,
+      "tolerances": {
+        "within_10cm": 15.08,
+        "within_25cm": 22.85,
+        "within_50cm": 39.75,
+        "within_75cm": 46.87,
+        "within_100cm": 54.1,
+        "within_150cm": 79.51
+      },
+      "ext_metrics": {
+        "mape": 45.79,
+        "max_error": 5.6444,
+        "p95_error": 2.5605,
+        "explained_variance": 0.4677,
+        "per_distance_mae": {
+          "0.5m": 0.0539,
+          "0.7m": 0.0702,
+          "1.0m": 1.2068,
+          "2.0m": 0.2773,
+          "3.0m": 0.7571,
+          "3.4m": 1.1857,
+          "5.3m": 2.2537,
+          "7.0m": 1.0369
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6691,
+        "cv_mae_std": 0.4533,
+        "cv_r2_mean": -0.3924,
+        "cv_r2_std": 0.5318,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2638669270131588
+    },
+    {
+      "name": "LightGBM Regressor",
+      "mae": 1.043754732071092,
+      "rmse": 1.3585104084072146,
+      "r2": 0.44374058670646066,
+      "med_ae": 0.8848058840972541,
+      "tolerances": {
+        "within_10cm": 15.36,
+        "within_25cm": 22.59,
+        "within_50cm": 39.02,
+        "within_75cm": 45.96,
+        "within_100cm": 53.29,
+        "within_150cm": 61.89
+      },
+      "ext_metrics": {
+        "mape": 47.84,
+        "max_error": 5.8861,
+        "p95_error": 2.4141,
+        "explained_variance": 0.4437,
+        "per_distance_mae": {
+          "0.5m": 0.0562,
+          "0.7m": 0.0687,
+          "1.0m": 1.2246,
+          "2.0m": 0.2908,
+          "3.0m": 0.7532,
+          "3.4m": 1.5171,
+          "5.3m": 1.9775,
+          "7.0m": 1.1191
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6562,
+        "cv_mae_std": 0.4796,
+        "cv_r2_mean": -0.3836,
+        "cv_r2_std": 0.5337,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2887328392426551
+    },
+    {
+      "name": "LightGBM (Deep Tuned)",
+      "mae": 1.0442724746168306,
+      "rmse": 1.3704468488312658,
+      "r2": 0.43392258730380706,
+      "med_ae": 0.9161610132150138,
+      "tolerances": {
+        "within_10cm": 16.21,
+        "within_25cm": 23.47,
+        "within_50cm": 39.25,
+        "within_75cm": 44.88,
+        "within_100cm": 52.75,
+        "within_150cm": 62.22
+      },
+      "ext_metrics": {
+        "mape": 46.24,
+        "max_error": 5.7635,
+        "p95_error": 2.4907,
+        "explained_variance": 0.4339,
+        "per_distance_mae": {
+          "0.5m": 0.0455,
+          "0.7m": 0.0557,
+          "1.0m": 1.1486,
+          "2.0m": 0.2443,
+          "3.0m": 0.8148,
+          "3.4m": 1.4969,
+          "5.3m": 2.1778,
+          "7.0m": 1.0681
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.675,
+        "cv_mae_std": 0.4476,
+        "cv_r2_mean": -0.3971,
+        "cv_r2_std": 0.4783,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2965634847700984
+    },
+    {
+      "name": "Random Forest (400 Trees)",
+      "mae": 1.1229011703493654,
+      "rmse": 1.4884492429053529,
+      "r2": 0.3322413967672425,
+      "med_ae": 0.8981683088610182,
+      "tolerances": {
+        "within_10cm": 18.21,
+        "within_25cm": 24.68,
+        "within_50cm": 39.72,
+        "within_75cm": 46.63,
+        "within_100cm": 55.42,
+        "within_150cm": 60.34
+      },
+      "ext_metrics": {
+        "mape": 47.53,
+        "max_error": 5.4557,
+        "p95_error": 2.5641,
+        "explained_variance": 0.3322,
+        "per_distance_mae": {
+          "0.5m": 0.0365,
+          "0.7m": 0.0384,
+          "1.0m": 1.1198,
+          "2.0m": 0.1953,
+          "3.0m": 0.6927,
+          "3.4m": 1.9519,
+          "5.3m": 2.177,
+          "7.0m": 1.269
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.5615,
+        "cv_mae_std": 0.4166,
+        "cv_r2_mean": -0.1886,
+        "cv_r2_std": 0.4487,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2983407022096194
+    },
+    {
+      "name": "KNN Regressor (k=7)",
+      "mae": 1.1244964832810507,
+      "rmse": 1.5967539029381799,
+      "r2": 0.23152913669667308,
+      "med_ae": 0.7999999999999998,
+      "tolerances": {
+        "within_10cm": 24.98,
+        "within_25cm": 27.4,
+        "within_50cm": 40.36,
+        "within_75cm": 46.11,
+        "within_100cm": 65.04,
+        "within_150cm": 67.23
+      },
+      "ext_metrics": {
+        "mape": 55.42,
+        "max_error": 6.0,
+        "p95_error": 3.4719,
+        "explained_variance": 0.2315,
+        "per_distance_mae": {
+          "0.5m": 0.0183,
+          "0.7m": 0.0245,
+          "1.0m": 1.5478,
+          "2.0m": 0.214,
+          "3.0m": 0.6708,
+          "3.4m": 2.2691,
+          "5.3m": 0.8512,
+          "7.0m": 1.2115
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.5622,
+        "cv_mae_std": 0.429,
+        "cv_r2_mean": -0.4371,
+        "cv_r2_std": 0.4647,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2995778899686306
+    },
+    {
+      "name": "Bayesian Ridge",
+      "mae": 1.2689480654888112,
+      "rmse": 1.6335904187732004,
+      "r2": 0.19566347933971928,
+      "med_ae": 1.137691983675334,
+      "tolerances": {
+        "within_10cm": 7.59,
+        "within_25cm": 18.34,
+        "within_50cm": 33.12,
+        "within_75cm": 43.07,
+        "within_100cm": 48.45,
+        "within_150cm": 55.82
+      },
+      "ext_metrics": {
+        "mape": 59.67,
+        "max_error": 5.1182,
+        "p95_error": 3.0641,
+        "explained_variance": 0.1957,
+        "per_distance_mae": {
+          "0.5m": 0.5175,
+          "0.7m": 0.5072,
+          "1.0m": 1.2304,
+          "2.0m": 0.3918,
+          "3.0m": 0.3731,
+          "3.4m": 1.7525,
+          "5.3m": 1.9658,
+          "7.0m": 3.5978
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.4162,
+        "cv_mae_std": 0.2615,
+        "cv_r2_mean": -0.0104,
+        "cv_r2_std": 0.2548,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.3278488392932868
+    },
+    {
+      "name": "Extra Trees (400 Trees)",
+      "mae": 1.1818309030685403,
+      "rmse": 1.516859987801465,
+      "r2": 0.30650645328005544,
+      "med_ae": 0.9643575366842527,
+      "tolerances": {
+        "within_10cm": 14.22,
+        "within_25cm": 19.84,
+        "within_50cm": 35.09,
+        "within_75cm": 42.1,
+        "within_100cm": 52.17,
+        "within_150cm": 60.28
+      },
+      "ext_metrics": {
+        "mape": 51.84,
+        "max_error": 5.3416,
+        "p95_error": 2.5634,
+        "explained_variance": 0.3065,
+        "per_distance_mae": {
+          "0.5m": 0.0539,
+          "0.7m": 0.0397,
+          "1.0m": 1.2321,
+          "2.0m": 0.3313,
+          "3.0m": 0.7726,
+          "3.4m": 2.1108,
+          "5.3m": 1.7612,
+          "7.0m": 1.5199
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.5498,
+        "cv_mae_std": 0.3916,
+        "cv_r2_mean": -0.1588,
+        "cv_r2_std": 0.4072,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.3290185418411242
+    },
+    {
+      "name": "Gradient Boosting (300)",
+      "mae": 1.1178042924036464,
+      "rmse": 1.4531190128925393,
+      "r2": 0.3635653688382169,
+      "med_ae": 0.9091324550255298,
+      "tolerances": {
+        "within_10cm": 13.53,
+        "within_25cm": 21.8,
+        "within_50cm": 38.93,
+        "within_75cm": 45.07,
+        "within_100cm": 52.65,
+        "within_150cm": 60.45
+      },
+      "ext_metrics": {
+        "mape": 50.73,
+        "max_error": 5.8315,
+        "p95_error": 2.5744,
+        "explained_variance": 0.3636,
+        "per_distance_mae": {
+          "0.5m": 0.0436,
+          "0.7m": 0.0886,
+          "1.0m": 1.2887,
+          "2.0m": 0.3097,
+          "3.0m": 0.7493,
+          "3.4m": 1.684,
+          "5.3m": 2.2205,
+          "7.0m": 1.0512
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6892,
+        "cv_mae_std": 0.4741,
+        "cv_r2_mean": -0.4056,
+        "cv_r2_std": 0.5263,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.3463625754421877
+    },
+    {
+      "name": "CatBoost (Deep Tuned)",
+      "mae": 1.1660152898755278,
+      "rmse": 1.4623156910581325,
+      "r2": 0.3554839848851292,
+      "med_ae": 0.9053265636419439,
+      "tolerances": {
+        "within_10cm": 3.68,
+        "within_25cm": 17.24,
+        "within_50cm": 29.12,
+        "within_75cm": 43.53,
+        "within_100cm": 52.76,
+        "within_150cm": 60.85
+      },
+      "ext_metrics": {
+        "mape": 55.53,
+        "max_error": 5.7198,
+        "p95_error": 2.4889,
+        "explained_variance": 0.3555,
+        "per_distance_mae": {
+          "0.5m": 0.1765,
+          "0.7m": 0.1425,
+          "1.0m": 1.3281,
+          "2.0m": 0.4565,
+          "3.0m": 0.7457,
+          "3.4m": 1.9584,
+          "5.3m": 1.7261,
+          "7.0m": 1.1498
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6927,
+        "cv_mae_std": 0.3933,
+        "cv_r2_mean": -0.3705,
+        "cv_r2_std": 0.458,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.3766891739253166
+    },
+    {
+      "name": "CatBoost Regressor",
+      "mae": 1.187607473181274,
+      "rmse": 1.4816778117035279,
+      "r2": 0.33830327113197334,
+      "med_ae": 1.0046806543140052,
+      "tolerances": {
+        "within_10cm": 8.42,
+        "within_25cm": 16.13,
+        "within_50cm": 26.08,
+        "within_75cm": 40.87,
+        "within_100cm": 49.9,
+        "within_150cm": 61.12
+      },
+      "ext_metrics": {
+        "mape": 55.74,
+        "max_error": 5.7484,
+        "p95_error": 2.5271,
+        "explained_variance": 0.3383,
+        "per_distance_mae": {
+          "0.5m": 0.08,
+          "0.7m": 0.175,
+          "1.0m": 1.3728,
+          "2.0m": 0.4501,
+          "3.0m": 0.8552,
+          "3.4m": 1.953,
+          "5.3m": 1.7287,
+          "7.0m": 1.2018
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6907,
+        "cv_mae_std": 0.3866,
+        "cv_r2_mean": -0.3848,
+        "cv_r2_std": 0.4468,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.3888444839087644
+    },
+    {
+      "name": "AdaBoost Regressor",
+      "mae": 1.438773244598282,
+      "rmse": 1.7475086439129457,
+      "r2": 0.07957141379435273,
+      "med_ae": 1.498062953995082,
+      "tolerances": {
+        "within_10cm": 6.26,
+        "within_25cm": 18.01,
+        "within_50cm": 28.82,
+        "within_75cm": 30.78,
+        "within_100cm": 47.21,
+        "within_150cm": 50.01
+      },
+      "ext_metrics": {
+        "mape": 61.86,
+        "max_error": 4.8977,
+        "p95_error": 2.7063,
+        "explained_variance": 0.0796,
+        "per_distance_mae": {
+          "0.5m": 0.2336,
+          "0.7m": 0.0285,
+          "1.0m": 1.2312,
+          "2.0m": 0.7961,
+          "3.0m": 0.9909,
+          "3.4m": 2.4491,
+          "5.3m": 1.79,
+          "7.0m": 2.6123
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.5415,
+        "cv_mae_std": 0.4119,
+        "cv_r2_mean": -0.1765,
+        "cv_r2_std": 0.3721,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.4798639467589692
+    },
+    {
+      "name": "Stacking Super Learner",
+      "mae": 1.5047059331312587,
+      "rmse": 1.785718804363932,
+      "r2": 0.038880083323736825,
+      "med_ae": 1.397316071431999,
+      "tolerances": {
+        "within_10cm": 0.49,
+        "within_25cm": 2.79,
+        "within_50cm": 12.91,
+        "within_75cm": 25.87,
+        "within_100cm": 29.52,
+        "within_150cm": 57.71
+      },
+      "ext_metrics": {
+        "mape": 95.18,
+        "max_error": 5.5565,
+        "p95_error": 4.0804,
+        "explained_variance": 0.0389,
+        "per_distance_mae": {
+          "0.5m": 1.9811,
+          "0.7m": 1.7623,
+          "1.0m": 1.5956,
+          "2.0m": 0.5949,
+          "3.0m": 0.4352,
+          "3.4m": 1.2118,
+          "5.3m": 2.3394,
+          "7.0m": 4.2104
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.605,
+        "cv_mae_std": 0.2566,
+        "cv_r2_mean": -0.2078,
+        "cv_r2_std": 0.2817,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.5448235598787552
+    },
+    {
+      "name": "SVR (RBF Kernel)",
+      "mae": 1.4688743468745151,
+      "rmse": 1.8959558331169886,
+      "r2": -0.08344748362458088,
+      "med_ae": 1.2864136959486172,
+      "tolerances": {
+        "within_10cm": 8.79,
+        "within_25cm": 13.29,
+        "within_50cm": 13.44,
+        "within_75cm": 25.55,
+        "within_100cm": 36.81,
+        "within_150cm": 67.44
+      },
+      "ext_metrics": {
+        "mape": 70.53,
+        "max_error": 5.0545,
+        "p95_error": 4.7685,
+        "explained_variance": -0.0834,
+        "per_distance_mae": {
+          "0.5m": 1.3441,
+          "0.7m": 0.922,
+          "1.0m": 0.955,
+          "2.0m": 0.0954,
+          "3.0m": 0.8767,
+          "3.4m": 1.5073,
+          "5.3m": 2.9596,
+          "7.0m": 4.8676
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.5006,
+        "cv_mae_std": 0.3363,
+        "cv_r2_mean": -0.1743,
+        "cv_r2_std": 0.3973,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 6.4815646081247085
+    }
+  ],
+  "trained_at": "2026-08-05T21:01:23.112485",
+  "train_samples": 26447,
+  "test_samples": 6281,
+  "pipeline_version": "2.0-motion-aware",
+  "has_cross_window_features": true,
+  "n_cross_window_features": 15,
+  "zone_classification": {
+    "champion_classifier": "XGBoost Classifier",
+    "zone_accuracy": 93.85,
+    "f1_weighted": 0.9388,
+    "zone_labels": [
+      "Very Close (<=0.75m)",
+      "Close (0.75-1.5m)",
+      "Mid (1.5-2.5m)",
+      "Far (2.5-4m)",
+      "Very Far (4m+)"
+    ],
+    "zone_to_int": {
+      "Close (0.75-1.5m)": 0,
+      "Far (2.5-4m)": 1,
+      "Mid (1.5-2.5m)": 2,
+      "Very Close (<=0.75m)": 3,
+      "Very Far (4m+)": 4
+    },
+    "feature_cols": [
+      "packet_count",
+      "scan_duration_ms",
+      "rssi_mean",
+      "rssi_median",
+      "rssi_min",
+      "rssi_max",
+      "rssi_std",
+      "rssi_variance",
+      "rssi_range",
+      "rssi_p05",
+      "rssi_p10",
+      "rssi_p25",
+      "rssi_p75",
+      "rssi_p90",
+      "rssi_p95",
+      "rssi_iqr",
+      "rssi_p90_10_range",
+      "rssi_mad",
+      "rssi_snr",
+      "rssi_skewness",
+      "rssi_kurtosis",
+      "rssi_delta_mean",
+      "rssi_delta_std",
+      "rssi_delta_max",
+      "observed_adv_interval",
+      "adv_interval_std",
+      "path_loss_free_space",
+      "path_loss_indoor",
+      "rssi_mean_to_std_ratio",
+      "rssi_median_mean_diff",
+      "rssi_slope",
+      "rssi_trend_strength",
+      "rssi_ema_diff",
+      "rssi_first_half_mean",
+      "rssi_second_half_mean",
+      "rssi_half_diff",
+      "rssi_autocorrelation",
+      "rssi_energy",
+      "rssi_mean_delta",
+      "rssi_mean_slope_3w",
+      "rssi_mean_slope_5w",
+      "rssi_rolling_mean_3w",
+      "rssi_rolling_std_3w",
+      "rssi_rolling_mean_5w",
+      "rssi_rolling_std_5w",
+      "rssi_ema_cross_window",
+      "rssi_velocity",
+      "rssi_acceleration",
+      "signal_stability_index",
+      "rssi_rolling_mean_10w",
+      "rssi_rolling_std_10w",
+      "rssi_motion_direction",
+      "rssi_snr_rolling_5w",
+      "height_m",
+      "obstacle_factor",
+      "rssi_x_height",
+      "pathloss_div_obstacle_factor",
+      "pathloss_free_div_obstacle_factor",
+      "rssi_div_height"
+    ],
+    "tournament": [
+      {
+        "name": "XGBoost Classifier",
+        "accuracy": 93.85,
+        "f1_weighted": 0.9388,
+        "cv_accuracy_mean": 93.29,
+        "cv_accuracy_std": 0.11
+      },
+      {
+        "name": "LightGBM Classifier",
+        "accuracy": 93.84,
+        "f1_weighted": 0.9386,
+        "cv_accuracy_mean": 93.28,
+        "cv_accuracy_std": 0.21
+      },
+      {
+        "name": "Hist Gradient Boosting Clf",
+        "accuracy": 93.79,
+        "f1_weighted": 0.9381,
+        "cv_accuracy_mean": 93.16,
+        "cv_accuracy_std": 0.2
+      },
+      {
+        "name": "Bagging Classifier",
+        "accuracy": 93.64,
+        "f1_weighted": 0.9368,
+        "cv_accuracy_mean": 93.03,
+        "cv_accuracy_std": 0.06
+      },
+      {
+        "name": "Random Forest Classifier",
+        "accuracy": 93.1,
+        "f1_weighted": 0.9314,
+        "cv_accuracy_mean": 93.01,
+        "cv_accuracy_std": 0.22
+      },
+      {
+        "name": "Gradient Boosting Clf",
+        "accuracy": 92.8,
+        "f1_weighted": 0.9282,
+        "cv_accuracy_mean": 92.42,
+        "cv_accuracy_std": 0.26
+      },
+      {
+        "name": "Extra Trees Classifier",
+        "accuracy": 92.41,
+        "f1_weighted": 0.9246,
+        "cv_accuracy_mean": 91.88,
+        "cv_accuracy_std": 0.3
+      },
+      {
+        "name": "CatBoost Classifier",
+        "accuracy": 91.17,
+        "f1_weighted": 0.9121,
+        "cv_accuracy_mean": 90.7,
+        "cv_accuracy_std": 0.19
+      },
+      {
+        "name": "MLP Classifier",
+        "accuracy": 91.07,
+        "f1_weighted": 0.9112,
+        "cv_accuracy_mean": 90.6,
+        "cv_accuracy_std": 0.19
+      },
+      {
+        "name": "KNN Classifier (k=7)",
+        "accuracy": 89.26,
+        "f1_weighted": 0.8926,
+        "cv_accuracy_mean": 88.64,
+        "cv_accuracy_std": 0.31
+      },
+      {
+        "name": "AdaBoost Classifier",
+        "accuracy": 48.16,
+        "f1_weighted": 0.3626,
+        "cv_accuracy_mean": 48.15,
+        "cv_accuracy_std": 0.4
+      }
+    ]
+  }
+}
