@@ -58,23 +58,46 @@ interface RawPayload {
   alerts?: Alert[]
 }
 
-function mapPayload(raw: RawPayload, prev: SimState | null): SimState {
-  const anchors = raw.anchors?.length ? raw.anchors : ANCHORS
+function mapPayload(raw: RawPayload | any, prev: SimState | null): SimState {
+  const anchors = Array.isArray(raw.anchors) && raw.anchors.length ? raw.anchors : ANCHORS
   const prevTrails = new Map(prev?.tags.map((t) => [t.id, t.trail]))
   const prevHist = new Map(prev?.tags.map((t) => [t.id, t.rssiHistory]))
 
-  const tags: Tag[] = raw.tags.map((rt) => {
+  let rawTagList: RawTag[] = []
+  if (Array.isArray(raw.tags)) {
+    rawTagList = raw.tags
+  } else if (raw.tags && typeof raw.tags === 'object') {
+    rawTagList = Object.values(raw.tags).map((item: any) => ({
+      id: item.tag_id || item.id || 'TAG_01',
+      label: item.label || item.tag_id || item.id,
+      zone: item.room || item.zone,
+      x: item.position?.x ?? item.x ?? 2.5,
+      y: item.position?.y ?? item.y ?? 2.5,
+      floor: item.floor ?? 0,
+      battery: item.battery ?? 100,
+      lastSeen: item.last_seen ? Math.round(item.last_seen * 1000) : Date.now(),
+      readings: item.distances
+        ? Object.entries(item.distances).map(([ancId, dist]) => ({
+            anchorId: ancId,
+            rssi: -60,
+            distance: typeof dist === 'number' ? dist : 2.0,
+          }))
+        : [],
+    }))
+  }
+
+  const tags: Tag[] = rawTagList.map((rt: RawTag) => {
     const readings = (
       rt.readings?.length
-        ? rt.readings.map((r) => ({
+        ? rt.readings.map((r: { anchorId: string; rssi: number; distance?: number }) => ({
             anchorId: r.anchorId,
             rssi: r.rssi,
-            distance: r.distance ?? Math.round(Math.pow(10, ((anchors.find((a) => a.id === r.anchorId)?.txPower ?? -59) - r.rssi) / 22) * 10) / 10,
+            distance: r.distance ?? Math.round(Math.pow(10, ((anchors.find((a: Anchor) => a.id === r.anchorId)?.txPower ?? -59) - r.rssi) / 22) * 10) / 10,
             used: false,
           }))
-        : anchors.map((a) => readingFor(a, rt, DEFAULT_MAP))
-    ).sort((a, b) => b.rssi - a.rssi)
-    readings.forEach((r, i) => (r.used = i < 3))
+        : anchors.map((a: Anchor) => readingFor(a, rt, DEFAULT_MAP))
+    ).sort((a: { rssi: number }, b: { rssi: number }) => b.rssi - a.rssi)
+    readings.forEach((r: { used: boolean }, i: number) => (r.used = i < 3))
 
     const trail = [...(prevTrails.get(rt.id) ?? []), { x: rt.x, y: rt.y }].slice(-16)
     const hist = [...(prevHist.get(rt.id) ?? []), readings[0]?.rssi ?? -100].slice(-20)
@@ -155,7 +178,9 @@ export function useLiveSource(enabled: boolean, endpoint: string, intervalMs: nu
         const res = await fetch(endpoint, { signal: controller.signal, headers: { accept: 'application/json' } })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const raw = (await res.json()) as RawPayload
-        if (!raw || !Array.isArray(raw.tags)) throw new Error('Malformed payload: expected { tags: [...] }')
+        if (!raw || (!Array.isArray(raw.tags) && (typeof raw.tags !== 'object' || raw.tags === null))) {
+          throw new Error('Malformed payload: expected { tags: [...] } or { tags: {...} }')
+        }
         if (cancelled) return
         const mapped = mapPayload(raw, stateRef.current)
         stateRef.current = mapped

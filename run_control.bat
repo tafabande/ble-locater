@@ -1,9 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
-title Hospital Asset Locator - Control Panel Launcher
+title Indoor Positioning - Control Panel Launcher
 
 echo ======================================================================
-echo  ⚡ Hospital Asset Locator — Easy Control Panel Launcher
+echo  ⚡ Indoor Positioning — Easy Control Panel Launcher
 echo ======================================================================
 echo.
 

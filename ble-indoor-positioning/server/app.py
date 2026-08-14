@@ -855,7 +855,7 @@ async def get_training_status():
     }
 
 class TrainingRequest(BaseModel):
-    algorithm: str = "CatBoost"  # 'CatBoost', 'XGBoost', 'LightGBM', 'RandomForest'
+    algorithm: str = "SuperLearner"  # 'SuperLearner', 'CatBoost', 'XGBoost', 'LightGBM', 'RandomForest'
     learning_rate: float = 0.08
     n_estimators: int = 250
     dataset: str = "observations.csv"
@@ -867,31 +867,60 @@ async def trigger_training_run(req: TrainingRequest):
     
     web_service_state["training_job"] = {
         "status": "TRAINING",
-        "progress": 10,
-        "message": f"Initializing {req.algorithm} tournament on {req.dataset}..."
+        "progress": 5,
+        "message": f"Launching {req.algorithm} End-to-End Pipeline on {req.dataset}..."
     }
-    web_service_state["log_history"].append(f"[TRAINING] Started {req.algorithm} training tournament (lr={req.learning_rate}, estimators={req.n_estimators}).")
+    web_service_state["log_history"].append(f"[TRAINING] Launched {req.algorithm} End-to-End Pipeline & SuperLearner Stacking Tournament.")
 
     def run_training_pipeline():
         try:
-            # Simulate training progress steps safely
-            time.sleep(1.5)
-            web_service_state["training_job"] = {"status": "TRAINING", "progress": 40, "message": "Computing window & cross-window features..."}
-            time.sleep(1.5)
-            web_service_state["training_job"] = {"status": "TRAINING", "progress": 75, "message": f"Optimizing {req.algorithm} hyperparameters..."}
-            time.sleep(1.5)
-            web_service_state["training_job"] = {
-                "status": "COMPLETED",
-                "progress": 100,
-                "message": f"Successfully trained {req.algorithm}! MAE: 0.64m, Accuracy: 97.2%"
-            }
-            web_service_state["log_history"].append(f"[TRAINING] Tournament finished! {req.algorithm} achieved 0.64m MAE and 97.2% zone accuracy.")
+            pipeline_script = os.path.join(PROJECT_ROOT, 'pipeline.py')
+            cmd = [sys.executable, pipeline_script]
+            if "super" in req.algorithm.lower() or req.algorithm.lower() == "superlearner":
+                cmd.append("--tune")
+
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=PROJECT_ROOT
+            )
+
+            for line in iter(proc.stdout.readline, ""):
+                line_str = line.strip()
+                if line_str.startswith('{') and line_str.endswith('}'):
+                    try:
+                        evt = json.loads(line_str)
+                        if evt.get("type") == "progress":
+                            web_service_state["training_job"] = {
+                                "status": "TRAINING",
+                                "progress": evt.get("percent", 50),
+                                "message": evt.get("stage", "Processing...")
+                            }
+                    except Exception:
+                        pass
+
+            proc.wait()
+            if proc.returncode == 0:
+                web_service_state["training_job"] = {
+                    "status": "COMPLETED",
+                    "progress": 100,
+                    "message": f"Successfully trained {req.algorithm} SuperLearner Pipeline!"
+                }
+                web_service_state["log_history"].append(f"[TRAINING] End-to-End {req.algorithm} Pipeline completed successfully.")
+            else:
+                web_service_state["training_job"] = {
+                    "status": "ERROR",
+                    "progress": 0,
+                    "message": f"Pipeline process exited with code {proc.returncode}"
+                }
         except Exception as e:
-            web_service_state["training_job"] = {"status": "ERROR", "progress": 0, "message": f"Training failed: {e}"}
-            web_service_state["log_history"].append(f"[ERROR] Training tournament failed: {e}")
+            web_service_state["training_job"] = {"status": "ERROR", "progress": 0, "message": str(e)}
+            web_service_state["log_history"].append(f"[ERROR] Training pipeline failed: {e}")
 
     asyncio.create_task(asyncio.to_thread(run_training_pipeline))
-    return {"status": "ok", "message": "Training tournament launched"}
+    return {"status": "ok", "message": f"{req.algorithm} Pipeline launched successfully"}
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 

@@ -6,10 +6,11 @@ import { MonitorView } from './components/monitor/MonitorView'
 import { ControlView } from './components/control/ControlView'
 import { TrainingView } from './components/training/TrainingView'
 import { AdminView } from './components/admin/AdminView'
+import { ReportsView } from './components/reports/ReportsView'
 import { ConnectionScreen } from './components/ConnectionScreen'
 import { AlertToasts } from './components/AlertToasts'
 
-const DEFAULT_ENDPOINT = 'http://192.168.4.1/api/positions'
+const DEFAULT_ENDPOINT = 'http://localhost:8000/api/state'
 
 export default function App() {
   const [view, setView] = useState<View>('monitor')
@@ -85,6 +86,15 @@ export default function App() {
       )}
       {view === 'control' && <ControlView />}
       {view === 'training' && <TrainingView />}
+      {view === 'reports' && (
+        <ReportsView
+          sim={sim}
+          mode={mode}
+          onMode={setMode}
+          connStatus={mode === 'live' ? live.status : null}
+          endpoint={endpoint}
+        />
+      )}
       {view === 'admin' && (
         <AdminView
           sim={sim}

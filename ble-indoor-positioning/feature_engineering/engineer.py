@@ -134,7 +134,8 @@ def compute_window_features(group: pd.DataFrame) -> dict:
     if packet_count > 2 and rssi_std > 1e-05:
         try:
             rssi_centered = rssi_values - rssi_mean
-            autocorr = np.corrcoef(rssi_centered[:-1], rssi_centered[1:])[0, 1]
+            with np.errstate(divide='ignore', invalid='ignore'):
+                autocorr = np.corrcoef(rssi_centered[:-1], rssi_centered[1:])[0, 1]
             rssi_autocorrelation = float(autocorr) if np.isfinite(autocorr) else 0.0
         except Exception:
             rssi_autocorrelation = 0.0

@@ -1,11 +1,5 @@
 import { useEffect, useState } from 'react'
 
-interface Telemetry {
-  cpu_percent: number
-  ram_percent: number
-  ram_gb: number
-}
-
 interface TestResult {
   status: string
   passed: number
@@ -18,7 +12,6 @@ interface ControlStatus {
     simulator: { status: string }
     collector: { status: string }
   }
-  telemetry: Telemetry
   test_result: TestResult
   logs: string[]
 }
@@ -44,7 +37,6 @@ export function ControlView() {
           simulator: { status: 'OFFLINE' },
           collector: { status: 'OFFLINE' },
         },
-        telemetry: { cpu_percent: 14.2, ram_percent: 42.0, ram_gb: 6.8 },
         test_result: { status: 'ALL PASSED', passed: 14, failed: 0 },
         logs: [
           '[SYSTEM] Web Control Hub operational.',
@@ -115,45 +107,7 @@ export function ControlView() {
 
   return (
     <div className="space-y-6">
-      {/* 3-Step Guided Workflow Banner */}
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-400">
-              ⚡ EASY 3-STEP START GUIDE
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Follow these simple steps to start tracking assets or running simulations.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => triggerAction('start_sim')}
-              className="rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 px-3 py-1.5 text-xs font-medium text-sky-300 transition-colors"
-            >
-              1️⃣ Start Backend + Demo Motion
-            </button>
-            <span className="text-muted-foreground text-xs">➔</span>
-            <a
-              href="/docs"
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-300 transition-colors"
-            >
-              2️⃣ Open Search API Docs
-            </a>
-            <span className="text-muted-foreground text-xs">➔</span>
-            <button
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 px-3 py-1.5 text-xs font-medium text-purple-300 transition-colors"
-            >
-              3️⃣ View Live Floorplan Map
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid: Left Services + Diagnostics | Right Telemetry & Console */}
+      {/* Main Grid: Left Services & Health Check | Right Activity Console */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column: Service Cards & Health Check */}
         <div className="space-y-4 lg:col-span-6">
@@ -205,7 +159,7 @@ export function ControlView() {
                   🧪 System Health Diagnostics
                 </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Runs 10+ safety rule checks in 3 seconds.
+                  Runs safety rule checks.
                 </p>
               </div>
               <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
@@ -232,45 +186,14 @@ export function ControlView() {
           </div>
         </div>
 
-        {/* Right Column: Telemetry Sparklines & Log Console */}
+        {/* Right Column: Activity Console */}
         <div className="space-y-4 lg:col-span-6">
-          <h3 className="text-sm font-semibold text-foreground">📈 Computer Performance & Activity</h3>
-
-          {/* Telemetry Metrics */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-              <span className="text-xs text-muted-foreground font-medium">CPU Speed</span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-xl font-bold text-sky-400">{data?.telemetry?.cpu_percent ?? 0}%</span>
-                <span className="text-[10px] text-muted-foreground">Process load</span>
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-panel overflow-hidden">
-                <div
-                  className="h-full bg-sky-400 transition-all duration-500"
-                  style={{ width: `${Math.min(100, data?.telemetry?.cpu_percent ?? 0)}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-              <span className="text-xs text-muted-foreground font-medium">Memory Usage</span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-xl font-bold text-purple-400">{data?.telemetry?.ram_gb ?? 0} GB</span>
-                <span className="text-[10px] text-muted-foreground">{data?.telemetry?.ram_percent ?? 0}% total</span>
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-panel overflow-hidden">
-                <div
-                  className="h-full bg-purple-400 transition-all duration-500"
-                  style={{ width: `${Math.min(100, data?.telemetry?.ram_percent ?? 0)}%` }}
-                />
-              </div>
-            </div>
-          </div>
+          <h3 className="text-sm font-semibold text-foreground">📋 System Activity Console</h3>
 
           {/* Activity Console */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-xs font-semibold text-foreground">📋 System Log Stream</h4>
+              <h4 className="text-xs font-semibold text-foreground">Activity Stream</h4>
               <div className="flex items-center gap-2">
                 <select
                   value={filter}
@@ -293,7 +216,7 @@ export function ControlView() {
               </div>
             </div>
 
-            <div className="h-56 overflow-y-auto rounded-lg border border-border bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-300 space-y-1">
+            <div className="h-80 overflow-y-auto rounded-lg border border-border bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-300 space-y-1">
               {filteredLogs.length === 0 ? (
                 <span className="text-slate-500 italic">No log entries matching filter.</span>
               ) : (

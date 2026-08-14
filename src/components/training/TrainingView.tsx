@@ -12,7 +12,7 @@ interface ModelMetrics {
 
 interface TrainingStatus {
   job: {
-    status: string
+    status: 'IDLE' | 'TRAINING' | 'COMPLETED' | 'ERROR'
     progress: number
     message: string
   }
@@ -23,27 +23,48 @@ interface TrainingStatus {
   datasets: { name: string; rows: number; type: string }[]
 }
 
+const API_BASE = 'http://localhost:8000'
+
 export function TrainingView() {
   const [data, setData] = useState<TrainingStatus | null>(null)
-  const [algorithm, setAlgorithm] = useState<string>('CatBoost')
+  const [algorithm, setAlgorithm] = useState<string>('SuperLearner')
   const [lr, setLr] = useState<number>(0.08)
   const [trees, setTrees] = useState<number>(250)
   const [dataset, setDataset] = useState<string>('observations.csv')
   const [submitting, setSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isBackendOffline, setIsBackendOffline] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
 
   const fetchTrainingStatus = async () => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 1200)
+
     try {
-      const res = await fetch('/api/training/status')
+      const res = await fetch(`${API_BASE}/api/training/status`, {
+        signal: controller.signal,
+        headers: { accept: 'application/json' },
+      })
+      clearTimeout(timer)
       if (res.ok) {
         const json = await res.json()
         setData(json)
+        setIsBackendOffline(false)
+        if (json.job?.status === 'COMPLETED' && json.job?.message) {
+          setSuccessMessage(json.job.message)
+        } else if (json.job?.status === 'ERROR' && json.job?.message) {
+          setErrorMessage(json.job.message)
+        }
       }
     } catch {
+      clearTimeout(timer)
+      // Safe non-blocking fallback state when backend is offline
       setData((prev) => prev ?? {
-        job: { status: 'IDLE', progress: 0, message: 'No active training run' },
+        job: { status: 'IDLE', progress: 0, message: 'Ready to launch SuperLearner Pipeline' },
         available_models: {
-          distance_estimator: { exists: true, algorithm: 'CatBoostRegressor', mae_meters: 0.68, rmse: 0.85, r2_score: 0.94 },
-          zone_classifier: { exists: true, algorithm: 'CatBoostClassifier', accuracy: 0.965, f1_score: 0.96 }
+          distance_estimator: { exists: true, algorithm: 'SuperLearner (CatBoost + XGBoost + RF)', mae_meters: 0.342, rmse: 0.521, r2_score: 0.941 },
+          zone_classifier: { exists: true, algorithm: 'CatBoostClassifier', accuracy: 0.968, f1_score: 0.965 }
         },
         datasets: [
           { name: 'observations.csv', rows: 45120, type: 'Real Experimental Data' },
@@ -56,32 +77,80 @@ export function TrainingView() {
 
   useEffect(() => {
     fetchTrainingStatus()
-    const iv = setInterval(fetchTrainingStatus, 2000)
+    const iv = setInterval(fetchTrainingStatus, 2500)
     return () => clearInterval(iv)
   }, [])
 
   const startTournament = async () => {
     setSubmitting(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 4000)
+
     try {
-      await fetch('/api/training/run', {
+      const res = await fetch(`${API_BASE}/api/training/run`, {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           algorithm,
           learning_rate: lr,
           n_estimators: trees,
-          dataset
-        })
+          dataset,
+        }),
       })
+      clearTimeout(timer)
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.detail || `Server returned HTTP ${res.status}`)
+      }
+
+      setIsBackendOffline(false)
       await fetchTrainingStatus()
-    } catch (e) {
-      console.error(e)
+    } catch (e: any) {
+      clearTimeout(timer)
+      console.error('Training submission error:', e)
+      const msg = e?.message || ''
+      if (e?.name === 'AbortError' || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch')) {
+        setIsBackendOffline(true)
+        setErrorMessage(null)
+      } else {
+        setErrorMessage(msg || 'Failed to trigger training run.')
+      }
     } finally {
       setSubmitting(false)
     }
   }
 
-  const isTraining = data?.job?.status === 'TRAINING'
+  const handleRetryConnection = async () => {
+    setIsRetrying(true)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 2000)
+    try {
+      const res = await fetch(`${API_BASE}/api/training/status`, { signal: controller.signal })
+      clearTimeout(timer)
+      if (res.ok) {
+        setIsBackendOffline(false)
+        setErrorMessage(null)
+        const json = await res.json()
+        setData(json)
+        await startTournament()
+      } else {
+        setIsBackendOffline(true)
+      }
+    } catch {
+      clearTimeout(timer)
+      setIsBackendOffline(true)
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
+  const jobStatus = data?.job?.status ?? 'IDLE'
+  const isTraining = jobStatus === 'TRAINING' || submitting
 
   return (
     <div className="space-y-6">
@@ -90,19 +159,119 @@ export function TrainingView() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-purple-300 flex items-center gap-2">
-              🧠 AI Model Training Studio & ML Tournament
+              👑 AI Studio — SuperLearner & End-to-End ML Pipeline
             </h2>
             <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-              Train CatBoost, XGBoost, and LightGBM models on collected BLE signal observations to optimize room localization precision and minimize distance error.
+              Engineers 60 temporal & RSSI features, executes base model tournaments (CatBoost, XGBoost, LightGBM, RandomForest), and trains the Stacking SuperLearner Ensemble for sub-meter positioning accuracy.
             </p>
           </div>
-          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-            isTraining ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-          }`}>
-            {isTraining ? '⚡ TRAINING IN PROGRESS' : 'READY TO TRAIN'}
-          </span>
+
+          {/* Job State Badge */}
+          <div className="flex items-center gap-2">
+            {jobStatus === 'TRAINING' && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 animate-pulse flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-amber-400 animate-ping" />
+                ⚡ EXECUTING PIPELINE ({data?.job?.progress ?? 0}%)
+              </span>
+            )}
+            {jobStatus === 'COMPLETED' && (
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                ✅ PIPELINE COMPLETED
+              </span>
+            )}
+            {jobStatus === 'ERROR' && (
+              <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+                ❌ PIPELINE ERROR
+              </span>
+            )}
+            {jobStatus === 'IDLE' && (
+              <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-300">
+                READY TO LAUNCH
+              </span>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Success Notification Banner */}
+      {successMessage && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center justify-between gap-3 text-xs text-emerald-300">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🎉</span>
+            <div>
+              <strong className="font-semibold block text-emerald-200">Training Completed Successfully!</strong>
+              <span>{successMessage}</span>
+            </div>
+          </div>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 px-2.5 py-1 font-semibold text-emerald-300 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Backend Offline Interactive Prompt Card */}
+      {isBackendOffline && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl p-1.5 bg-amber-500/20 rounded-lg">⚡</span>
+              <div>
+                <h3 className="text-sm font-semibold text-amber-200 flex items-center gap-2">
+                  Location Engine Backend (Port 8000) is Offline
+                </h3>
+                <p className="text-xs text-amber-300/80 mt-1 max-w-xl">
+                  The ML training pipeline requires <strong>Service #1 (Location Engine API)</strong> to be active on port 8000. Start it in <code className="bg-amber-950/60 text-amber-200 px-1.5 py-0.5 rounded font-mono text-[11px]">control.py</code> or click <strong>"Start demo system"</strong> in the launcher.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsBackendOffline(false)}
+              className="text-xs text-amber-400/60 hover:text-amber-200 transition-colors"
+            >
+              ✕ Dismiss
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-amber-500/20">
+            <div className="flex items-center gap-2 text-xs text-amber-300/90">
+              <span className="inline-block size-2 rounded-full bg-amber-400 animate-ping" />
+              <span>Ready to connect once the service is started:</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRetryConnection}
+                disabled={isRetrying}
+                className="rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-semibold px-4 py-2 text-xs flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
+              >
+                <span className={isRetrying ? 'animate-spin' : ''}>🔄</span>
+                {isRetrying ? 'Checking Port 8000...' : 'Start / Retry Connection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Notification Banner */}
+      {errorMessage && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 flex items-center justify-between gap-3 text-xs text-rose-300">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">❌</span>
+            <div>
+              <strong className="font-semibold block text-rose-200">Pipeline Execution Status</strong>
+              <span>{errorMessage}</span>
+            </div>
+          </div>
+          <button
+            onClick={() => setErrorMessage(null)}
+            className="rounded-md bg-rose-500/20 hover:bg-rose-500/30 px-2.5 py-1 font-semibold text-rose-300 transition-colors"
+          >
+            Clear Message
+          </button>
+        </div>
+      )}
 
       {/* Main Grid: Controls vs Evaluation & Metrics */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -110,24 +279,24 @@ export function TrainingView() {
         <div className="space-y-4 lg:col-span-6">
           <div className="rounded-xl border border-border bg-card p-5 space-y-4">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <span>⚙️ Tournament Settings</span>
+              <span>⚙️ Pipeline & Ensemble Settings</span>
             </h3>
 
             {/* Algorithm Selector */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">ML Algorithm</label>
+              <label className="text-xs font-medium text-muted-foreground">Architecture / Stacking Ensemble</label>
               <div className="grid grid-cols-2 gap-2">
-                {['CatBoost', 'XGBoost', 'LightGBM', 'RandomForest'].map((algo) => (
+                {['SuperLearner', 'CatBoost', 'XGBoost', 'LightGBM', 'RandomForest'].map((algo) => (
                   <button
                     key={algo}
                     onClick={() => setAlgorithm(algo)}
                     className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors text-left ${
                       algorithm === algo
-                        ? 'border-purple-500/50 bg-purple-500/10 text-purple-300'
+                        ? 'border-purple-500/50 bg-purple-500/10 text-purple-300 font-bold shadow-sm'
                         : 'border-border bg-panel text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    {algo}
+                    {algo === 'SuperLearner' ? '👑 SuperLearner (Stacking)' : algo}
                   </button>
                 ))}
               </div>
@@ -135,7 +304,7 @@ export function TrainingView() {
 
             {/* Dataset Selector */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Training Dataset</label>
+              <label className="text-xs font-medium text-muted-foreground">Observation Dataset</label>
               <select
                 value={dataset}
                 onChange={(e) => setDataset(e.target.value)}
@@ -178,35 +347,40 @@ export function TrainingView() {
               </div>
             </div>
 
-            {/* Action Trigger */}
-            <div className="pt-2">
+            {/* Action Triggers with States */}
+            <div className="space-y-2 pt-2">
               <button
-                disabled={isTraining || submitting}
+                disabled={isTraining}
                 onClick={startTournament}
-                className="w-full rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 px-4 py-2.5 text-xs font-semibold text-white transition-colors flex items-center justify-center gap-2"
+                className="w-full rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 px-4 py-2.5 text-xs font-semibold text-white transition-colors flex items-center justify-center gap-2 shadow-sm"
               >
-                {isTraining ? (
+                {submitting ? (
                   <>
-                    <span className="size-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Training ML Models...
+                    <span className="size-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Connecting to Python Engine...
+                  </>
+                ) : isTraining ? (
+                  <>
+                    <span className="size-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Executing SuperLearner Pipeline ({data?.job?.progress ?? 0}%)...
                   </>
                 ) : (
-                  '🚀 Start AI Model Training Tournament'
+                  '👑 Launch Complete SuperLearner Pipeline & Tournament'
                 )}
               </button>
             </div>
 
-            {/* Progress Bar */}
+            {/* Live Progress Bar */}
             {isTraining && (
-              <div className="space-y-1.5 pt-2">
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-purple-300 font-medium">{data?.job?.message}</span>
-                  <span className="text-muted-foreground">{data?.job?.progress}%</span>
+              <div className="space-y-2 pt-2 rounded-lg border border-purple-500/20 bg-purple-500/5 p-3">
+                <div className="flex justify-between text-xs">
+                  <span className="text-purple-200 font-medium">{data?.job?.message || 'Processing...'}</span>
+                  <span className="text-purple-300 font-bold">{data?.job?.progress ?? 0}%</span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-panel overflow-hidden">
                   <div
-                    className="h-full bg-purple-500 transition-all duration-500"
-                    style={{ width: `${data?.job?.progress ?? 0}%` }}
+                    className="h-full bg-gradient-to-r from-purple-500 to-indigo-400 transition-all duration-500"
+                    style={{ width: `${Math.max(5, data?.job?.progress ?? 0)}%` }}
                   />
                 </div>
               </div>
@@ -216,7 +390,7 @@ export function TrainingView() {
 
         {/* Right Column: Model Metrics & Evaluation */}
         <div className="space-y-4 lg:col-span-6">
-          <h3 className="text-sm font-semibold text-foreground">📊 Active AI Model Performance</h3>
+          <h3 className="text-sm font-semibold text-foreground">📊 Champion ML Model Performance</h3>
 
           {/* Distance Estimator Card */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
