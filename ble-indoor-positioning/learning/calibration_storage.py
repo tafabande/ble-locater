@@ -2,7 +2,10 @@ import os
 import json
 import time
 import logging
+import threading
+
 logger = logging.getLogger('CALIBRATION_STORAGE')
+_save_lock = threading.Lock()
 
 class CalibrationStorage:
     DEFAULT_FILEPATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models', 'learned_calibrations.json')
@@ -25,33 +28,37 @@ class CalibrationStorage:
     @classmethod
     def save(cls, learner, filepath: str=None, building_name: str='Hospital Main Wing (Floor 1)', firmware_version: str='2.4.0-esp32') -> bool:
         target_path = filepath or cls.DEFAULT_FILEPATH
-        try:
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            existing = cls.load(target_path)
-            sessions = existing.get('training_sessions', 0) + 1
-            anchors_dict = {}
-            all_anchors = set(list(learner.anchor_eta.keys()) + list(learner.anchor_bias.keys()) + list(learner.anchor_samples.keys()))
-            for anc_id in all_anchors:
-                anchors_dict[anc_id] = {'eta': round(learner.anchor_eta[anc_id], 4), 'bias': round(learner.anchor_bias[anc_id], 4), 'samples': learner.anchor_samples[anc_id]}
-            payload = {'version': 1, 'building_name': building_name, 'firmware_version': firmware_version, 'training_sessions': sessions, 'anchors': anchors_dict, 'total_samples': learner.samples_learned_count, 'last_updated': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
-            
-            # Atomic file save using temporary file + replace
-            temp_path = target_path + '.tmp'
-            with open(temp_path, 'w', encoding='utf-8') as f:
-                json.dump(payload, f, indent=4)
-            
-            for attempt in range(5):
-                try:
-                    os.replace(temp_path, target_path)
-                    break
-                except OSError:
-                    if attempt == 4:
-                        raise
-                    time.sleep(0.1)
-            
-            logger.info(f'💾 CalibrationStorage: Saved calibrations ({learner.samples_learned_count} total samples) to {target_path}')
-            return True
-        except Exception as e:
-            logger.error(f'Failed to save calibration storage file: {e}')
-            return False
+        with _save_lock:
+            try:
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                existing = cls.load(target_path)
+                sessions = existing.get('training_sessions', 0) + 1
+                anchors_dict = {}
+                all_anchors = set(list(learner.anchor_eta.keys()) + list(learner.anchor_bias.keys()) + list(learner.anchor_samples.keys()))
+                for anc_id in all_anchors:
+                    anchors_dict[anc_id] = {'eta': round(learner.anchor_eta[anc_id], 4), 'bias': round(learner.anchor_bias[anc_id], 4), 'samples': learner.anchor_samples[anc_id]}
+                payload = {'version': 1, 'building_name': building_name, 'firmware_version': firmware_version, 'training_sessions': sessions, 'anchors': anchors_dict, 'total_samples': learner.samples_learned_count, 'last_updated': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+                
+                # Atomic file save using unique temporary file + replace
+                temp_path = f"{target_path}.{os.getpid()}_{time.time_ns()}.tmp"
+                with open(temp_path, 'w', encoding='utf-8') as f:
+                    json.dump(payload, f, indent=4)
+                
+                for attempt in range(5):
+                    try:
+                        os.replace(temp_path, target_path)
+                        break
+                    except OSError:
+                        if attempt == 4:
+                            if os.path.exists(temp_path):
+                                try: os.remove(temp_path)
+                                except Exception: pass
+                            raise
+                        time.sleep(0.05)
+                
+                logger.info(f'💾 CalibrationStorage: Saved calibrations ({learner.samples_learned_count} total samples) to {target_path}')
+                return True
+            except Exception as e:
+                logger.error(f'Failed to save calibration storage file: {e}')
+                return False
 

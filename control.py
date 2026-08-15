@@ -105,6 +105,7 @@ class OperationsConsole:
         self.selected_key: Optional[str] = None
         self.card_refs: dict[str, dict[str, tk.Widget]] = {}
         self.shutting_down = False
+        self.user_stopped: set[str] = set()
 
         self._styles()
         self._build_shell()
@@ -359,6 +360,7 @@ class OperationsConsole:
 
     def start_service(self, key: str) -> None:
         service = next(s for s in self.services if s.key == key)
+        self.user_stopped.discard(key)
         if self._running(key):
             self._log(f"{service.name} is already running.", "System")
             return
@@ -374,7 +376,7 @@ class OperationsConsole:
         self._log(f"Starting {service.name} using the {self.resource_mode.get().lower()} profile.", "System")
 
         def worker() -> None:
-            while not self.shutting_down:
+            while not self.shutting_down and key not in self.user_stopped:
                 try:
                     flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
                     cmd = list(service.command)
@@ -395,7 +397,7 @@ class OperationsConsole:
                 finally:
                     with self.process_lock: self.processes[key] = None
 
-                if not self.shutting_down and key in ("backend", "dashboard") and ("--autostart" in sys.argv or "-a" in sys.argv):
+                if not self.shutting_down and key not in self.user_stopped and key in ("backend", "dashboard") and ("--autostart" in sys.argv or "-a" in sys.argv):
                     self._log(f"Keep-Alive: Automatically restarting {service.name} hosting...", "System")
                     time.sleep(2)
                 else:
@@ -405,6 +407,7 @@ class OperationsConsole:
 
 
     def stop_service(self, key: str) -> None:
+        self.user_stopped.add(key)
         service = next(s for s in self.services if s.key == key)
         with self.process_lock: proc = self.processes.get(key)
         if not proc or proc.poll() is not None:
