@@ -30,6 +30,17 @@ CPU_CORES = os.cpu_count() or 4
 MAX_LOG_LINES = 3000
 
 
+def free_port(port: int) -> None:
+    """Free a TCP port if an orphaned process is holding it on Windows."""
+    if os.name != "nt":
+        return
+    try:
+        cmd = f'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :{port} ^| findstr LISTENING\') do taskkill /F /PID %a'
+        subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
 def open_url(url: str) -> None:
     """Reliably launch a URL in the user's default browser using native shell start."""
     if os.name == "nt":
@@ -354,6 +365,12 @@ class OperationsConsole:
         if not service.cwd.exists():
             self._log(f"Cannot start {service.name}; working directory does not exist: {service.cwd}", "Error")
             return
+
+        if key == "backend":
+            free_port(8000)
+        elif key == "dashboard":
+            free_port(5173)
+
         self._log(f"Starting {service.name} using the {self.resource_mode.get().lower()} profile.", "System")
 
         def worker() -> None:

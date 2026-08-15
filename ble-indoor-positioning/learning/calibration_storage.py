@@ -39,7 +39,15 @@ class CalibrationStorage:
             temp_path = target_path + '.tmp'
             with open(temp_path, 'w', encoding='utf-8') as f:
                 json.dump(payload, f, indent=4)
-            os.replace(temp_path, target_path)
+            
+            for attempt in range(5):
+                try:
+                    os.replace(temp_path, target_path)
+                    break
+                except OSError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.1)
             
             logger.info(f'💾 CalibrationStorage: Saved calibrations ({learner.samples_learned_count} total samples) to {target_path}')
             return True
