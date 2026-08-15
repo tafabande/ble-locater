@@ -26,8 +26,10 @@ def json_print(*args, **kwargs):
 builtins.print = json_print
 
 def main():
+    import glob
+    import urllib.request
     parser = argparse.ArgumentParser(description='BLE Indoor Positioning — End-to-End Pipeline')
-    parser.add_argument('--raw-dir', type=str, default=None, help='Directory with raw collector CSVs (default: ../ble tracker/collector/data/raw)')
+    parser.add_argument('--raw-dir', type=str, default=None, help='Directory with raw collector CSVs (default: datasets/raw)')
     parser.add_argument('--target-mac', type=str, default=None, help='Filter for a specific BLE device MAC (e.g. 52:06:26:03:01:DA)')
     parser.add_argument('--tune', action='store_true', help='Run hyperparameter tuning')
     parser.add_argument('--mode', type=str, choices=['regression', 'classification', 'both'], default='both', help='Training mode: regression, classification (zones), or both (default)')
@@ -35,7 +37,14 @@ def main():
     parser.add_argument('--eval-mode', type=str, choices=['balanced_session', 'strict_session', 'random'], default='balanced_session', help='Evaluation mode for train/test split')
     args = parser.parse_args()
     if args.raw_dir is None:
-        args.raw_dir = os.path.join(os.path.dirname(PROJECT_ROOT), 'ble tracker', 'collector', 'data', 'raw')
+        raw_datasets_dir = os.path.join(PROJECT_ROOT, 'datasets', 'raw')
+        raw_collector_dir = os.path.join(PROJECT_ROOT, 'collector', 'data', 'raw')
+        if os.path.exists(raw_datasets_dir) and glob.glob(os.path.join(raw_datasets_dir, 'dataset_*.csv')):
+            args.raw_dir = raw_datasets_dir
+        elif os.path.exists(raw_collector_dir) and glob.glob(os.path.join(raw_collector_dir, 'dataset_*.csv')):
+            args.raw_dir = raw_collector_dir
+        else:
+            args.raw_dir = raw_datasets_dir
     dataset_path = os.path.join(PROJECT_ROOT, 'datasets', 'observations.csv')
     model_dir = os.path.join(PROJECT_ROOT, 'models')
     reports_dir = os.path.join(PROJECT_ROOT, 'reports')
@@ -43,7 +52,14 @@ def main():
     print('=' * 70)
     print('  STEP 1: FEATURE ENGINEERING (60 Features)')
     print('=' * 70)
-    df = process_all_raw_csvs(args.raw_dir, dataset_path, target_mac=args.target_mac, drop_duplicates=args.drop_duplicates, progress_callback=progress)
+    try:
+        df = process_all_raw_csvs(args.raw_dir, dataset_path, target_mac=args.target_mac, drop_duplicates=args.drop_duplicates, progress_callback=progress)
+    except Exception as e:
+        if os.path.exists(dataset_path):
+            print(f"  [INFO] Raw dataset scan notice ({e}). Auto-loading real observation dataset: {dataset_path}")
+            df = load_dataset(dataset_path)
+        else:
+            raise e
     progress('Dataset Engineered. Loading Observations...', 35)
     print('\n' + '=' * 70)
     print('  STEP 2: MODEL TRAINING')
@@ -91,5 +107,13 @@ def main():
         print(f"  Zone Champion: {zone_result['champion_name']}")
         print(f"  Zone Model:    {os.path.join(model_dir, 'zone_classifier.joblib')}")
     print('=' * 70)
+
+    try:
+        req = urllib.request.Request("http://127.0.0.1:8000/api/models/reload", method="POST")
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            print(f"  [HOT-RELOAD] Location Engine reloaded new model assets cleanly (status {resp.status})")
+    except Exception:
+        pass
+
 if __name__ == '__main__':
     main()

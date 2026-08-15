@@ -133,7 +133,7 @@ function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void })
             className="size-1.5 rounded-full"
             style={{ background: m === 'demo' ? 'var(--accent)' : 'var(--status-online)' }}
           />
-          {m === 'demo' ? 'Demo' : 'Live'}
+          {m === 'demo' ? 'Simulation' : 'Live'}
         </button>
       ))}
     </div>
@@ -151,7 +151,7 @@ function ConnBadge({ mode, connStatus }: { mode: Mode; connStatus: ConnStatus | 
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-panel px-2.5 py-1 text-[11px] font-medium">
         <span className="size-1.5 rounded-full bg-accent" />
-        Demo data
+        Simulation data
       </span>
     )
   }

@@ -9,6 +9,7 @@ import { AdminView } from './components/admin/AdminView'
 import { ReportsView } from './components/reports/ReportsView'
 import { ConnectionScreen } from './components/ConnectionScreen'
 import { AlertToasts } from './components/AlertToasts'
+import { ErrorDiagnosticBanner } from './components/ErrorDiagnosticBanner'
 
 const DEFAULT_ENDPOINT = 'http://localhost:8000/api/state'
 
@@ -71,6 +72,16 @@ export default function App() {
       focus={focus}
       onFocus={onFocus}
     >
+      <ErrorDiagnosticBanner
+        mode={mode}
+        connStatus={mode === 'live' ? live.status : null}
+        error={live.error}
+        endpoint={endpoint}
+        sim={sim}
+        onRetry={live.retry}
+        onSwitchDemo={() => setMode('demo')}
+      />
+
       {view === 'monitor' && (
         showConnection ? (
           <ConnectionScreen

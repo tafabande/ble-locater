@@ -59,22 +59,22 @@ interface RawPayload {
 }
 
 function mapPayload(raw: RawPayload | any, prev: SimState | null): SimState {
-  const anchors = Array.isArray(raw.anchors) && raw.anchors.length ? raw.anchors : ANCHORS
+  const anchors = Array.isArray(raw?.anchors) && raw.anchors.length ? raw.anchors : ANCHORS
   const prevTrails = new Map(prev?.tags.map((t) => [t.id, t.trail]))
   const prevHist = new Map(prev?.tags.map((t) => [t.id, t.rssiHistory]))
 
   let rawTagList: RawTag[] = []
-  if (Array.isArray(raw.tags)) {
+  if (Array.isArray(raw?.tags)) {
     rawTagList = raw.tags
-  } else if (raw.tags && typeof raw.tags === 'object') {
-    rawTagList = Object.values(raw.tags).map((item: any) => ({
-      id: item.tag_id || item.id || 'TAG_01',
-      label: item.label || item.tag_id || item.id,
-      zone: item.room || item.zone,
-      x: item.position?.x ?? item.x ?? 2.5,
-      y: item.position?.y ?? item.y ?? 2.5,
-      floor: item.floor ?? 0,
-      battery: item.battery ?? 100,
+  } else if (raw?.tags && typeof raw.tags === 'object') {
+    rawTagList = Object.values(raw.tags).map((item: any, idx: number) => ({
+      id: item.tag_id || item.id || `TAG_${idx + 1}`,
+      label: item.label || item.tag_id || item.id || `Tag ${idx + 1}`,
+      zone: item.room || item.zone || 'Transit',
+      x: typeof item.position?.x === 'number' ? item.position.x : typeof item.x === 'number' ? item.x : 10,
+      y: typeof item.position?.y === 'number' ? item.position.y : typeof item.y === 'number' ? item.y : 10,
+      floor: typeof item.floor === 'number' ? item.floor : 0,
+      battery: typeof item.battery === 'number' ? item.battery : 100,
       lastSeen: item.last_seen ? Math.round(item.last_seen * 1000) : Date.now(),
       readings: item.distances
         ? Object.entries(item.distances).map(([ancId, dist]) => ({
@@ -84,38 +84,43 @@ function mapPayload(raw: RawPayload | any, prev: SimState | null): SimState {
           }))
         : [],
     }))
+  } else {
+    console.warn('[BLE Ingest Warning] Payload tags property missing or invalid. Using empty fallback list.')
   }
 
-  const tags: Tag[] = rawTagList.map((rt: RawTag) => {
+  const tags: Tag[] = rawTagList.map((rt: RawTag, idx: number) => {
+    const posX = isNaN(Number(rt.x)) ? 10 + idx * 5 : Number(rt.x)
+    const posY = isNaN(Number(rt.y)) ? 10 + idx * 5 : Number(rt.y)
+
     const readings = (
       rt.readings?.length
         ? rt.readings.map((r: { anchorId: string; rssi: number; distance?: number }) => ({
             anchorId: r.anchorId,
-            rssi: r.rssi,
-            distance: r.distance ?? Math.round(Math.pow(10, ((anchors.find((a: Anchor) => a.id === r.anchorId)?.txPower ?? -59) - r.rssi) / 22) * 10) / 10,
+            rssi: typeof r.rssi === 'number' ? r.rssi : -70,
+            distance: r.distance ?? Math.round(Math.pow(10, ((anchors.find((a: Anchor) => a.id === r.anchorId)?.txPower ?? -59) - (r.rssi ?? -70)) / 22) * 10) / 10,
             used: false,
           }))
-        : anchors.map((a: Anchor) => readingFor(a, rt, DEFAULT_MAP))
+        : anchors.map((a: Anchor) => readingFor(a, { x: posX, y: posY }, DEFAULT_MAP))
     ).sort((a: { rssi: number }, b: { rssi: number }) => b.rssi - a.rssi)
     readings.forEach((r: { used: boolean }, i: number) => (r.used = i < 3))
 
-    const trail = [...(prevTrails.get(rt.id) ?? []), { x: rt.x, y: rt.y }].slice(-16)
+    const trail = [...(prevTrails.get(rt.id) ?? []), { x: posX, y: posY }].slice(-16)
     const hist = [...(prevHist.get(rt.id) ?? []), readings[0]?.rssi ?? -100].slice(-20)
     const lastSeen = rt.lastSeen ?? 0
-    const fence = geofenceAt(rt.x, rt.y)
+    const fence = geofenceAt(posX, posY)
     const violating = fence && fence.restricted && !fence.allow.includes(rt.id) ? fence.id : null
 
     return {
-      id: rt.id,
-      label: rt.label ?? `Tag ${rt.id}`,
+      id: rt.id ?? `TAG_${idx + 1}`,
+      label: rt.label ?? `Tag ${rt.id ?? idx + 1}`,
       zone: rt.zone ?? fence?.name ?? 'Transit',
-      x: rt.x,
-      y: rt.y,
+      x: posX,
+      y: posY,
       floor: rt.floor ?? 0,
       battery: rt.battery ?? 100,
       status: statusFromLastSeen(lastSeen),
       lastSeen,
-      nearest: readings[0]?.anchorId ?? anchors[0].id,
+      nearest: readings[0]?.anchorId ?? anchors[0]?.id ?? 'N1',
       uncertainty: uncertaintyFor(readings),
       readings,
       trail,
@@ -131,13 +136,13 @@ function mapPayload(raw: RawPayload | any, prev: SimState | null): SimState {
     ...(prev?.seenSeries ?? []),
     { t: stamp, tags: online, packets: online * 5 },
   ].slice(-20)
-  const alerts = raw.alerts ?? prev?.alerts ?? []
+  const alerts = raw?.alerts ?? prev?.alerts ?? []
 
   return {
     anchors,
     tags,
     geofences: GEOFENCES,
-    events: raw.events ?? prev?.events ?? [],
+    events: raw?.events ?? prev?.events ?? [],
     alerts,
     pipeline: buildPipeline(tags, alerts, online),
     seenSeries,
@@ -176,10 +181,14 @@ export function useLiveSource(enabled: boolean, endpoint: string, intervalMs: nu
     async function poll() {
       try {
         const res = await fetch(endpoint, { signal: controller.signal, headers: { accept: 'application/json' } })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        if (!res.ok) {
+          if (res.status === 404) throw new Error(`HTTP 404 Not Found: Endpoint ${endpoint} is invalid or endpoint path missing.`)
+          if (res.status === 500) throw new Error(`HTTP 500 Internal Server Error: Backend Python engine crashed or threw exception.`)
+          throw new Error(`HTTP ${res.status}: Failed to retrieve state from ${endpoint}`)
+        }
         const raw = (await res.json()) as RawPayload
         if (!raw || (!Array.isArray(raw.tags) && (typeof raw.tags !== 'object' || raw.tags === null))) {
-          throw new Error('Malformed payload: expected { tags: [...] } or { tags: {...} }')
+          throw new Error(`Malformed Payload: Expected JSON object containing 'tags' array or dictionary from ${endpoint}`)
         }
         if (cancelled) return
         const mapped = mapPayload(raw, stateRef.current)
@@ -190,8 +199,16 @@ export function useLiveSource(enabled: boolean, endpoint: string, intervalMs: nu
         setLastUpdate(Date.now())
       } catch (e) {
         if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) return
+        const errMsg =
+          e instanceof TypeError && e.message.includes('fetch')
+            ? `Connection Refused: Cannot reach ${endpoint}. Is control.py running on port 8000?`
+            : e instanceof Error
+            ? e.message
+            : 'Connection failed'
+
+        console.error('[BLE Live Telemetry Failure]', errMsg, e)
         setStatus('error')
-        setError(e instanceof Error ? e.message : 'Connection failed')
+        setError(errMsg)
       }
     }
 

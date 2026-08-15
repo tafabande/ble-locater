@@ -104,7 +104,8 @@ export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus }: P
           activeTag.readings
             .filter((r) => r.used)
             .map((r) => {
-              const a = sim.anchors.find((an) => an.id === r.anchorId)!
+              const a = sim.anchors.find((an) => an.id === r.anchorId)
+              if (!a) return null
               return <line key={r.anchorId} x1={activeTag.x} y1={activeTag.y} x2={a.x} y2={a.y} stroke="var(--accent)" strokeWidth="0.18" strokeDasharray="0.6 0.6" opacity="0.7" />
             })}
 

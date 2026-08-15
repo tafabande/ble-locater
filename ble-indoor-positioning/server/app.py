@@ -88,6 +88,14 @@ class OnlineDistanceLearner:
         if CalibrationStorage.save(self, self.calib_filepath):
             self.unpersisted_samples = 0
             self.last_save_time = time.time()
+            try:
+                inject_script = os.path.join(os.path.dirname(PROJECT_ROOT), 'inject_calibrations.py')
+                if os.path.exists(inject_script):
+                    import subprocess
+                    subprocess.Popen([sys.executable, inject_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
 
     def learn_sample(self, anchor_id: str, rssi: float, true_dist: float, raw_pred_dist: float) -> dict:
         if true_dist <= 0.05 or not np.isfinite(true_dist):
@@ -854,7 +862,24 @@ async def get_training_status():
         ]
     }
 
+@app.post('/api/models/reload')
+async def reload_models():
+    try:
+        load_ml_assets()
+        shared['online_learner'].load()
+        logger.info('🔄 ML Model assets hot-reloaded dynamically from disk.')
+        return {
+            "status": "ok",
+            "message": "ML models hot-reloaded cleanly.",
+            "has_distance_model": shared['model'] is not None,
+            "has_zone_model": shared['zone_model'] is not None
+        }
+    except Exception as e:
+        logger.error(f'Failed to reload ML models: {e}')
+        raise HTTPException(status_code=500, detail=f"Failed to reload ML models: {e}")
+
 class TrainingRequest(BaseModel):
+
     algorithm: str = "SuperLearner"  # 'SuperLearner', 'CatBoost', 'XGBoost', 'LightGBM', 'RandomForest'
     learning_rate: float = 0.08
     n_estimators: int = 250

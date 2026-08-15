@@ -62,7 +62,7 @@ export function ConnectionScreen({ status, endpoint, error, onRetry, onDemo }: P
               onClick={onDemo}
               className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
-              Switch to Demo
+              Switch to Simulation
             </button>
           </div>
         )}

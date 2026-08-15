@@ -16,8 +16,15 @@ from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = BASE_DIR
-RAW_DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'ble tracker', 'collector', 'data', 'raw'))
+RAW_DATA_DIR = os.path.join(BASE_DIR, 'datasets', 'raw')
+if not os.path.exists(RAW_DATA_DIR):
+    collector_raw = os.path.join(BASE_DIR, 'collector', 'data', 'raw')
+    if os.path.exists(collector_raw):
+        RAW_DATA_DIR = collector_raw
+    else:
+        os.makedirs(RAW_DATA_DIR, exist_ok=True)
 DATASET_PATH = os.path.join(PROJECT_ROOT, 'datasets', 'observations.csv')
+
 MODEL_DIR = os.path.join(PROJECT_ROOT, 'models')
 REPORTS_DIR = os.path.join(PROJECT_ROOT, 'reports')
 DIAGNOSTIC_PLOT_PATH = os.path.join(REPORTS_DIR, 'model_diagnostics.png')

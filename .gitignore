@@ -1,23 +1,57 @@
-# Unity build cache & logs
+# ======================================================================
+# Indoor BLE Positioning System — Comprehensive Git Ignore
+# ======================================================================
+
+# Python Bytecode & Cache Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+catboost_info/
+
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Node.js & Vite Dependencies & Build Outputs
+node_modules/
+dist/
+.figma/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Unity Build Cache & Editor State
 Unity_BLE_Simulator/Library/
 Unity_BLE_Simulator/Temp/
 Unity_BLE_Simulator/Logs/
 Unity_BLE_Simulator/UserSettings/
 Unity_BLE_Simulator/Build/
 
-# Python cache & venv
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-catboost_info/
-.pytest_cache/
-
-# Node / Web
-node_modules/
-dist/
-.figma/
-
-# OS files
+# OS Metadata & IDE Temporary Files
 .DS_Store
 Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+
+# Database Journals & Temporary Locks
+*.sqlite3-journal
+*.db-journal
+*.tmp
+*.bak
+
+# Preserve Critical Models & Datasets for Replication
+!ble-indoor-positioning/datasets/*.csv
+!ble-indoor-positioning/models/*.joblib
+!ble-indoor-positioning/models/*.json
+!ble-indoor-positioning/models/*.db

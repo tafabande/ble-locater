@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import queue
+import shutil
 import signal
 import subprocess
 import sys
@@ -27,6 +28,20 @@ VENV = PROJECT_ROOT / ("Scripts/python.exe" if os.name == "nt" else "bin/python"
 PYTHON = str(VENV if VENV.exists() else Path(sys.executable))
 CPU_CORES = os.cpu_count() or 4
 MAX_LOG_LINES = 3000
+
+
+def open_url(url: str) -> None:
+    """Reliably launch a URL in the user's default browser using native shell start."""
+    if os.name == "nt":
+        try:
+            subprocess.Popen(["cmd.exe", "/c", "start", "", url], shell=True)
+            return
+        except Exception:
+            pass
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
 
 
 @dataclass(frozen=True)
@@ -87,9 +102,15 @@ class OperationsConsole:
         self._build_activity_view()
         self._refresh_state()
         self._select_service("backend")
-        self._log("Console ready. Start the demo system to bring up the API, dashboard, and simulator.", "System")
+        self._log("Console ready. Hosting Location Engine API, Web Dashboard parameters, and simulator.", "System")
         self.root.after(150, self._drain_logs)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
+
+        autostart = "--autostart" in sys.argv or "-a" in sys.argv
+        if autostart:
+            self._log("Auto-hosting mode triggered: launching backend API, web dashboard, and data stream...", "System")
+            self.root.after(400, self.start_demo)
+
 
     def _services(self) -> tuple[Service, ...]:
         return (
@@ -176,10 +197,10 @@ class OperationsConsole:
         intro.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 14))
         intro.columnconfigure(0, weight=1)
         ttk.Label(intro, text="Control room", style="PanelTitle.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(intro, text="Start the complete demo stack or manage individual processes from Services.", style="PanelText.TLabel").grid(row=1, column=0, sticky="w", pady=(5, 16))
-        ttk.Button(intro, text="Start demo system", style="Primary.TButton", command=self.start_demo).grid(row=2, column=0, sticky="w")
+        ttk.Label(intro, text="Start the complete positioning system stack or manage individual processes from Services.", style="PanelText.TLabel").grid(row=1, column=0, sticky="w", pady=(5, 16))
+        ttk.Button(intro, text="Start System Stack", style="Primary.TButton", command=self.start_demo).grid(row=2, column=0, sticky="w")
         ttk.Button(intro, text="Stop all services", style="Danger.TButton", command=self.stop_all).grid(row=2, column=0, sticky="w", padx=(145, 0))
-        ttk.Button(intro, text="Open Web Dashboard", style="Secondary.TButton", command=lambda: webbrowser.open("http://127.0.0.1:5173")).grid(row=2, column=0, sticky="w", padx=(275, 0))
+        ttk.Button(intro, text="Open Web Dashboard", style="Secondary.TButton", command=lambda: open_url("http://127.0.0.1:5173")).grid(row=2, column=0, sticky="w", padx=(275, 0))
         metrics = ttk.Frame(self.overview)
         metrics.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 14))
         for i in range(3): metrics.columnconfigure(i, weight=1)
@@ -204,7 +225,7 @@ class OperationsConsole:
         help_panel.grid(row=2, column=1, sticky="nsew", padx=(7, 0))
         ttk.Label(help_panel, text="Operating guidance", style="PanelTitle.TLabel").pack(anchor="w")
         ttk.Label(help_panel, text="Recommended workflow", background=self.C["white"], foreground=self.C["blue"], font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(18, 4))
-        ttk.Label(help_panel, text="1. Select a resource profile.\n2. Start the demo system.\n3. Open the dashboard when the services are online.\n4. Use Activity to investigate output or failures.", style="PanelText.TLabel", justify="left", wraplength=260).pack(anchor="w")
+        ttk.Label(help_panel, text="1. Select a resource profile.\n2. Start the system stack.\n3. Open the dashboard when services are online.\n4. Use Activity to investigate output or failures.", style="PanelText.TLabel", justify="left", wraplength=260).pack(anchor="w")
         ttk.Label(help_panel, text="The console does not hide failures: every process exit and startup error is recorded in Activity.", style="PanelText.TLabel", justify="left", wraplength=260).pack(anchor="w", pady=(18, 0))
 
     def _build_service_view(self) -> None:
@@ -311,7 +332,7 @@ class OperationsConsole:
     def _open_selected(self) -> None:
         service = self._selected()
         if service and service.url:
-            webbrowser.open(service.url)
+            open_url(service.url)
 
     def _thread_count(self) -> int:
         if self.resource_mode.get() == "Eco": return max(1, CPU_CORES // 4)
@@ -320,6 +341,7 @@ class OperationsConsole:
 
     def _env(self) -> dict[str, str]:
         env = os.environ.copy()
+        env["PORT"] = "5173"
         for name in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "CPU_ALLOCATION_THREADS"):
             env[name] = str(self._thread_count())
         return env
@@ -335,20 +357,35 @@ class OperationsConsole:
         self._log(f"Starting {service.name} using the {self.resource_mode.get().lower()} profile.", "System")
 
         def worker() -> None:
-            try:
-                flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
-                proc = subprocess.Popen(service.command, cwd=service.cwd, env=self._env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, creationflags=flags)
-                with self.process_lock: self.processes[key] = proc
-                assert proc.stdout is not None
-                for line in proc.stdout: self._log(line.rstrip(), service.name.split()[0])
-                code = proc.wait()
-                self._log(f"{service.name} exited with code {code}.", "System" if code == 0 else "Error")
-            except Exception as exc:
-                self._log(f"Failed to start {service.name}: {exc}", "Error")
-            finally:
-                with self.process_lock: self.processes[key] = None
+            while not self.shutting_down:
+                try:
+                    flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+                    cmd = list(service.command)
+                    if os.name == "nt":
+                        resolved = shutil.which(cmd[0]) or cmd[0]
+                        if not resolved.lower().endswith(".exe"):
+                            cmd = ["cmd.exe", "/c"] + cmd
+                        else:
+                            cmd[0] = resolved
+                    proc = subprocess.Popen(cmd, cwd=service.cwd, env=self._env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, creationflags=flags)
+                    with self.process_lock: self.processes[key] = proc
+                    assert proc.stdout is not None
+                    for line in proc.stdout: self._log(line.rstrip(), service.name.split()[0])
+                    code = proc.wait()
+                    self._log(f"{service.name} exited with code {code}.", "System" if code == 0 else "Error")
+                except Exception as exc:
+                    self._log(f"Failed to start {service.name}: {exc}", "Error")
+                finally:
+                    with self.process_lock: self.processes[key] = None
+
+                if not self.shutting_down and key in ("backend", "dashboard") and ("--autostart" in sys.argv or "-a" in sys.argv):
+                    self._log(f"Keep-Alive: Automatically restarting {service.name} hosting...", "System")
+                    time.sleep(2)
+                else:
+                    break
 
         threading.Thread(target=worker, daemon=True).start()
+
 
     def stop_service(self, key: str) -> None:
         service = next(s for s in self.services if s.key == key)
@@ -368,10 +405,31 @@ class OperationsConsole:
         except subprocess.TimeoutExpired:
             proc.kill(); self._log(f"{name} did not exit gracefully and was terminated.", "Error")
 
+    def _open_browser_when_ready(self, url: str, attempts: int = 30) -> None:
+        def check():
+            import urllib.request
+            for _ in range(attempts):
+                if self.shutting_down:
+                    return
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "ConsoleLauncher/1.0"})
+                    with urllib.request.urlopen(req, timeout=1.5) as resp:
+                        if resp.status == 200:
+                            self._log(f"Web Dashboard ready. Opening {url}...", "System")
+                            open_url(url)
+                            return
+                except Exception:
+                    time.sleep(0.5)
+            open_url(url)
+        threading.Thread(target=check, daemon=True).start()
+
     def start_demo(self) -> None:
         self.start_service("backend")
         self.start_service("dashboard")
         self.root.after(1200, lambda: self.start_service("simulator"))
+        self._open_browser_when_ready("http://127.0.0.1:5173")
+
+
 
     def stop_all(self) -> None:
         active = [s for s in self.services if self._running(s.key)]
