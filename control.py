@@ -42,8 +42,20 @@ def free_port(port: int) -> None:
 
 
 def open_url(url: str) -> None:
-    """Reliably launch a URL in the user's default browser using native shell start."""
+    """Reliably launch a URL in Google Chrome or default browser using native shell start."""
     if os.name == "nt":
+        chrome_paths = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe")
+        ]
+        for cp in chrome_paths:
+            if os.path.exists(cp):
+                try:
+                    subprocess.Popen([cp, url])
+                    return
+                except Exception:
+                    pass
         try:
             subprocess.Popen(["cmd.exe", "/c", "start", "", url], shell=True)
             return
