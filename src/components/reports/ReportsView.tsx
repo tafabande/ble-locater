@@ -417,7 +417,7 @@ export function ReportsView({
               </div>
               <div className="flex justify-between">
                 <span>Vite Dashboard Microservice:</span>
-                <strong className="text-sky-400">ONLINE (Port 5173)</strong>
+                <strong className="text-sky-400">ONLINE (Port 3000)</strong>
               </div>
               <div className="flex justify-between">
                 <span>SQLite Database File:</span>

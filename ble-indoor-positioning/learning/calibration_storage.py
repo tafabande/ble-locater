@@ -19,7 +19,7 @@ class CalibrationStorage:
                     raise json.JSONDecodeError("File is empty (0 bytes)", "", 0)
                 with open(target_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                logger.info(f'💾 CalibrationStorage: Loaded calibration data from {target_path}')
+                logger.debug(f'💾 CalibrationStorage: Loaded calibration data from {target_path}')
                 return data
             except Exception as e:
                 logger.warning(f'⚠️ CalibrationStorage: Failed to load calibration file ({e}). Resetting to defaults.')
@@ -56,7 +56,7 @@ class CalibrationStorage:
                             raise
                         time.sleep(0.05)
                 
-                logger.info(f'💾 CalibrationStorage: Saved calibrations ({learner.samples_learned_count} total samples) to {target_path}')
+                logger.debug(f'💾 CalibrationStorage: Saved calibrations ({learner.samples_learned_count} total samples) to {target_path}')
                 return True
             except Exception as e:
                 logger.error(f'Failed to save calibration storage file: {e}')

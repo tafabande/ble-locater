@@ -208,5 +208,20 @@
     "physics_baseline_mae": 2.45,
     "improvement_over_physics_pct": 64.3,
     "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
+  },
+  {
+    "timestamp": "2026-08-17T00:50:16.354572",
+    "phase": "Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)",
+    "raw_files": 34,
+    "total_windows": 32728,
+    "features_count": 59,
+    "champion_model": "Bagging Ensemble",
+    "test_mae": 0.8751,
+    "test_rmse": 1.1756,
+    "test_r2": 0.5834,
+    "zone_accuracy": 93.93,
+    "physics_baseline_mae": 2.45,
+    "improvement_over_physics_pct": 64.3,
+    "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
   }
 ]

@@ -74,13 +74,14 @@ def main():
 
             if packets:
                 try:
-                    res = requests.post(URL_BATCH, json=packets, timeout=1.0)
-                    if res.status_code == 200:
-                        print(f'[SIMULATOR] Sent batch of {len(packets)} observations for {len(TAGS)} tags.', flush=True)
-                    else:
-                        print(f'[SIMULATOR] Batch status code: {res.status_code}', flush=True)
+                    res = requests.post(URL_BATCH, json=packets, timeout=2.5)
+                    if res.status_code != 200:
+                        print(f'[SIMULATOR] Batch HTTP {res.status_code}', flush=True)
                 except requests.exceptions.RequestException:
-                    print('[SIMULATOR] Waiting for backend server at http://127.0.0.1:8000 ...', flush=True)
+                    now_ts = time.time()
+                    if not hasattr(main, '_last_wait_log') or (now_ts - main._last_wait_log > 5.0):
+                        print('[SIMULATOR] Waiting for backend server at http://127.0.0.1:8000 ...', flush=True)
+                        main._last_wait_log = now_ts
 
             time.sleep(0.2)
             t += 0.2

@@ -1,1 +1,3 @@
-timestamp,anchor,mac,rssi,name,distance_m,obstacle,obstacle_type,height_m,motion
+version https://git-lfs.github.com/spec/v1
+oid sha256:bc01aa814be0de6312901e6f188c84f99e20696ccc8aca8422cbf4ae18caa1ad
+size 82

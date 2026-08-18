@@ -56,6 +56,19 @@ export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus }: P
         </defs>
         <rect x="0" y="0" width="100" height="100" fill="url(#grid)" />
 
+        {/* Uploaded Blueprint Image Overlay */}
+        {localStorage.getItem('rtls_blueprint_img') && (
+          <image
+            href={localStorage.getItem('rtls_blueprint_img')!}
+            x="0"
+            y="0"
+            width="100"
+            height="100"
+            preserveAspectRatio="none"
+            opacity={Number(localStorage.getItem('rtls_blueprint_opacity')) || 0.35}
+          />
+        )}
+
         {/* geofences / rooms */}
         {sim.geofences.map((z) => (
           <g key={z.id}>

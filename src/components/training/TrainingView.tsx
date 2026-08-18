@@ -10,16 +10,27 @@ interface ModelMetrics {
   f1_score?: number
 }
 
+interface TournamentEntry {
+  name: string
+  mae: number
+  rmse: number
+  r2: number
+  med_ae?: number
+}
+
 interface TrainingStatus {
   job: {
     status: 'IDLE' | 'TRAINING' | 'COMPLETED' | 'ERROR'
     progress: number
     message: string
   }
+  last_trained_timestamp?: number | null
   available_models: {
     distance_estimator: ModelMetrics
     zone_classifier: ModelMetrics
   }
+  tournament_leaderboard?: TournamentEntry[]
+  top_features?: Record<string, number>
   datasets: { name: string; rows: number; type: string }[]
 }
 
@@ -32,6 +43,7 @@ export function TrainingView() {
   const [trees, setTrees] = useState<number>(250)
   const [dataset, setDataset] = useState<string>('observations.csv')
   const [submitting, setSubmitting] = useState(false)
+  const [reloading, setReloading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isBackendOffline, setIsBackendOffline] = useState(false)
@@ -77,7 +89,7 @@ export function TrainingView() {
 
   useEffect(() => {
     fetchTrainingStatus()
-    const iv = setInterval(fetchTrainingStatus, 2500)
+    const iv = setInterval(fetchTrainingStatus, 2000)
     return () => clearInterval(iv)
   }, [])
 
@@ -125,6 +137,28 @@ export function TrainingView() {
     }
   }
 
+  const reloadModels = async () => {
+    setReloading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/models/reload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setSuccessMessage(json.message || 'Models hot-reloaded into live tracking engine.')
+        await fetchTrainingStatus()
+      } else {
+        const errJson = await res.json().catch(() => ({}))
+        setErrorMessage(errJson.detail || 'Failed to reload models.')
+      }
+    } catch (e: any) {
+      setErrorMessage('Could not contact backend to reload models.')
+    } finally {
+      setReloading(false)
+    }
+  }
+
   const handleRetryConnection = async () => {
     setIsRetrying(true)
     const controller = new AbortController()
@@ -152,6 +186,12 @@ export function TrainingView() {
   const jobStatus = data?.job?.status ?? 'IDLE'
   const isTraining = jobStatus === 'TRAINING' || submitting
 
+  const formatTimestamp = (ts?: number | null) => {
+    if (!ts) return null
+    const d = new Date(ts * 1000)
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' (' + d.toLocaleDateString() + ')'
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -162,12 +202,28 @@ export function TrainingView() {
               👑 AI Studio — SuperLearner & End-to-End ML Pipeline
             </h2>
             <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-              Engineers 60 temporal & RSSI features, executes base model tournaments (CatBoost, XGBoost, LightGBM, RandomForest), and trains the Stacking SuperLearner Ensemble for sub-meter positioning accuracy.
+              Engineers 60 temporal & RSSI features, evaluates base model tournaments (CatBoost, XGBoost, LightGBM, RandomForest), and trains the Stacking SuperLearner Ensemble for sub-meter positioning accuracy.
             </p>
+            {data?.last_trained_timestamp && (
+              <div className="mt-2 text-xs text-purple-200/80 flex items-center gap-2 font-mono">
+                <span className="size-1.5 rounded-full bg-emerald-400" />
+                <span>Last Updated From Python Trainer: <strong>{formatTimestamp(data.last_trained_timestamp)}</strong></span>
+              </div>
+            )}
           </div>
 
-          {/* Job State Badge */}
+          {/* Controls & Job State Badge */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={reloadModels}
+              disabled={reloading}
+              title="Hot-reload the latest models saved on disk directly into the active positioning engine"
+              className="rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 text-xs font-semibold text-purple-200 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+            >
+              <span className={reloading ? 'animate-spin' : ''}>🔄</span>
+              {reloading ? 'Reloading...' : 'Hot-Reload Models'}
+            </button>
+
             {jobStatus === 'TRAINING' && (
               <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 animate-pulse flex items-center gap-1.5">
                 <span className="size-2 rounded-full bg-amber-400 animate-ping" />
@@ -199,7 +255,7 @@ export function TrainingView() {
           <div className="flex items-center gap-2">
             <span className="text-lg">🎉</span>
             <div>
-              <strong className="font-semibold block text-emerald-200">Training Completed Successfully!</strong>
+              <strong className="font-semibold block text-emerald-200">Operation Successful</strong>
               <span>{successMessage}</span>
             </div>
           </div>
@@ -223,7 +279,7 @@ export function TrainingView() {
                   Location Engine Backend (Port 8000) is Offline
                 </h3>
                 <p className="text-xs text-amber-300/80 mt-1 max-w-xl">
-                  The ML training pipeline requires <strong>Service #1 (Location Engine API)</strong> to be active on port 8000. Start it in <code className="bg-amber-950/60 text-amber-200 px-1.5 py-0.5 rounded font-mono text-[11px]">control.py</code> or click <strong>"Start demo system"</strong> in the launcher.
+                  The ML training pipeline requires <strong>Service #1 (Location Engine API)</strong> to be active on port 8000. Start it in <code className="bg-amber-950/60 text-amber-200 px-1.5 py-0.5 rounded font-mono text-[11px]">control.py</code> or click <strong>"Start Stack"</strong> in the console.
                 </p>
               </div>
             </div>
@@ -457,6 +513,28 @@ export function TrainingView() {
               </div>
             </div>
           </div>
+
+          {/* Tournament Top Leaderboard */}
+          {data?.tournament_leaderboard && data.tournament_leaderboard.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 space-y-2.5">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                🏆 Top SuperLearner Tournament Models
+              </h4>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto text-xs">
+                {data.tournament_leaderboard.slice(0, 4).map((m, idx) => (
+                  <div key={m.name} className="flex items-center justify-between p-1.5 rounded-lg bg-panel">
+                    <span className="font-medium text-foreground flex items-center gap-1.5">
+                      <span className="text-purple-400 font-bold">#{idx + 1}</span> {m.name}
+                    </span>
+                    <div className="flex items-center gap-3 text-muted-foreground font-mono text-[11px]">
+                      <span>MAE: <strong className="text-emerald-400">{m.mae.toFixed(3)}m</strong></span>
+                      <span>R²: <strong className="text-purple-300">{m.r2.toFixed(2)}</strong></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

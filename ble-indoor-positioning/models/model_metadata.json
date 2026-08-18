@@ -357,20 +357,20 @@
         }
       },
       "cv": {
-        "cv_mae_mean": 1.5728,
-        "cv_mae_std": 0.5956,
-        "cv_r2_mean": -3.5706,
-        "cv_r2_std": 7.0435,
+        "cv_mae_mean": 1.5709,
+        "cv_mae_std": 0.5977,
+        "cv_r2_mean": -3.5686,
+        "cv_r2_std": 7.0446,
         "cv_type": "StratifiedGroupKFold(5 session folds)"
       },
-      "composite_score": 1.1635186583796961
+      "composite_score": 1.1627586583796963
     },
     {
       "name": "ElasticNet",
-      "mae": 1.1484872162216304,
-      "rmse": 1.477553966592129,
-      "r2": 0.3419814492829406,
-      "med_ae": 1.0978666884929345,
+      "mae": 1.1484872162216306,
+      "rmse": 1.4775539665921291,
+      "r2": 0.3419814492829404,
+      "med_ae": 1.0978666884929353,
       "tolerances": {
         "within_10cm": 6.67,
         "within_25cm": 18.1,
@@ -402,7 +402,85 @@
         "cv_r2_std": 0.322,
         "cv_type": "StratifiedGroupKFold(5 session folds)"
       },
-      "composite_score": 1.2285723297329783
+      "composite_score": 1.2285723297329785
+    },
+    {
+      "name": "XGBoost Regressor",
+      "mae": 0.9784134643773634,
+      "rmse": 1.3225209348903573,
+      "r2": 0.4728228912378659,
+      "med_ae": 0.8895416259765625,
+      "tolerances": {
+        "within_10cm": 14.79,
+        "within_25cm": 27.0,
+        "within_50cm": 39.31,
+        "within_75cm": 45.33,
+        "within_100cm": 54.21,
+        "within_150cm": 79.75
+      },
+      "ext_metrics": {
+        "mape": 44.51,
+        "max_error": 5.427,
+        "p95_error": 2.5696,
+        "explained_variance": 0.4728,
+        "per_distance_mae": {
+          "0.5m": 0.0531,
+          "0.7m": 0.0544,
+          "1.0m": 1.1582,
+          "2.0m": 0.2801,
+          "3.0m": 0.7866,
+          "3.4m": 1.1203,
+          "5.3m": 2.2967,
+          "7.0m": 1.0361
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6325,
+        "cv_mae_std": 0.4571,
+        "cv_r2_mean": -0.3401,
+        "cv_r2_std": 0.5249,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.240048078626418
+    },
+    {
+      "name": "XGBoost (Deep Tuned)",
+      "mae": 0.9828066468874639,
+      "rmse": 1.3073796348631728,
+      "r2": 0.4848248996650083,
+      "med_ae": 0.9091391563415527,
+      "tolerances": {
+        "within_10cm": 16.76,
+        "within_25cm": 26.73,
+        "within_50cm": 39.39,
+        "within_75cm": 44.83,
+        "within_100cm": 53.0,
+        "within_150cm": 80.34
+      },
+      "ext_metrics": {
+        "mape": 43.76,
+        "max_error": 5.5752,
+        "p95_error": 2.4457,
+        "explained_variance": 0.4848,
+        "per_distance_mae": {
+          "0.5m": 0.0546,
+          "0.7m": 0.0364,
+          "1.0m": 1.0906,
+          "2.0m": 0.2437,
+          "3.0m": 0.8298,
+          "3.4m": 1.3151,
+          "5.3m": 2.1002,
+          "7.0m": 1.0147
+        }
+      },
+      "cv": {
+        "cv_mae_mean": 1.6412,
+        "cv_mae_std": 0.4363,
+        "cv_r2_mean": -0.3578,
+        "cv_r2_std": 0.5041,
+        "cv_type": "StratifiedGroupKFold(5 session folds)"
+      },
+      "composite_score": 1.2461639881324784
     },
     {
       "name": "Hist Gradient Boosting",
@@ -444,45 +522,6 @@
       "composite_score": 1.2476764498928097
     },
     {
-      "name": "XGBoost (Deep Tuned)",
-      "mae": 0.9886183735624352,
-      "rmse": 1.3224125794307957,
-      "r2": 0.47290927199197097,
-      "med_ae": 0.9257142543792725,
-      "tolerances": {
-        "within_10cm": 16.78,
-        "within_25cm": 26.62,
-        "within_50cm": 39.02,
-        "within_75cm": 44.58,
-        "within_100cm": 53.4,
-        "within_150cm": 80.35
-      },
-      "ext_metrics": {
-        "mape": 43.81,
-        "max_error": 5.6527,
-        "p95_error": 2.5646,
-        "explained_variance": 0.4729,
-        "per_distance_mae": {
-          "0.5m": 0.0634,
-          "0.7m": 0.0359,
-          "1.0m": 1.0835,
-          "2.0m": 0.2434,
-          "3.0m": 0.8583,
-          "3.4m": 1.266,
-          "5.3m": 2.214,
-          "7.0m": 1.0148
-        }
-      },
-      "cv": {
-        "cv_mae_mean": 1.6613,
-        "cv_mae_std": 0.4359,
-        "cv_r2_mean": -0.3835,
-        "cv_r2_std": 0.5027,
-        "cv_type": "StratifiedGroupKFold(5 session folds)"
-      },
-      "composite_score": 1.2576910241374613
-    },
-    {
       "name": "Voting Ensemble",
       "mae": 1.0064140073883596,
       "rmse": 1.320496243560881,
@@ -520,45 +559,6 @@
         "cv_type": "StratifiedGroupKFold(5 session folds)"
       },
       "composite_score": 1.2580884044330158
-    },
-    {
-      "name": "XGBoost Regressor",
-      "mae": 0.9937115450219314,
-      "rmse": 1.3289155774036716,
-      "r2": 0.4677125613483044,
-      "med_ae": 0.8659849166870117,
-      "tolerances": {
-        "within_10cm": 15.08,
-        "within_25cm": 22.85,
-        "within_50cm": 39.75,
-        "within_75cm": 46.87,
-        "within_100cm": 54.1,
-        "within_150cm": 79.51
-      },
-      "ext_metrics": {
-        "mape": 45.79,
-        "max_error": 5.6444,
-        "p95_error": 2.5605,
-        "explained_variance": 0.4677,
-        "per_distance_mae": {
-          "0.5m": 0.0539,
-          "0.7m": 0.0702,
-          "1.0m": 1.2068,
-          "2.0m": 0.2773,
-          "3.0m": 0.7571,
-          "3.4m": 1.1857,
-          "5.3m": 2.2537,
-          "7.0m": 1.0369
-        }
-      },
-      "cv": {
-        "cv_mae_mean": 1.6691,
-        "cv_mae_std": 0.4533,
-        "cv_r2_mean": -0.3924,
-        "cv_r2_std": 0.5318,
-        "cv_type": "StratifiedGroupKFold(5 session folds)"
-      },
-      "composite_score": 1.2638669270131588
     },
     {
       "name": "LightGBM Regressor",
@@ -718,10 +718,10 @@
     },
     {
       "name": "Bayesian Ridge",
-      "mae": 1.2689480654888112,
-      "rmse": 1.6335904187732004,
-      "r2": 0.19566347933971928,
-      "med_ae": 1.137691983675334,
+      "mae": 1.2689480654892202,
+      "rmse": 1.6335904187736325,
+      "r2": 0.19566347933929384,
+      "med_ae": 1.1376919836753732,
       "tolerances": {
         "within_10cm": 7.59,
         "within_25cm": 18.34,
@@ -753,7 +753,7 @@
         "cv_r2_std": 0.2548,
         "cv_type": "StratifiedGroupKFold(5 session folds)"
       },
-      "composite_score": 1.3278488392932868
+      "composite_score": 1.3278488392935321
     },
     {
       "name": "Extra Trees (400 Trees)",
@@ -1029,7 +1029,7 @@
       "composite_score": 6.4815646081247085
     }
   ],
-  "trained_at": "2026-08-05T21:01:23.112485",
+  "trained_at": "2026-08-17T00:50:16.354572",
   "train_samples": 26447,
   "test_samples": 6281,
   "pipeline_version": "2.0-motion-aware",
@@ -1037,8 +1037,8 @@
   "n_cross_window_features": 15,
   "zone_classification": {
     "champion_classifier": "XGBoost Classifier",
-    "zone_accuracy": 93.85,
-    "f1_weighted": 0.9388,
+    "zone_accuracy": 93.93,
+    "f1_weighted": 0.9396,
     "zone_labels": [
       "Very Close (<=0.75m)",
       "Close (0.75-1.5m)",
@@ -1117,10 +1117,10 @@
     "tournament": [
       {
         "name": "XGBoost Classifier",
-        "accuracy": 93.85,
-        "f1_weighted": 0.9388,
-        "cv_accuracy_mean": 93.29,
-        "cv_accuracy_std": 0.11
+        "accuracy": 93.93,
+        "f1_weighted": 0.9396,
+        "cv_accuracy_mean": 93.27,
+        "cv_accuracy_std": 0.13
       },
       {
         "name": "LightGBM Classifier",
@@ -1175,8 +1175,8 @@
         "name": "MLP Classifier",
         "accuracy": 91.07,
         "f1_weighted": 0.9112,
-        "cv_accuracy_mean": 90.6,
-        "cv_accuracy_std": 0.19
+        "cv_accuracy_mean": 90.16,
+        "cv_accuracy_std": 0.69
       },
       {
         "name": "KNN Classifier (k=7)",

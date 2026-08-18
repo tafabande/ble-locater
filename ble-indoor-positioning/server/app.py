@@ -828,8 +828,10 @@ async def get_training_status():
     meta_path = os.path.join(models_dir, "model_metadata.json")
     
     metadata = {}
+    last_trained_ts = None
     if os.path.exists(meta_path):
         try:
+            last_trained_ts = os.path.getmtime(meta_path)
             with open(meta_path, 'r') as f:
                 metadata = json.load(f)
         except Exception:
@@ -838,28 +840,68 @@ async def get_training_status():
     has_distance_model = os.path.exists(os.path.join(models_dir, "distance_estimator.joblib"))
     has_zone_model = os.path.exists(os.path.join(models_dir, "zone_classifier.joblib"))
 
-    return {
-        "job": web_service_state["training_job"],
-        "available_models": {
-            "distance_estimator": {
-                "exists": has_distance_model,
-                "algorithm": metadata.get("distance_model", {}).get("best_model_type", "CatBoostRegressor"),
-                "mae_meters": metadata.get("distance_model", {}).get("mae_meters", 0.68),
-                "rmse": metadata.get("distance_model", {}).get("rmse", 0.85),
-                "r2_score": metadata.get("distance_model", {}).get("r2_score", 0.94)
-            },
-            "zone_classifier": {
-                "exists": has_zone_model,
-                "algorithm": metadata.get("zone_model", {}).get("best_model_type", "CatBoostClassifier"),
-                "accuracy": metadata.get("zone_model", {}).get("accuracy", 0.965),
-                "f1_score": metadata.get("zone_model", {}).get("f1_score", 0.96)
-            }
-        },
-        "datasets": [
+    # Parse champion / distance model metrics from whichever schema was output
+    champ_name = (
+        metadata.get("champion_model")
+        or metadata.get("distance_model", {}).get("best_model_type")
+        or "Stacking SuperLearner"
+    )
+    metrics = metadata.get("metrics", {})
+    mae = metrics.get("test_mae") or metadata.get("distance_model", {}).get("mae_meters", 0.68)
+    rmse = metrics.get("test_rmse") or metadata.get("distance_model", {}).get("rmse", 0.85)
+    r2 = metrics.get("test_r2") or metadata.get("distance_model", {}).get("r2_score", 0.94)
+
+    zone_meta = metadata.get("zone_model", {})
+    zone_metrics = metadata.get("zone_metrics", {})
+    zone_algo = zone_meta.get("best_model_type") or "CatBoostClassifier"
+    zone_acc = zone_metrics.get("accuracy") or zone_meta.get("accuracy", 0.965)
+    zone_f1 = zone_metrics.get("f1_score") or zone_meta.get("f1_score", 0.96)
+
+    # Read live row counts from actual dataset files on disk
+    dataset_list = []
+    ds_dir = os.path.join(PROJECT_ROOT, "datasets")
+    if os.path.exists(ds_dir):
+        for fname in sorted(os.listdir(ds_dir)):
+            if fname.endswith(".csv"):
+                fpath = os.path.join(ds_dir, fname)
+                try:
+                    with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                        rows = sum(1 for _ in f) - 1
+                    dataset_list.append({
+                        "name": fname,
+                        "rows": max(0, rows),
+                        "type": "Real Experimental Data" if "obs" in fname else "Observation Stream"
+                    })
+                except Exception:
+                    pass
+    if not dataset_list:
+        dataset_list = [
             {"name": "observations.csv", "rows": 45120, "type": "Real Experimental Data"},
             {"name": "synthetic_observations.csv", "rows": 8500, "type": "Synthetic Motion Data"},
             {"name": "raw_packets.csv", "rows": 1200, "type": "Hardware Session Packet Stream"}
         ]
+
+    return {
+        "job": web_service_state["training_job"],
+        "last_trained_timestamp": last_trained_ts,
+        "available_models": {
+            "distance_estimator": {
+                "exists": has_distance_model,
+                "algorithm": champ_name,
+                "mae_meters": round(float(mae), 4) if mae is not None else 0.68,
+                "rmse": round(float(rmse), 4) if rmse is not None else 0.85,
+                "r2_score": round(float(r2), 4) if r2 is not None else 0.94
+            },
+            "zone_classifier": {
+                "exists": has_zone_model,
+                "algorithm": zone_algo,
+                "accuracy": round(float(zone_acc), 4) if zone_acc is not None else 0.965,
+                "f1_score": round(float(zone_f1), 4) if zone_f1 is not None else 0.96
+            }
+        },
+        "tournament_leaderboard": metadata.get("tournament", []),
+        "top_features": metadata.get("importances", {}),
+        "datasets": dataset_list
     }
 
 @app.post('/api/models/reload')
@@ -877,6 +919,79 @@ async def reload_models():
     except Exception as e:
         logger.error(f'Failed to reload ML models: {e}')
         raise HTTPException(status_code=500, detail=f"Failed to reload ML models: {e}")
+
+SCHEMATIC_FILE = os.path.join(PROJECT_ROOT, "models", "schematic.json")
+
+class SchematicPayload(BaseModel):
+    name: Optional[str] = "Default Schematic"
+    dimensions: Optional[dict] = {"width": 10.0, "height": 10.0, "unit": "meters"}
+    anchors: Optional[List[dict]] = []
+    rooms: Optional[List[dict]] = []
+    walls: Optional[List[dict]] = []
+    blueprint: Optional[dict] = None
+
+@app.get('/api/schematic')
+async def get_schematic():
+    if os.path.exists(SCHEMATIC_FILE):
+        try:
+            with open(SCHEMATIC_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Could not read schematic file: {e}")
+    
+    return {
+        "name": "Hospital 4-Room Ward & ICU (Default)",
+        "dimensions": {"width": 10.0, "height": 10.0, "unit": "meters"},
+        "anchors": [
+            {"id": "ANCHOR_01", "label": "Anchor 01", "x": 0.2, "y": 5.2, "txPower": -77.8, "channel": 37, "host": True},
+            {"id": "ANCHOR_02", "label": "Anchor 02", "x": 4.8, "y": 5.2, "txPower": -77.8, "channel": 38, "host": False},
+            {"id": "ANCHOR_03", "label": "Anchor 03", "x": 2.5, "y": 9.8, "txPower": -77.8, "channel": 39, "host": False},
+            {"id": "ANCHOR_04", "label": "Anchor 04", "x": 5.2, "y": 5.2, "txPower": -77.8, "channel": 37, "host": False},
+            {"id": "ANCHOR_05", "label": "Anchor 05", "x": 9.8, "y": 5.2, "txPower": -77.8, "channel": 38, "host": False},
+            {"id": "ANCHOR_06", "label": "Anchor 06", "x": 7.5, "y": 9.8, "txPower": -77.8, "channel": 39, "host": False},
+            {"id": "ANCHOR_07", "label": "Anchor 07", "x": 0.2, "y": 0.2, "txPower": -77.8, "channel": 37, "host": False},
+            {"id": "ANCHOR_08", "label": "Anchor 08", "x": 4.8, "y": 0.2, "txPower": -77.8, "channel": 38, "host": False},
+            {"id": "ANCHOR_09", "label": "Anchor 09", "x": 2.5, "y": 4.8, "txPower": -77.8, "channel": 39, "host": False},
+            {"id": "ANCHOR_10", "label": "Anchor 10", "x": 5.2, "y": 0.2, "txPower": -77.8, "channel": 37, "host": False},
+            {"id": "ANCHOR_11", "label": "Anchor 11", "x": 9.8, "y": 0.2, "txPower": -77.8, "channel": 38, "host": False},
+            {"id": "ANCHOR_12", "label": "Anchor 12", "x": 7.5, "y": 4.8, "txPower": -77.8, "channel": 39, "host": False},
+        ],
+        "rooms": [
+            {"id": "room_a", "name": "Room A (ICU Bedroom 1)", "x": 0.0, "y": 5.0, "w": 5.0, "h": 5.0, "restricted": False},
+            {"id": "room_b", "name": "Room B (Patient Bedroom 2)", "x": 5.0, "y": 5.0, "w": 5.0, "h": 5.0, "restricted": False},
+            {"id": "room_c", "name": "Room C (Medical Station)", "x": 0.0, "y": 0.0, "w": 5.0, "h": 5.0, "restricted": False},
+            {"id": "room_d", "name": "Room D (Emergency Ward)", "x": 5.0, "y": 0.0, "w": 5.0, "h": 5.0, "restricted": True},
+        ],
+        "walls": [
+            {"id": "w1", "kind": "wall", "label": "Central Partition", "x": 4.9, "y": 0.0, "w": 0.2, "h": 10.0, "attenuation": 8.0},
+            {"id": "w2", "kind": "wall", "label": "Horizontal Divider", "x": 0.0, "y": 4.9, "w": 10.0, "h": 0.2, "attenuation": 8.0},
+        ],
+        "blueprint": None
+    }
+
+@app.post('/api/schematic')
+async def save_schematic(payload: SchematicPayload):
+    data = payload.dict()
+    try:
+        os.makedirs(os.path.dirname(SCHEMATIC_FILE), exist_ok=True)
+        with open(SCHEMATIC_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        
+        if payload.anchors:
+            new_anchors = {}
+            for a in payload.anchors:
+                aid = a.get("id") or a.get("label")
+                if aid and "x" in a and "y" in a:
+                    new_anchors[aid] = (float(a["x"]), float(a["y"]))
+            if new_anchors:
+                shared['trilateration'].anchors = new_anchors
+                logger.info(f"📍 Updated {len(new_anchors)} anchor coordinates in live positioning solver.")
+        
+        logger.info(f"💾 Schematic '{payload.name}' saved and deployed to live system.")
+        return {"status": "ok", "message": f"Schematic '{payload.name}' deployed successfully"}
+    except Exception as e:
+        logger.error(f"Failed to save schematic: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save schematic: {e}")
 
 class TrainingRequest(BaseModel):
 

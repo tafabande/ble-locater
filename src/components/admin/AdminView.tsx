@@ -30,7 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'history', label: 'History' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'calibration', label: 'Calibration' },
-  { id: 'floor', label: 'Floor Plan' },
+  { id: 'floor', label: 'Schematic Studio' },
   { id: 'config', label: 'Configuration' },
 ]
 
