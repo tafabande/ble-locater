@@ -11,6 +11,7 @@ import { Analytics } from './Analytics'
 import { Calibration } from './Calibration'
 import { FloorEditor } from './FloorEditor'
 import { Configuration } from './Configuration'
+import { RoomDesignWizard } from './RoomDesignWizard'
 import { canAccess, type UserRole } from '../../lib/rbac'
 
 interface Props {
@@ -42,6 +43,8 @@ export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoin
   const selectedTag = sim.tags.find((t) => t.id === selected) ?? null
   const visibleTabs = TABS.filter((t) => canAccess(role, t.minRole))
 
+  const [showWizard, setShowWizard] = useState(false)
+
   if (!canAccess(role, 'admin')) {
     return (
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-100">
@@ -52,7 +55,7 @@ export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoin
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-1 overflow-x-auto border-b border-border">
+      <div className="flex gap-1 overflow-x-auto border-b border-border/40">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
@@ -69,6 +72,24 @@ export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoin
 
       {tab === 'overview' && (
         <div className="space-y-6">
+          {/* 3D Room Setup Launcher Banner */}
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-card p-5 shadow-xs">
+            <div>
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                🛠️ Interactive 3D Room Designer & BLE Node Setup
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+                Set 3D room dimensions, drag & drop furniture items onto the floorplan, plant fixed BLE anchor nodes, and configure mobile asset tags with live endpoint persistence (`/api/schematic`).
+              </p>
+            </div>
+            <button
+              onClick={() => setShowWizard(true)}
+              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-2 text-xs font-bold text-primary-foreground transition-all shadow-sm flex items-center gap-2"
+            >
+              🛠️ Open 3D Room Designer Wizard
+            </button>
+          </div>
+
           <StatTiles sim={sim} />
           <PipelineStatus pipeline={sim.pipeline} />
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_360px]">
@@ -83,7 +104,30 @@ export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoin
       {tab === 'history' && <History events={sim.events} alerts={sim.alerts} />}
       {tab === 'analytics' && <Analytics sim={sim} />}
       {tab === 'calibration' && <Calibration anchors={sim.anchors} />}
-      {tab === 'floor' && <FloorEditor mapItems={mapItems} onMapItems={onMapItems} />}
+      {tab === 'floor' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center bg-card p-4 rounded-xl shadow-xs">
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Interactive Schematic Studio</h3>
+              <p className="text-xs text-muted-foreground">Manage map geometry, furniture items, and anchor coordinates.</p>
+            </div>
+            <button
+              onClick={() => setShowWizard(true)}
+              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-2 text-xs font-bold text-primary-foreground transition-all shadow-sm flex items-center gap-2"
+            >
+              🛠️ Open 3D Room Setup Wizard
+            </button>
+          </div>
+          <FloorEditor mapItems={mapItems} onMapItems={onMapItems} />
+        </div>
+      )}
+
+      {showWizard && (
+        <RoomDesignWizard
+          onClose={() => setShowWizard(false)}
+          onSaved={() => setShowWizard(false)}
+        />
+      )}
       {tab === 'config' && (
         <Configuration
           anchors={sim.anchors}

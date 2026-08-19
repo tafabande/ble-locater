@@ -1001,8 +1001,10 @@ SCHEMATIC_FILE = os.path.join(PROJECT_ROOT, "models", "schematic.json")
 
 class SchematicPayload(BaseModel):
     name: Optional[str] = "Default Schematic"
-    dimensions: Optional[dict] = {"width": 10.0, "height": 10.0, "unit": "meters"}
+    dimensions: Optional[dict] = {"width": 10.0, "height": 10.0, "depth": 3.2, "unit": "meters"}
     anchors: Optional[List[dict]] = []
+    tags: Optional[List[dict]] = []
+    furniture: Optional[List[dict]] = []
     rooms: Optional[List[dict]] = []
     walls: Optional[List[dict]] = []
     blueprint: Optional[dict] = None
@@ -1017,8 +1019,9 @@ async def get_schematic():
             logger.warning(f"Could not read schematic file: {e}")
     
     return {
-        "name": "Hospital 4-Room Ward & ICU (Default)",
-        "dimensions": {"width": 10.0, "height": 10.0, "unit": "meters"},
+        "name": "Multi-Zone Positioning Facility (Default)",
+        "facility_type": "warehouse",
+        "dimensions": {"width": 10.0, "height": 10.0, "depth": 3.2, "unit": "meters"},
         "anchors": [
             {"id": "ANCHOR_01", "label": "Anchor 01", "x": 0.2, "y": 5.2, "txPower": -77.8, "channel": 37, "host": True},
             {"id": "ANCHOR_02", "label": "Anchor 02", "x": 4.8, "y": 5.2, "txPower": -77.8, "channel": 38, "host": False},
@@ -1033,11 +1036,21 @@ async def get_schematic():
             {"id": "ANCHOR_11", "label": "Anchor 11", "x": 9.8, "y": 0.2, "txPower": -77.8, "channel": 38, "host": False},
             {"id": "ANCHOR_12", "label": "Anchor 12", "x": 7.5, "y": 4.8, "txPower": -77.8, "channel": 39, "host": False},
         ],
+        "tags": [
+            {"id": "TAG_01", "label": "Tag 01 (Asset Alpha)", "x": 2.0, "y": 7.0, "z": 0.8},
+            {"id": "TAG_02", "label": "Tag 02 (Mobile Scanner)", "x": 6.5, "y": 2.5, "z": 0.9}
+        ],
+        "furniture": [
+            {"id": "rack_1", "type": "pallet_rack", "label": "Heavy Storage Rack A", "x": 1.5, "y": 6.5, "w": 2.5, "h": 1.2, "rotation": 0},
+            {"id": "desk_1", "type": "workstation", "label": "Operations Station", "x": 6.5, "y": 6.5, "w": 2.0, "h": 1.2, "rotation": 0},
+            {"id": "cart_1", "type": "forklift_bay", "label": "Loading Dock #1", "x": 1.5, "y": 1.5, "w": 1.5, "h": 1.0, "rotation": 0},
+            {"id": "cab_1", "type": "storage_cabinet", "label": "Inventory Cabinet", "x": 6.0, "y": 1.5, "w": 2.0, "h": 1.0, "rotation": 0}
+        ],
         "rooms": [
-            {"id": "room_a", "name": "Room A (ICU Bedroom 1)", "x": 0.0, "y": 5.0, "w": 5.0, "h": 5.0, "restricted": False},
-            {"id": "room_b", "name": "Room B (Patient Bedroom 2)", "x": 5.0, "y": 5.0, "w": 5.0, "h": 5.0, "restricted": False},
-            {"id": "room_c", "name": "Room C (Medical Station)", "x": 0.0, "y": 0.0, "w": 5.0, "h": 5.0, "restricted": False},
-            {"id": "room_d", "name": "Room D (Emergency Ward)", "x": 5.0, "y": 0.0, "w": 5.0, "h": 5.0, "restricted": True},
+            {"id": "room_a", "name": "Zone A (North Processing)", "x": 0.0, "y": 5.0, "w": 5.0, "h": 5.0, "restricted": False},
+            {"id": "room_b", "name": "Zone B (East Storage)", "x": 5.0, "y": 5.0, "w": 5.0, "h": 5.0, "restricted": False},
+            {"id": "room_c", "name": "Zone C (Central Dispatch)", "x": 0.0, "y": 0.0, "w": 5.0, "h": 5.0, "restricted": False},
+            {"id": "room_d", "name": "Zone D (Secure Holding)", "x": 5.0, "y": 0.0, "w": 5.0, "h": 5.0, "restricted": True},
         ],
         "walls": [
             {"id": "w1", "kind": "wall", "label": "Central Partition", "x": 4.9, "y": 0.0, "w": 0.2, "h": 10.0, "attenuation": 8.0},

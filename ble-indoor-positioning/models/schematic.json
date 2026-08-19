@@ -115,6 +115,8 @@
       "host": false
     }
   ],
+  "tags": [],
+  "furniture": [],
   "rooms": [
     {
       "id": "room_a",

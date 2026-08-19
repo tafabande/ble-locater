@@ -102,7 +102,7 @@ export default function App() {
             onDemo={() => setMode('demo')}
           />
         ) : (
-          <MonitorView sim={sim} mapItems={mapItems} selected={selected} onSelect={setSelected} focus={focus} onFocus={onFocus} />
+          <MonitorView sim={sim} mapItems={mapItems} selected={selected} onSelect={setSelected} focus={focus} onFocus={onFocus} role={role} />
         )
       )}
       {view === 'control' && <ControlView role={role} />}
