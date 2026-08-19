@@ -2,69 +2,69 @@
     "version": 1,
     "building_name": "Hospital Main Wing (Floor 1)",
     "firmware_version": "2.4.0-esp32",
-    "training_sessions": 24061,
+    "training_sessions": 25125,
     "anchors": {
-        "ANCHOR_08": {
-            "eta": 1.5,
-            "bias": 3.2856,
-            "samples": 206749
-        },
-        "ANCHOR_04": {
-            "eta": 1.5253,
-            "bias": 1.9968,
-            "samples": 226481
-        },
-        "ANCHOR_11": {
-            "eta": 1.5,
-            "bias": 2.686,
-            "samples": 109076
-        },
-        "ANCHOR_09": {
-            "eta": 1.5,
-            "bias": 1.7583,
-            "samples": 226250
-        },
-        "ANCHOR_07": {
-            "eta": 1.5,
-            "bias": 3.6493,
-            "samples": 145281
-        },
-        "ANCHOR_05": {
-            "eta": 1.5001,
-            "bias": 3.2972,
-            "samples": 196695
-        },
         "ANCHOR_01": {
             "eta": 1.5,
-            "bias": 1.5767,
-            "samples": 197822
+            "bias": 0.0,
+            "samples": 203528
         },
-        "ANCHOR_06": {
-            "eta": 1.5,
-            "bias": 2.4134,
-            "samples": 211402
-        },
-        "ANCHOR_12": {
-            "eta": 1.5,
-            "bias": 2.9841,
-            "samples": 226184
-        },
-        "ANCHOR_03": {
-            "eta": 1.5,
-            "bias": 1.5031,
-            "samples": 211211
-        },
-        "ANCHOR_02": {
-            "eta": 1.5118,
-            "bias": 1.9077,
-            "samples": 226259
+        "ANCHOR_04": {
+            "eta": 1.6845,
+            "bias": 0.0,
+            "samples": 233065
         },
         "ANCHOR_10": {
             "eta": 1.5,
-            "bias": 2.9464,
-            "samples": 207278
+            "bias": 0.0,
+            "samples": 213310
+        },
+        "ANCHOR_06": {
+            "eta": 1.5,
+            "bias": 0.0,
+            "samples": 217531
+        },
+        "ANCHOR_08": {
+            "eta": 1.5,
+            "bias": 0.0,
+            "samples": 212772
+        },
+        "ANCHOR_11": {
+            "eta": 1.5,
+            "bias": 0.0002,
+            "samples": 112261
+        },
+        "ANCHOR_05": {
+            "eta": 1.5001,
+            "bias": 0.0,
+            "samples": 202407
+        },
+        "ANCHOR_09": {
+            "eta": 1.5,
+            "bias": 0.0,
+            "samples": 232846
+        },
+        "ANCHOR_03": {
+            "eta": 1.5,
+            "bias": 0.0,
+            "samples": 217359
+        },
+        "ANCHOR_02": {
+            "eta": 1.5,
+            "bias": 0.0,
+            "samples": 232852
+        },
+        "ANCHOR_12": {
+            "eta": 1.5,
+            "bias": 0.0,
+            "samples": 232788
+        },
+        "ANCHOR_07": {
+            "eta": 1.5,
+            "bias": 0.0,
+            "samples": 149513
         }
     },
-    "total_samples": 2390688,
-    "last_updated": "2026-08-17T11:45:46Z"
+    "total_samples": 2460232,
+    "last_updated": "2026-08-18T20:14:35Z"
 }

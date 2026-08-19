@@ -10,6 +10,7 @@ import { ReportsView } from './components/reports/ReportsView'
 import { ConnectionScreen } from './components/ConnectionScreen'
 import { AlertToasts } from './components/AlertToasts'
 import { ErrorDiagnosticBanner } from './components/ErrorDiagnosticBanner'
+import { canAccess, type UserRole } from './lib/rbac'
 
 const DEFAULT_ENDPOINT = 'http://localhost:8000/api/state'
 
@@ -20,6 +21,7 @@ export default function App() {
   const [focus, setFocus] = useState<string | null>(null)
   const [interval, setIntervalMs] = useState(2500)
   const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT)
+  const [role, setRole] = useState<UserRole>(() => (localStorage.getItem('fleetview-role') as UserRole) || 'operator')
   const [mapItems, setMapItems] = useState<MapItem[]>(DEFAULT_MAP)
   const [now, setNow] = useState(Date.now())
   const [adminOpens, setAdminOpens] = useState(0)
@@ -36,6 +38,12 @@ export default function App() {
   useEffect(() => {
     if (view === 'admin') setAdminOpens((n) => n + 1)
   }, [view])
+
+  useEffect(() => {
+    localStorage.setItem('fleetview-role', role)
+    if (view === 'admin' && !canAccess(role, 'admin')) setView('monitor')
+    if ((view === 'control' || view === 'training') && !canAccess(role, 'operator')) setView('monitor')
+  }, [role, view])
 
   const sim = mode === 'demo' ? demo : live.state ?? EMPTY_STATE
   const hostAnchor = sim.anchors.find((a) => a.host)
@@ -61,6 +69,8 @@ export default function App() {
     <AppShell
       view={view}
       onView={setView}
+      role={role}
+      onRole={setRole}
       mode={mode}
       onMode={setMode}
       connStatus={mode === 'live' ? live.status : null}
@@ -95,8 +105,8 @@ export default function App() {
           <MonitorView sim={sim} mapItems={mapItems} selected={selected} onSelect={setSelected} focus={focus} onFocus={onFocus} />
         )
       )}
-      {view === 'control' && <ControlView />}
-      {view === 'training' && <TrainingView />}
+      {view === 'control' && <ControlView role={role} />}
+      {view === 'training' && <TrainingView role={role} />}
       {view === 'reports' && (
         <ReportsView
           sim={sim}
@@ -116,6 +126,7 @@ export default function App() {
           onEndpoint={setEndpoint}
           mapItems={mapItems}
           onMapItems={setMapItems}
+          role={role}
         />
       )}
     </AppShell>

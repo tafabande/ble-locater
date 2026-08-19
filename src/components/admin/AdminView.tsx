@@ -11,6 +11,7 @@ import { Analytics } from './Analytics'
 import { Calibration } from './Calibration'
 import { FloorEditor } from './FloorEditor'
 import { Configuration } from './Configuration'
+import { canAccess, type UserRole } from '../../lib/rbac'
 
 interface Props {
   sim: SimState
@@ -21,28 +22,38 @@ interface Props {
   onEndpoint: (v: string) => void
   mapItems: MapItem[]
   onMapItems: (items: MapItem[]) => void
+  role: UserRole
 }
 
 type Tab = 'overview' | 'history' | 'analytics' | 'calibration' | 'floor' | 'config'
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'history', label: 'History' },
-  { id: 'analytics', label: 'Analytics' },
-  { id: 'calibration', label: 'Calibration' },
-  { id: 'floor', label: 'Schematic Studio' },
-  { id: 'config', label: 'Configuration' },
+const TABS: { id: Tab; label: string; minRole: UserRole }[] = [
+  { id: 'overview', label: 'Overview', minRole: 'admin' },
+  { id: 'history', label: 'History', minRole: 'admin' },
+  { id: 'analytics', label: 'Analytics', minRole: 'admin' },
+  { id: 'calibration', label: 'Calibration', minRole: 'admin' },
+  { id: 'floor', label: 'Schematic Studio', minRole: 'admin' },
+  { id: 'config', label: 'Configuration', minRole: 'admin' },
 ]
 
-export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoint, mapItems, onMapItems }: Props) {
+export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoint, mapItems, onMapItems, role }: Props) {
   const [tab, setTab] = useState<Tab>('overview')
   const [selected, setSelected] = useState<string | null>(null)
   const selectedTag = sim.tags.find((t) => t.id === selected) ?? null
+  const visibleTabs = TABS.filter((t) => canAccess(role, t.minRole))
+
+  if (!canAccess(role, 'admin')) {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-100">
+        Admin role is required for calibration, map editing, and system configuration.
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex gap-1 overflow-x-auto border-b border-border">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}

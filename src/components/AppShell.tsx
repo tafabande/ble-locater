@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { clockTime } from '../lib/format'
 import type { ConnStatus, Mode } from '../lib/datasource'
+import { ROLE_LABELS, canAccess, type UserRole } from '../lib/rbac'
 import { SearchBar, type SearchItem } from './SearchBar'
 
 export type View = 'monitor' | 'control' | 'training' | 'admin' | 'reports'
@@ -8,6 +9,8 @@ export type View = 'monitor' | 'control' | 'training' | 'admin' | 'reports'
 interface Props {
   view: View
   onView: (v: View) => void
+  role: UserRole
+  onRole: (v: UserRole) => void
   mode: Mode
   onMode: (m: Mode) => void
   connStatus: ConnStatus | null
@@ -21,10 +24,11 @@ interface Props {
   children: ReactNode
 }
 
-const NAV: { id: View; label: string; icon: ReactNode }[] = [
+const NAV: { id: View; label: string; minRole: UserRole; icon: ReactNode }[] = [
   {
     id: 'monitor',
     label: 'Live Monitor',
+    minRole: 'viewer',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
         <circle cx="12" cy="12" r="2.5" />
@@ -35,7 +39,8 @@ const NAV: { id: View; label: string; icon: ReactNode }[] = [
   },
   {
     id: 'control',
-    label: 'Control Desk',
+    label: 'Operations',
+    minRole: 'operator',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
@@ -44,7 +49,8 @@ const NAV: { id: View; label: string; icon: ReactNode }[] = [
   },
   {
     id: 'training',
-    label: 'AI Studio',
+    label: 'ML Training',
+    minRole: 'operator',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
         <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
@@ -55,6 +61,7 @@ const NAV: { id: View; label: string; icon: ReactNode }[] = [
   {
     id: 'reports',
     label: 'Reports & Debug',
+    minRole: 'viewer',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -66,7 +73,8 @@ const NAV: { id: View; label: string; icon: ReactNode }[] = [
   },
   {
     id: 'admin',
-    label: 'Admin & Rules',
+    label: 'Admin',
+    minRole: 'admin',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
         <path d="M4 6h16M4 12h16M4 18h10" />
@@ -75,7 +83,8 @@ const NAV: { id: View; label: string; icon: ReactNode }[] = [
   },
 ]
 
-export function AppShell({ view, onView, mode, onMode, connStatus, now, hostSsid, online, total, searchItems, focus, onFocus, children }: Props) {
+export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus, now, hostSsid, online, total, searchItems, focus, onFocus, children }: Props) {
+  const visibleNav = NAV.filter((n) => canAccess(role, n.minRole))
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Sidebar (desktop) / top bar (mobile) */}
@@ -85,10 +94,11 @@ export function AppShell({ view, onView, mode, onMode, connStatus, now, hostSsid
           <ModeToggle mode={mode} onMode={onMode} />
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-          {NAV.map((n) => (
+          {visibleNav.map((n) => (
             <NavButton key={n.id} active={view === n.id} onClick={() => onView(n.id)} icon={n.icon} label={n.label} />
           ))}
         </nav>
+        <RoleSwitcher role={role} onRole={onRole} />
         <HostStatus mode={mode} connStatus={connStatus} ssid={hostSsid} online={online} total={total} />
       </aside>
 
@@ -96,7 +106,7 @@ export function AppShell({ view, onView, mode, onMode, connStatus, now, hostSsid
       <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
         <Brand compact />
         <div className="flex gap-1 rounded-full border border-border p-0.5">
-          {NAV.map((n) => (
+          {visibleNav.map((n) => (
             <button
               key={n.id}
               onClick={() => onView(n.id)}
@@ -111,9 +121,27 @@ export function AppShell({ view, onView, mode, onMode, connStatus, now, hostSsid
       </div>
 
       <main className="lg:pl-60">
-        <TopBar now={now} view={view} mode={mode} onMode={onMode} connStatus={connStatus} searchItems={searchItems} focus={focus} onFocus={onFocus} />
+        <TopBar now={now} view={view} role={role} mode={mode} onMode={onMode} connStatus={connStatus} searchItems={searchItems} focus={focus} onFocus={onFocus} />
         <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>
+    </div>
+  )
+}
+
+function RoleSwitcher({ role, onRole }: { role: UserRole; onRole: (r: UserRole) => void }) {
+  return (
+    <div className="border-t border-border px-5 py-4">
+      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Access role</label>
+      <select
+        value={role}
+        onChange={(e) => onRole(e.target.value as UserRole)}
+        className="w-full rounded-md border border-border bg-panel px-2 py-1.5 text-xs text-foreground"
+        title="Demonstration RBAC role for dissertation access control"
+      >
+        {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
+          <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+        ))}
+      </select>
     </div>
   )
 }
@@ -232,17 +260,17 @@ function HostStatus({ mode, connStatus, ssid, online, total }: { mode: Mode; con
   )
 }
 
-function TopBar({ now, view, mode, onMode, connStatus, searchItems, focus, onFocus }: { now: number; view: View; mode: Mode; onMode: (m: Mode) => void; connStatus: ConnStatus | null; searchItems: SearchItem[]; focus: string | null; onFocus: (id: string | null) => void }) {
+function TopBar({ now, view, role, mode, onMode, connStatus, searchItems, focus, onFocus }: { now: number; view: View; role: UserRole; mode: Mode; onMode: (m: Mode) => void; connStatus: ConnStatus | null; searchItems: SearchItem[]; focus: string | null; onFocus: (id: string | null) => void }) {
   return (
     <header className="flex items-center justify-between gap-4 border-b border-border bg-background/80 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
       <div className="min-w-0">
         <h1 className="truncate font-serif text-xl font-semibold tracking-tight sm:text-2xl">
-          {view === 'monitor' ? 'Indoor Positioning' : 'Administration'}
+          {view === 'monitor' ? 'Indoor Positioning' : view === 'control' ? 'Operations' : view === 'training' ? 'ML Training' : view === 'reports' ? 'Reports' : 'Administration'}
         </h1>
         <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
           {view === 'monitor'
             ? 'Real-time BLE tag movement across anchor mesh'
-            : 'History, analytics and node configuration'}
+            : `Signed in as ${ROLE_LABELS[role]}`}
         </p>
       </div>
       <div className="flex items-center gap-3">

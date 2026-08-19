@@ -5,6 +5,9 @@ import sqlite3
 import logging
 from dataclasses import dataclass
 from typing import List, Optional, Dict
+from sqlmodel import SQLModel, Session, select
+from server.db import create_db_engine, GeofenceAlert
+
 logger = logging.getLogger('GEOFENCE_ENGINE')
 
 @dataclass
@@ -20,42 +23,51 @@ class AlertHistoryDB:
         if db_path is None:
             db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models', 'alerts.db')
         self.db_path = db_path
+        self.engine = create_db_engine(self.db_path)
         self._init_db()
 
     def _init_db(self):
         try:
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('\n                    CREATE TABLE IF NOT EXISTS geofence_alerts (\n                        id INTEGER PRIMARY KEY AUTOINCREMENT,\n                        timestamp INTEGER,\n                        time_str TEXT,\n                        patient_id TEXT,\n                        from_room TEXT,\n                        to_room TEXT,\n                        severity TEXT,\n                        message TEXT,\n                        acknowledged INTEGER DEFAULT 0\n                    )\n                ')
-                conn.commit()
+            SQLModel.metadata.create_all(self.engine)
         except Exception as e:
             logger.error(f'Failed to initialize alerts database: {e}')
 
     def log_alert(self, alert_event: dict):
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('\n                    INSERT INTO geofence_alerts (timestamp, time_str, patient_id, from_room, to_room, severity, message, acknowledged)\n                    VALUES (?, ?, ?, ?, ?, ?, ?, 0)\n                ', (alert_event.get('timestamp_ms', int(time.time() * 1000)), alert_event.get('time', time.strftime('%H:%M:%S')), alert_event.get('patient', 'TAG_01'), alert_event.get('from', 'Unknown'), alert_event.get('to', 'Unknown'), alert_event.get('severity', 'LOW'), alert_event.get('message', '')))
-                conn.commit()
+            alert = GeofenceAlert(
+                timestamp=alert_event.get('timestamp_ms', int(time.time() * 1000)),
+                time_str=alert_event.get('time', time.strftime('%H:%M:%S')),
+                patient_id=alert_event.get('patient', 'TAG_01'),
+                from_room=alert_event.get('from', 'Unknown'),
+                to_room=alert_event.get('to', 'Unknown'),
+                severity=alert_event.get('severity', 'LOW'),
+                message=alert_event.get('message', ''),
+                acknowledged=0
+            )
+            with Session(self.engine) as session:
+                session.add(alert)
+                session.commit()
         except Exception as e:
             logger.error(f'Failed to insert alert into SQLite audit log: {e}')
 
     def get_recent_alerts(self, limit: int=50) -> List[dict]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute('SELECT * FROM geofence_alerts ORDER BY id DESC LIMIT ?', (limit,))
-                rows = cursor.fetchall()
-                return [dict(r) for r in rows]
+            with Session(self.engine) as session:
+                statement = select(GeofenceAlert).order_by(GeofenceAlert.id.desc()).limit(limit)
+                results = session.exec(statement).all()
+                return [r.model_dump() for r in results]
         except Exception as e:
             logger.error(f'Failed to read alerts from SQLite audit log: {e}')
             return []
 
     def clear_history(self):
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('DELETE FROM geofence_alerts')
-                conn.commit()
+            with Session(self.engine) as session:
+                alerts = session.exec(select(GeofenceAlert)).all()
+                for a in alerts:
+                    session.delete(a)
+                session.commit()
         except Exception as e:
             logger.error(f'Failed to clear alerts database: {e}')
 

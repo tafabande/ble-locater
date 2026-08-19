@@ -25,6 +25,9 @@ from localization.trilateration import TrilaterationEngine, KalmanFilter2D
 from learning.calibration_storage import CalibrationStorage
 from engineering.geofence_engine import GeofenceEngine
 from server.asset_registry import AssetRegistry, SearchEngine
+from sqlmodel import SQLModel, Session, select
+from server.db import create_db_engine, PositionHistory
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('BLE_SERVER')
 DEFAULT_ANCHORS_CONFIG = {'ANCHOR_01': (0.2, 5.2), 'ANCHOR_02': (4.8, 5.2), 'ANCHOR_03': (2.5, 9.8), 'ANCHOR_04': (5.2, 5.2), 'ANCHOR_05': (9.8, 5.2), 'ANCHOR_06': (7.5, 9.8), 'ANCHOR_07': (0.2, 0.2), 'ANCHOR_08': (4.8, 0.2), 'ANCHOR_09': (2.5, 4.8), 'ANCHOR_10': (5.2, 0.2), 'ANCHOR_11': (9.8, 0.2), 'ANCHOR_12': (7.5, 4.8)}
@@ -139,42 +142,52 @@ class PositionHistoryDB:
         if db_path is None:
             db_path = os.path.join(PROJECT_ROOT, 'models', 'position_history.db')
         self.db_path = db_path
+        self.engine = create_db_engine(self.db_path)
         self._init_db()
 
     def _init_db(self):
         try:
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('\n                    CREATE TABLE IF NOT EXISTS positions (\n                        id INTEGER PRIMARY KEY AUTOINCREMENT,\n                        timestamp_ms INTEGER,\n                        tag_id TEXT,\n                        x REAL,\n                        y REAL,\n                        uncertainty REAL,\n                        gdop REAL,\n                        zone TEXT,\n                        room TEXT\n                    )\n                ')
-                conn.execute('\n                    CREATE INDEX IF NOT EXISTS idx_positions_tag\n                    ON positions(tag_id, timestamp_ms)\n                ')
-                conn.commit()
+            SQLModel.metadata.create_all(self.engine)
         except Exception as e:
             logger.error(f'Failed to initialize position history database: {e}')
 
     def log_position(self, tag_id: str, position: dict):
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('\n                    INSERT INTO positions (timestamp_ms, tag_id, x, y, uncertainty, gdop, zone, room)\n                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n                ', (int(time.time() * 1000), tag_id, position.get('x', 0.0), position.get('y', 0.0), position.get('uncertainty', 0.0), position.get('gdop', 0.0), position.get('zone', 'Unknown'), position.get('room', 'Unknown')))
-                conn.commit()
-        except Exception as e:
-            logger.error(f'Failed to log position for {tag_id}: {e}')
+        max_retries = 3
+        pos_record = PositionHistory(
+            timestamp_ms=int(time.time() * 1000),
+            tag_id=tag_id,
+            x=position.get('x', 0.0),
+            y=position.get('y', 0.0),
+            uncertainty=position.get('uncertainty', 0.0),
+            gdop=position.get('gdop', 0.0),
+            zone=position.get('zone', 'Unknown'),
+            room=position.get('room', 'Unknown')
+        )
+        for attempt in range(max_retries):
+            try:
+                with Session(self.engine) as session:
+                    session.add(pos_record)
+                    session.commit()
+                return
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                logger.error(f'Failed to log position for {tag_id}: {e}')
+                break
 
     def get_history(self, tag_id: str=None, limit: int=500, since_ms: int=None) -> List[dict]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
+            with Session(self.engine) as session:
+                statement = select(PositionHistory)
                 if tag_id:
-                    if since_ms:
-                        cursor.execute('SELECT * FROM positions WHERE tag_id = ? AND timestamp_ms > ? ORDER BY timestamp_ms DESC LIMIT ?', (tag_id, since_ms, limit))
-                    else:
-                        cursor.execute('SELECT * FROM positions WHERE tag_id = ? ORDER BY timestamp_ms DESC LIMIT ?', (tag_id, limit))
-                elif since_ms:
-                    cursor.execute('SELECT * FROM positions WHERE timestamp_ms > ? ORDER BY timestamp_ms DESC LIMIT ?', (since_ms, limit))
-                else:
-                    cursor.execute('SELECT * FROM positions ORDER BY timestamp_ms DESC LIMIT ?', (limit,))
-                rows = cursor.fetchall()
-                return [dict(r) for r in rows]
+                    statement = statement.where(PositionHistory.tag_id == tag_id)
+                if since_ms:
+                    statement = statement.where(PositionHistory.timestamp_ms > since_ms)
+                statement = statement.order_by(PositionHistory.timestamp_ms.desc()).limit(limit)
+                results = session.exec(statement).all()
+                return [r.model_dump() for r in results]
         except Exception as e:
             logger.error(f'Failed to read position history: {e}')
             return []

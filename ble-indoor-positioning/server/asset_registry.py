@@ -4,6 +4,9 @@ import sqlite3
 import logging
 from typing import List, Optional, Dict, Tuple
 from dataclasses import dataclass
+from sqlmodel import SQLModel, Session, select, col
+from server.db import create_db_engine, Asset
+
 logger = logging.getLogger('ASSET_REGISTRY')
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOM_IDS = {'Room A (ICU Bedroom 1)': 'room_a', 'Room B (Patient Bedroom 2)': 'room_b', 'Room C (Medical Station)': 'room_c', 'Room D (Emergency Ward)': 'room_d'}
@@ -47,66 +50,70 @@ class AssetRegistry:
         if db_path is None:
             db_path = os.path.join(PROJECT_ROOT, 'models', 'asset_registry.db')
         self.db_path = db_path
+        self.engine = create_db_engine(self.db_path)
         self._init_db()
 
     def _init_db(self):
         try:
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("\n                    CREATE TABLE IF NOT EXISTS assets (\n                        id TEXT PRIMARY KEY,\n                        name TEXT NOT NULL,\n                        type TEXT DEFAULT 'equipment',\n                        department TEXT DEFAULT '',\n                        floor INTEGER DEFAULT 1,\n                        room TEXT DEFAULT '',\n                        ble_mac TEXT UNIQUE,\n                        status TEXT DEFAULT 'active',\n                        notes TEXT DEFAULT '',\n                        created_at INTEGER\n                    )\n                ")
-                conn.execute('CREATE INDEX IF NOT EXISTS idx_assets_mac ON assets(ble_mac)')
-                conn.execute('CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type)')
-                conn.execute('CREATE INDEX IF NOT EXISTS idx_assets_room ON assets(room)')
-                conn.commit()
-                cursor = conn.cursor()
-                cursor.execute('SELECT COUNT(*) FROM assets')
-                count = cursor.fetchone()[0]
+            SQLModel.metadata.create_all(self.engine)
+            with Session(self.engine) as session:
+                count = len(session.exec(select(Asset)).all())
                 if count == 0:
-                    self._seed_demo_data(conn)
+                    self._seed_demo_data(session)
         except Exception as e:
             logger.error(f'Failed to initialize asset registry: {e}')
 
-    def _seed_demo_data(self, conn):
+    def _seed_demo_data(self, session: Session):
         now = int(time.time() * 1000)
-        demo_assets = [('EQUIP-001', 'ECG Machine #01', 'medical_equipment', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'EC:G1:00:00:00:01', 'active', 'Portable 12-lead ECG'), ('EQUIP-002', 'ECG Machine #02', 'medical_equipment', 'Emergency Ward', 1, 'Room D (Emergency Ward)', 'EC:G2:00:00:00:02', 'active', 'Bedside monitor'), ('EQUIP-003', 'Infusion Pump #01', 'medical_equipment', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'PU:MP:00:00:00:03', 'active', 'IV infusion pump'), ('EQUIP-004', 'Wheelchair #03', 'mobility', 'Medical Station', 1, 'Room C (Medical Station)', 'WC:HR:00:00:00:04', 'active', 'Standard wheelchair'), ('EQUIP-005', 'Defibrillator #01', 'medical_equipment', 'Emergency Ward', 1, 'Room D (Emergency Ward)', 'DE:FB:00:00:00:05', 'active', 'AED defibrillator'), ('EQUIP-006', 'Portable X-Ray', 'medical_equipment', 'Medical Station', 1, 'Room C (Medical Station)', 'XR:AY:00:00:00:06', 'active', 'Mobile X-ray unit'), ('OFFICE-001', 'Printer #01', 'office_equipment', 'Medical Station', 1, 'Room C (Medical Station)', 'PR:NT:00:00:00:07', 'active', 'Network laser printer'), ('OFFICE-002', 'Medication Cart #02', 'supply_cart', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'CA:RT:00:00:00:08', 'active', 'Locked medication cart'), ('STAFF-001', 'Dr. Sarah Chen', 'staff', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'ST:AF:00:00:00:09', 'active', 'ICU attending physician'), ('STAFF-002', 'Nurse John', 'staff', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'ST:AF:00:00:00:10', 'active', 'Floor nurse'), ('PAT-001', 'Patient — Bed 1A', 'patient', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'PA:TN:00:00:00:11', 'active', 'ICU patient, bed 1A'), ('PAT-002', 'Patient — Bed 2B', 'patient', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'PA:TN:00:00:00:12', 'active', 'General ward patient')]
+        demo_assets = [
+            ('EQUIP-001', 'ECG Machine #01', 'medical_equipment', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'EC:G1:00:00:00:01', 'active', 'Portable 12-lead ECG'),
+            ('EQUIP-002', 'ECG Machine #02', 'medical_equipment', 'Emergency Ward', 1, 'Room D (Emergency Ward)', 'EC:G2:00:00:00:02', 'active', 'Bedside monitor'),
+            ('EQUIP-003', 'Infusion Pump #01', 'medical_equipment', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'PU:MP:00:00:00:03', 'active', 'IV infusion pump'),
+            ('EQUIP-004', 'Wheelchair #03', 'mobility', 'Medical Station', 1, 'Room C (Medical Station)', 'WC:HR:00:00:00:04', 'active', 'Standard wheelchair'),
+            ('EQUIP-005', 'Defibrillator #01', 'medical_equipment', 'Emergency Ward', 1, 'Room D (Emergency Ward)', 'DE:FB:00:00:00:05', 'active', 'AED defibrillator'),
+            ('EQUIP-006', 'Portable X-Ray', 'medical_equipment', 'Medical Station', 1, 'Room C (Medical Station)', 'XR:AY:00:00:00:06', 'active', 'Mobile X-ray unit'),
+            ('OFFICE-001', 'Printer #01', 'office_equipment', 'Medical Station', 1, 'Room C (Medical Station)', 'PR:NT:00:00:00:07', 'active', 'Network laser printer'),
+            ('OFFICE-002', 'Medication Cart #02', 'supply_cart', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'CA:RT:00:00:00:08', 'active', 'Locked medication cart'),
+            ('STAFF-001', 'Dr. Sarah Chen', 'staff', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'ST:AF:00:00:00:09', 'active', 'ICU attending physician'),
+            ('STAFF-002', 'Nurse John', 'staff', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'ST:AF:00:00:00:10', 'active', 'Floor nurse'),
+            ('PAT-001', 'Patient — Bed 1A', 'patient', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'PA:TN:00:00:00:11', 'active', 'ICU patient, bed 1A'),
+            ('PAT-002', 'Patient — Bed 2B', 'patient', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'PA:TN:00:00:00:12', 'active', 'General ward patient')
+        ]
         try:
-            conn.executemany('INSERT OR IGNORE INTO assets (id, name, type, department, floor, room, ble_mac, status, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], now) for a in demo_assets])
-            conn.commit()
+            for a in demo_assets:
+                asset_obj = Asset(id=a[0], name=a[1], type=a[2], department=a[3], floor=a[4], room=a[5], ble_mac=a[6], status=a[7], notes=a[8], created_at=now)
+                session.add(asset_obj)
+            session.commit()
             logger.info(f'🏷️ Seeded {len(demo_assets)} demo assets into registry.')
         except Exception as e:
             logger.error(f'Failed to seed demo assets: {e}')
 
     def get_all(self) -> List[dict]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute('SELECT * FROM assets ORDER BY type, name')
-                return [dict(r) for r in cursor.fetchall()]
+            with Session(self.engine) as session:
+                statement = select(Asset).order_by(Asset.type, Asset.name)
+                results = session.exec(statement).all()
+                return [r.model_dump() for r in results]
         except Exception as e:
             logger.error(f'Failed to fetch assets: {e}')
             return []
 
     def get_by_id(self, asset_id: str) -> Optional[dict]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute('SELECT * FROM assets WHERE id = ?', (asset_id,))
-                row = cursor.fetchone()
-                return dict(row) if row else None
+            with Session(self.engine) as session:
+                asset = session.get(Asset, asset_id)
+                return asset.model_dump() if asset else None
         except Exception as e:
             logger.error(f'Failed to fetch asset {asset_id}: {e}')
             return None
 
     def get_by_mac(self, ble_mac: str) -> Optional[dict]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute('SELECT * FROM assets WHERE ble_mac = ?', (ble_mac,))
-                row = cursor.fetchone()
-                return dict(row) if row else None
+            with Session(self.engine) as session:
+                statement = select(Asset).where(Asset.ble_mac == ble_mac)
+                asset = session.exec(statement).first()
+                return asset.model_dump() if asset else None
         except Exception as e:
             logger.error(f'Failed to fetch asset by MAC {ble_mac}: {e}')
             return None
@@ -114,10 +121,23 @@ class AssetRegistry:
     def create(self, asset_data: dict) -> Optional[dict]:
         try:
             now = int(time.time() * 1000)
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('INSERT INTO assets (id, name, type, department, floor, room, ble_mac, status, notes, created_at)\n                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (asset_data['id'], asset_data['name'], asset_data.get('type', 'equipment'), asset_data.get('department', ''), asset_data.get('floor', 1), asset_data.get('room', ''), asset_data.get('ble_mac', ''), asset_data.get('status', 'active'), asset_data.get('notes', ''), now))
-                conn.commit()
-            return self.get_by_id(asset_data['id'])
+            asset = Asset(
+                id=asset_data['id'],
+                name=asset_data['name'],
+                type=asset_data.get('type', 'equipment'),
+                department=asset_data.get('department', ''),
+                floor=asset_data.get('floor', 1),
+                room=asset_data.get('room', ''),
+                ble_mac=asset_data.get('ble_mac', ''),
+                status=asset_data.get('status', 'active'),
+                notes=asset_data.get('notes', ''),
+                created_at=now
+            )
+            with Session(self.engine) as session:
+                session.add(asset)
+                session.commit()
+                session.refresh(asset)
+                return asset.model_dump()
         except Exception as e:
             logger.error(f'Failed to create asset: {e}')
             return None
@@ -128,44 +148,49 @@ class AssetRegistry:
         if not fields:
             return self.get_by_id(asset_id)
         try:
-            set_clause = ', '.join((f'{k} = ?' for k in fields.keys()))
-            values = list(fields.values()) + [asset_id]
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(f'UPDATE assets SET {set_clause} WHERE id = ?', values)
-                conn.commit()
-            return self.get_by_id(asset_id)
+            with Session(self.engine) as session:
+                asset = session.get(Asset, asset_id)
+                if not asset:
+                    return None
+                for key, val in fields.items():
+                    setattr(asset, key, val)
+                session.add(asset)
+                session.commit()
+                session.refresh(asset)
+                return asset.model_dump()
         except Exception as e:
             logger.error(f'Failed to update asset {asset_id}: {e}')
             return None
 
     def delete(self, asset_id: str) -> bool:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('DELETE FROM assets WHERE id = ?', (asset_id,))
-                conn.commit()
-            return True
+            with Session(self.engine) as session:
+                asset = session.get(Asset, asset_id)
+                if asset:
+                    session.delete(asset)
+                    session.commit()
+                    return True
+                return False
         except Exception as e:
             logger.error(f'Failed to delete asset {asset_id}: {e}')
             return False
 
     def get_by_room(self, room_name: str) -> List[dict]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute('SELECT * FROM assets WHERE room LIKE ? ORDER BY name', (f'%{room_name}%',))
-                return [dict(r) for r in cursor.fetchall()]
+            with Session(self.engine) as session:
+                statement = select(Asset).where(col(Asset.room).contains(room_name)).order_by(Asset.name)
+                results = session.exec(statement).all()
+                return [r.model_dump() for r in results]
         except Exception as e:
             logger.error(f'Failed to fetch assets for room {room_name}: {e}')
             return []
 
     def get_by_type(self, asset_type: str) -> List[dict]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute('SELECT * FROM assets WHERE type = ? ORDER BY name', (asset_type,))
-                return [dict(r) for r in cursor.fetchall()]
+            with Session(self.engine) as session:
+                statement = select(Asset).where(Asset.type == asset_type).order_by(Asset.name)
+                results = session.exec(statement).all()
+                return [r.model_dump() for r in results]
         except Exception as e:
             logger.error(f'Failed to fetch assets of type {asset_type}: {e}')
             return []

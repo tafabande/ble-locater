@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { canAccess, type UserRole } from '../../lib/rbac'
 
 interface ModelMetrics {
   exists: boolean
@@ -32,11 +33,12 @@ interface TrainingStatus {
   tournament_leaderboard?: TournamentEntry[]
   top_features?: Record<string, number>
   datasets: { name: string; rows: number; type: string }[]
+  logs?: string[]
 }
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = ''
 
-export function TrainingView() {
+export function TrainingView({ role }: { role: UserRole }) {
   const [data, setData] = useState<TrainingStatus | null>(null)
   const [algorithm, setAlgorithm] = useState<string>('SuperLearner')
   const [lr, setLr] = useState<number>(0.08)
@@ -48,6 +50,7 @@ export function TrainingView() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isBackendOffline, setIsBackendOffline] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const canTrain = canAccess(role, 'admin')
 
   const fetchTrainingStatus = async () => {
     const controller = new AbortController()
@@ -71,18 +74,15 @@ export function TrainingView() {
       }
     } catch {
       clearTimeout(timer)
-      // Safe non-blocking fallback state when backend is offline
+      setIsBackendOffline(true)
       setData((prev) => prev ?? {
-        job: { status: 'IDLE', progress: 0, message: 'Ready to launch SuperLearner Pipeline' },
+        job: { status: 'ERROR', progress: 0, message: 'Python Location Engine is not reachable on port 8000.' },
         available_models: {
-          distance_estimator: { exists: true, algorithm: 'SuperLearner (CatBoost + XGBoost + RF)', mae_meters: 0.342, rmse: 0.521, r2_score: 0.941 },
-          zone_classifier: { exists: true, algorithm: 'CatBoostClassifier', accuracy: 0.968, f1_score: 0.965 }
+          distance_estimator: { exists: false, algorithm: 'Unavailable' },
+          zone_classifier: { exists: false, algorithm: 'Unavailable' }
         },
-        datasets: [
-          { name: 'observations.csv', rows: 45120, type: 'Real Experimental Data' },
-          { name: 'synthetic_observations.csv', rows: 8500, type: 'Synthetic Motion Data' },
-          { name: 'raw_packets.csv', rows: 1200, type: 'Hardware Session Packet Stream' }
-        ]
+        datasets: [],
+        logs: ['[ERROR] Could not contact the Python API. Start Stack from control.py, then retry.']
       })
     }
   }
@@ -94,6 +94,10 @@ export function TrainingView() {
   }, [])
 
   const startTournament = async () => {
+    if (!canTrain) {
+      setErrorMessage('Admin role required to start ML training.')
+      return
+    }
     setSubmitting(true)
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -138,6 +142,10 @@ export function TrainingView() {
   }
 
   const reloadModels = async () => {
+    if (!canTrain) {
+      setErrorMessage('Admin role required to reload trained model files.')
+      return
+    }
     setReloading(true)
     try {
       const res = await fetch(`${API_BASE}/api/models/reload`, {
@@ -216,12 +224,12 @@ export function TrainingView() {
           <div className="flex items-center gap-2">
             <button
               onClick={reloadModels}
-              disabled={reloading}
+              disabled={reloading || !canTrain}
               title="Hot-reload the latest models saved on disk directly into the active positioning engine"
               className="rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 text-xs font-semibold text-purple-200 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
             >
               <span className={reloading ? 'animate-spin' : ''}>🔄</span>
-              {reloading ? 'Reloading...' : 'Hot-Reload Models'}
+              {reloading ? 'Reloading...' : 'Reload Active Models'}
             </button>
 
             {jobStatus === 'TRAINING' && (
@@ -338,6 +346,12 @@ export function TrainingView() {
               <span>⚙️ Pipeline & Ensemble Settings</span>
             </h3>
 
+            {!canTrain && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-medium text-amber-200">
+                Operator can review training state and logs. Admin role is required to start training or reload models.
+              </div>
+            )}
+
             {/* Algorithm Selector */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Architecture / Stacking Ensemble</label>
@@ -406,7 +420,7 @@ export function TrainingView() {
             {/* Action Triggers with States */}
             <div className="space-y-2 pt-2">
               <button
-                disabled={isTraining}
+                disabled={isTraining || !canTrain}
                 onClick={startTournament}
                 className="w-full rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 px-4 py-2.5 text-xs font-semibold text-white transition-colors flex items-center justify-center gap-2 shadow-sm"
               >
@@ -441,6 +455,22 @@ export function TrainingView() {
                 </div>
               </div>
             )}
+            <div className="rounded-lg border border-border bg-slate-950 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-xs font-semibold text-slate-200">Training Log</h4>
+                <span className="text-[11px] text-slate-500">{data?.logs?.length ?? 0} recent entries</span>
+              </div>
+              <div className="max-h-40 space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-300">
+                {(data?.logs ?? ['Waiting for backend status...']).map((line, i) => (
+                  <div
+                    key={`${line}-${i}`}
+                    className={line.includes('[ERROR]') ? 'text-rose-400' : line.includes('[TRAINING]') ? 'text-purple-300' : 'text-slate-300'}
+                  >
+                    {line}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

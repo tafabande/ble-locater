@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { canAccess, type UserRole } from '../../lib/rbac'
 
 interface TestResult {
   status: string
@@ -16,11 +17,12 @@ interface ControlStatus {
   logs: string[]
 }
 
-export function ControlView() {
+export function ControlView({ role }: { role: UserRole }) {
   const [data, setData] = useState<ControlStatus | null>(null)
   const [filter, setFilter] = useState<string>('ALL')
   const [search, setSearch] = useState<string>('')
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
+  const canOperate = canAccess(role, 'operator')
 
   const fetchStatus = async () => {
     try {
@@ -30,18 +32,15 @@ export function ControlView() {
         setData(json)
       }
     } catch {
-      // Fallback mock data if server endpoint is disconnected
       setData((prev) => prev ?? {
         services: {
-          backend: { status: 'ACTIVE', port: 8000 },
+          backend: { status: 'OFFLINE', port: 8000 },
           simulator: { status: 'OFFLINE' },
           collector: { status: 'OFFLINE' },
         },
-        test_result: { status: 'ALL PASSED', passed: 14, failed: 0 },
+        test_result: { status: 'UNKNOWN', passed: 0, failed: 0 },
         logs: [
-          '[SYSTEM] Web Control Hub operational.',
-          '[LOCATION ENGINE] Serving room positioning data on port 8000.',
-          '[SIMULATOR] Virtual demo item generator ready.'
+          '[ERROR] Could not contact the Python API. Start the stack from control.py.',
         ]
       })
     }
@@ -54,6 +53,7 @@ export function ControlView() {
   }, [])
 
   const triggerAction = async (action: string) => {
+    if (!canOperate) return
     setLoadingAction(action)
     try {
       await fetch('/api/control/action', {
@@ -72,7 +72,7 @@ export function ControlView() {
   const services = [
     {
       id: 'backend',
-      name: '📍 Location Engine & Search Server',
+      name: 'Location Engine API',
       desc: 'Calculates room coordinates (Room A, B, C, D) and powers asset search.',
       status: data?.services?.backend?.status ?? 'ACTIVE',
       badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -81,7 +81,7 @@ export function ControlView() {
     },
     {
       id: 'simulator',
-      name: '🎮 Demo Motion Generator (Virtual Test)',
+      name: 'Demo Motion Generator',
       desc: 'Simulates tag motion across hospital rooms without hardware.',
       status: data?.services?.simulator?.status ?? 'OFFLINE',
       badgeColor: data?.services?.simulator?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20',
@@ -90,7 +90,7 @@ export function ControlView() {
     },
     {
       id: 'collector',
-      name: '📡 Physical Room Sensor Collector',
+      name: 'Physical Sensor Collector',
       desc: 'Reads real Bluetooth signals from USB hardware mounted on room walls.',
       status: data?.services?.collector?.status ?? 'OFFLINE',
       badgeColor: data?.services?.collector?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20',
@@ -116,6 +116,12 @@ export function ControlView() {
             <span className="text-xs text-muted-foreground font-normal">Real-time status</span>
           </h3>
 
+          {!canOperate && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-medium text-amber-200">
+              Viewer role can inspect service state and logs. Operator or Admin role is required to start and stop services.
+            </div>
+          )}
+
           <div className="space-y-3">
             {services.map((s) => (
               <div key={s.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -132,18 +138,18 @@ export function ControlView() {
                 {s.actionStart && (
                   <div className="flex gap-2 pt-1 border-t border-border/50">
                     <button
-                      disabled={s.status === 'ACTIVE' || loadingAction !== null}
+                      disabled={!canOperate || s.status === 'ACTIVE' || loadingAction !== null}
                       onClick={() => triggerAction(s.actionStart!)}
                       className="rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 px-3 py-1 text-xs font-medium text-white transition-colors"
                     >
-                      ▶ Turn On
+                      Start
                     </button>
                     <button
-                      disabled={s.status !== 'ACTIVE' || loadingAction !== null}
+                      disabled={!canOperate || s.status !== 'ACTIVE' || loadingAction !== null}
                       onClick={() => triggerAction(s.actionStop!)}
                       className="rounded-md bg-rose-600/80 hover:bg-rose-600 disabled:opacity-40 px-3 py-1 text-xs font-medium text-white transition-colors"
                     >
-                      ⏹ Turn Off
+                      Stop
                     </button>
                   </div>
                 )}
@@ -156,10 +162,10 @@ export function ControlView() {
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                  🧪 System Health Diagnostics
+                  System Health Check
                 </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Runs safety rule checks.
+                  Runs a short backend self-test and reports pass/fail counts.
                 </p>
               </div>
               <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
@@ -176,11 +182,11 @@ export function ControlView() {
                 Passed: <strong className="text-emerald-400">{data?.test_result?.passed ?? 0}</strong> | Failed: <strong className="text-rose-400">{data?.test_result?.failed ?? 0}</strong>
               </span>
               <button
-                disabled={loadingAction !== null}
+                disabled={!canOperate || loadingAction !== null}
                 onClick={() => triggerAction('run_tests')}
                 className="rounded-md bg-sky-600 hover:bg-sky-500 px-3 py-1 text-xs font-medium text-white transition-colors"
               >
-                ▶ Run Health Check
+                Run Health Check
               </button>
             </div>
           </div>
@@ -188,7 +194,7 @@ export function ControlView() {
 
         {/* Right Column: Activity Console */}
         <div className="space-y-4 lg:col-span-6">
-          <h3 className="text-sm font-semibold text-foreground">📋 System Activity Console</h3>
+          <h3 className="text-sm font-semibold text-foreground">Activity Log</h3>
 
           {/* Activity Console */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
