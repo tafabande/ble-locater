@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { SimState } from '../../lib/simulation'
 import type { Mode, ConnStatus } from '../../lib/datasource'
+import { canAccess, type UserRole } from '../../lib/rbac'
 
 interface Props {
   sim?: SimState
@@ -8,6 +9,7 @@ interface Props {
   onMode?: (m: Mode) => void
   connStatus?: ConnStatus | null
   endpoint?: string
+  role?: UserRole
 }
 
 interface MLModelStats {
@@ -26,6 +28,7 @@ export function ReportsView({
   onMode,
   connStatus = null,
   endpoint = 'http://localhost:8000/api/state',
+  role = 'operator',
 }: Props) {
   const [localMode, setLocalMode] = useState<Mode>(mode)
 
@@ -404,31 +407,33 @@ export function ReportsView({
             </div>
           )}
 
-          {/* DEBUG SUMMARY CARD */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-foreground border-b border-border/60 pb-2 flex items-center justify-between">
-              <span>🛠️ Quick Debug & Diagnostic Status</span>
-            </h3>
+          {/* DEBUG SUMMARY CARD (Operators & Admins Only) */}
+          {canAccess(role, 'operator') && (
+            <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground border-b border-border/60 pb-2 flex items-center justify-between">
+                <span>🛠️ Quick Debug & Diagnostic Status</span>
+              </h3>
 
-            <div className="space-y-2 text-xs text-muted-foreground">
-              <div className="flex justify-between">
-                <span>FastAPI Location Server:</span>
-                <strong className="text-emerald-400">ONLINE (Port 8000)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Vite Dashboard Microservice:</span>
-                <strong className="text-sky-400">ONLINE (Port 3000)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>SQLite Database File:</span>
-                <strong className="text-slate-200">positions.db (Intact)</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>ML Model Files:</span>
-                <strong className="text-purple-300">models/ (Loaded)</strong>
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>FastAPI Location Server:</span>
+                  <strong className="text-emerald-400">ONLINE (Port 8000)</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Vite Dashboard Microservice:</span>
+                  <strong className="text-sky-400">ONLINE (Port 3000)</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>SQLite Database File:</span>
+                  <strong className="text-slate-200">positions.db (Intact)</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>ML Model Files:</span>
+                  <strong className="text-purple-300">models/ (Loaded)</strong>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

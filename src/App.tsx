@@ -82,15 +82,17 @@ export default function App() {
       focus={focus}
       onFocus={onFocus}
     >
-      <ErrorDiagnosticBanner
-        mode={mode}
-        connStatus={mode === 'live' ? live.status : null}
-        error={live.error}
-        endpoint={endpoint}
-        sim={sim}
-        onRetry={live.retry}
-        onSwitchDemo={() => setMode('demo')}
-      />
+      {canAccess(role, 'operator') && (
+        <ErrorDiagnosticBanner
+          mode={mode}
+          connStatus={mode === 'live' ? live.status : null}
+          error={live.error}
+          endpoint={endpoint}
+          sim={sim}
+          onRetry={live.retry}
+          onSwitchDemo={() => setMode('demo')}
+        />
+      )}
 
       {view === 'monitor' && (
         showConnection ? (
@@ -114,6 +116,7 @@ export default function App() {
           onMode={setMode}
           connStatus={mode === 'live' ? live.status : null}
           endpoint={endpoint}
+          role={role}
         />
       )}
       {view === 'admin' && (
