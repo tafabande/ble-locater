@@ -758,6 +758,19 @@ class OperationsConsole:
 
         self._update_ml_diagnostics()
 
+    def _check_remote_training_status(self) -> dict:
+        """Fetch real-time ML training status from backend API if active."""
+        import urllib.request
+        try:
+            req = urllib.request.Request("http://127.0.0.1:8000/api/training/status", headers={"User-Agent": "OperationsConsole/1.0"})
+            with urllib.request.urlopen(req, timeout=0.6) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    return data.get("job", {})
+        except Exception:
+            pass
+        return {}
+
     def _update_ml_diagnostics(self) -> None:
         """Inspect models and datasets on disk and update the diagnostics card."""
         c = self.C
@@ -780,12 +793,28 @@ class OperationsConsole:
             except Exception:
                 pass
 
-        if has_dist and has_zone:
-            self.ml_status_badge.configure(text="● MODELS TRAINED & READY", fg=c["green"])
-        elif has_dist or has_zone:
-            self.ml_status_badge.configure(text="● PARTIALLY TRAINED", fg="#D97706")
+        remote_job = self._check_remote_training_status()
+        is_remote_training = remote_job.get("status") == "TRAINING"
+        is_pipeline_running = self._running("pipeline") or is_remote_training
+
+        if is_pipeline_running:
+            self.ml_status_badge.configure(text="● TRAINING IN PROGRESS", fg=c["blue"])
+            if is_remote_training:
+                pct = remote_job.get("progress", 50)
+                msg = remote_job.get("message", "ML Training in progress...")
+                self.ml_prog_bar["value"] = pct
+                self.ml_prog_lbl.configure(text=f"Progress ({pct}%): {msg}")
+            self.ml_test_btn.configure(state="disabled")
+            if self.selected_key == "pipeline":
+                self.detail_start_btn.configure(state="disabled")
         else:
-            self.ml_status_badge.configure(text="○ NOT TRAINED", fg=c["muted"])
+            self.ml_test_btn.configure(state="normal")
+            if has_dist and has_zone:
+                self.ml_status_badge.configure(text="● MODELS TRAINED & READY", fg=c["green"])
+            elif has_dist or has_zone:
+                self.ml_status_badge.configure(text="● PARTIALLY TRAINED", fg="#D97706")
+            else:
+                self.ml_status_badge.configure(text="○ NOT TRAINED", fg=c["muted"])
 
         # Parse champion metrics
         champ_name = "None"
@@ -1019,6 +1048,18 @@ class OperationsConsole:
     def start_service(self, key: str) -> None:
         service = next(s for s in self.services if s.key == key)
         self.user_stopped.discard(key)
+        if key == "pipeline":
+            remote_job = self._check_remote_training_status()
+            if self._running("pipeline") or remote_job.get("status") == "TRAINING":
+                self._log("ML Training pipeline is already running!", "Warning")
+                try:
+                    messagebox.showwarning(
+                        "Training in Progress",
+                        "ML Training pipeline is currently running. Duplicate execution prevented."
+                    )
+                except Exception:
+                    pass
+                return
         if self._running(key):
             self._log(f"{service.name} is already running.", "System")
             return

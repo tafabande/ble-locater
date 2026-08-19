@@ -88,7 +88,7 @@ export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus,
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Sidebar (desktop) / top bar (mobile) */}
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border bg-card lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border/40 bg-card shadow-xs lg:flex">
         <Brand />
         <div className="px-3 pt-4">
           <ModeToggle mode={mode} onMode={onMode} />
@@ -103,9 +103,9 @@ export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus,
       </aside>
 
       {/* Mobile top nav */}
-      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
+      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border/40 bg-card px-4 py-3 lg:hidden">
         <Brand compact />
-        <div className="flex gap-1 rounded-full border border-border p-0.5">
+        <div className="flex gap-1 rounded-full bg-panel p-0.5">
           {visibleNav.map((n) => (
             <button
               key={n.id}
@@ -130,12 +130,12 @@ export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus,
 
 function RoleSwitcher({ role, onRole }: { role: UserRole; onRole: (r: UserRole) => void }) {
   return (
-    <div className="border-t border-border px-5 py-4">
+    <div className="border-t border-border/40 px-5 py-4">
       <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Access role</label>
       <select
         value={role}
         onChange={(e) => onRole(e.target.value as UserRole)}
-        className="w-full rounded-md border border-border bg-panel px-2 py-1.5 text-xs text-foreground"
+        className="w-full rounded-md border-0 bg-panel px-2.5 py-1.5 text-xs text-foreground shadow-xs focus:outline-none"
         title="Demonstration RBAC role for dissertation access control"
       >
         {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
@@ -148,7 +148,7 @@ function RoleSwitcher({ role, onRole }: { role: UserRole; onRole: (r: UserRole) 
 
 function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-0.5 rounded-lg border border-border bg-panel p-0.5">
+    <div className="grid grid-cols-2 gap-0.5 rounded-lg bg-panel p-0.5 shadow-xs">
       {(['demo', 'live'] as const).map((m) => (
         <button
           key={m}
@@ -177,7 +177,7 @@ const CONN_META: Record<ConnStatus, { label: string; color: string }> = {
 function ConnBadge({ mode, connStatus }: { mode: Mode; connStatus: ConnStatus | null }) {
   if (mode === 'demo') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-panel px-2.5 py-1 text-[11px] font-medium">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-panel px-2.5 py-1 text-[11px] font-medium shadow-xs">
         <span className="size-1.5 rounded-full bg-accent" />
         Simulation data
       </span>
@@ -185,7 +185,7 @@ function ConnBadge({ mode, connStatus }: { mode: Mode; connStatus: ConnStatus | 
   }
   const m = CONN_META[connStatus ?? 'connecting']
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-panel px-2.5 py-1 text-[11px] font-medium">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-panel px-2.5 py-1 text-[11px] font-medium shadow-xs">
       <span
         className="size-1.5 rounded-full"
         style={{ background: m.color, animation: connStatus === 'connecting' ? 'pulse-dot 1.2s ease-in-out infinite' : undefined }}
@@ -197,7 +197,7 @@ function ConnBadge({ mode, connStatus }: { mode: Mode; connStatus: ConnStatus | 
 
 function Brand({ compact }: { compact?: boolean }) {
   return (
-    <div className={`flex items-center gap-2.5 ${compact ? '' : 'border-b border-border px-5 py-5'}`}>
+    <div className={`flex items-center gap-2.5 ${compact ? '' : 'border-b border-border/40 px-5 py-5'}`}>
       <div className="grid size-8 place-items-center rounded-md bg-accent text-primary-foreground">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4">
           <circle cx="12" cy="12" r="3" />
@@ -232,7 +232,7 @@ function HostStatus({ mode, connStatus, ssid, online, total }: { mode: Mode; con
   const color = dead ? 'var(--status-lost)' : 'var(--status-online)'
   const label = mode === 'demo' ? 'Simulated web server' : connStatus === 'connected' ? 'Web server live' : 'Web server unreachable'
   return (
-    <div className="border-t border-border px-5 py-4">
+    <div className="border-t border-border/40 px-5 py-4">
       <div className="mb-2 flex items-center gap-2">
         <span className="relative flex size-2">
           {!dead && <span className="absolute inline-flex size-full rounded-full opacity-60" style={{ background: color, animation: 'ping-ring 2s ease-out infinite' }} />}
@@ -262,7 +262,7 @@ function HostStatus({ mode, connStatus, ssid, online, total }: { mode: Mode; con
 
 function TopBar({ now, view, role, mode, onMode, connStatus, searchItems, focus, onFocus }: { now: number; view: View; role: UserRole; mode: Mode; onMode: (m: Mode) => void; connStatus: ConnStatus | null; searchItems: SearchItem[]; focus: string | null; onFocus: (id: string | null) => void }) {
   return (
-    <header className="flex items-center justify-between gap-4 border-b border-border bg-background/80 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
+    <header className="flex items-center justify-between gap-4 border-b border-border/40 bg-background/80 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
       <div className="min-w-0">
         <h1 className="truncate font-serif text-xl font-semibold tracking-tight sm:text-2xl">
           {view === 'monitor' ? 'Indoor Positioning' : view === 'control' ? 'Operations' : view === 'training' ? 'ML Training' : view === 'reports' ? 'Reports' : 'Administration'}

@@ -203,7 +203,7 @@ export function TrainingView({ role }: { role: UserRole }) {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-5">
+      <div className="rounded-xl bg-purple-500/10 p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-purple-300 flex items-center gap-2">
@@ -226,7 +226,7 @@ export function TrainingView({ role }: { role: UserRole }) {
               onClick={reloadModels}
               disabled={reloading || !canTrain}
               title="Hot-reload the latest models saved on disk directly into the active positioning engine"
-              className="rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 text-xs font-semibold text-purple-200 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              className="rounded-lg bg-purple-500/15 hover:bg-purple-500/25 px-3 py-1.5 text-xs font-semibold text-purple-200 transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
             >
               <span className={reloading ? 'animate-spin' : ''}>🔄</span>
               {reloading ? 'Reloading...' : 'Reload Active Models'}
@@ -341,7 +341,7 @@ export function TrainingView({ role }: { role: UserRole }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column: Model Training Configuration */}
         <div className="space-y-4 lg:col-span-6">
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="rounded-xl bg-card p-5 space-y-4 shadow-xs">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <span>⚙️ Pipeline & Ensemble Settings</span>
             </h3>
@@ -359,8 +359,9 @@ export function TrainingView({ role }: { role: UserRole }) {
                 {['SuperLearner', 'CatBoost', 'XGBoost', 'LightGBM', 'RandomForest'].map((algo) => (
                   <button
                     key={algo}
+                    disabled={isTraining || !canTrain}
                     onClick={() => setAlgorithm(algo)}
-                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors text-left ${
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed ${
                       algorithm === algo
                         ? 'border-purple-500/50 bg-purple-500/10 text-purple-300 font-bold shadow-sm'
                         : 'border-border bg-panel text-muted-foreground hover:text-foreground'
@@ -376,9 +377,10 @@ export function TrainingView({ role }: { role: UserRole }) {
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Observation Dataset</label>
               <select
+                disabled={isTraining || !canTrain}
                 value={dataset}
                 onChange={(e) => setDataset(e.target.value)}
-                className="w-full rounded-lg border border-border bg-panel px-3 py-2 text-xs text-foreground focus:outline-none"
+                className="w-full rounded-lg border border-border bg-panel px-3 py-2 text-xs text-foreground focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {(data?.datasets ?? []).map((ds) => (
                   <option key={ds.name} value={ds.name}>
@@ -394,12 +396,13 @@ export function TrainingView({ role }: { role: UserRole }) {
                 <label className="text-xs font-medium text-muted-foreground">Learning Rate ({lr})</label>
                 <input
                   type="range"
+                  disabled={isTraining || !canTrain}
                   min="0.01"
                   max="0.30"
                   step="0.01"
                   value={lr}
                   onChange={(e) => setLr(parseFloat(e.target.value))}
-                  className="w-full accent-purple-400"
+                  className="w-full accent-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -407,12 +410,13 @@ export function TrainingView({ role }: { role: UserRole }) {
                 <label className="text-xs font-medium text-muted-foreground">Trees / Estimators ({trees})</label>
                 <input
                   type="range"
+                  disabled={isTraining || !canTrain}
                   min="50"
                   max="1000"
                   step="50"
                   value={trees}
                   onChange={(e) => setTrees(parseInt(e.target.value))}
-                  className="w-full accent-purple-400"
+                  className="w-full accent-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -422,7 +426,7 @@ export function TrainingView({ role }: { role: UserRole }) {
               <button
                 disabled={isTraining || !canTrain}
                 onClick={startTournament}
-                className="w-full rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 px-4 py-2.5 text-xs font-semibold text-white transition-colors flex items-center justify-center gap-2 shadow-sm"
+                className="w-full rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-purple-900/60 disabled:hover:bg-purple-900/60 px-4 py-2.5 text-xs font-semibold text-white transition-all flex items-center justify-center gap-2 shadow-sm"
               >
                 {submitting ? (
                   <>
@@ -479,7 +483,7 @@ export function TrainingView({ role }: { role: UserRole }) {
           <h3 className="text-sm font-semibold text-foreground">📊 Champion ML Model Performance</h3>
 
           {/* Distance Estimator Card */}
-          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="rounded-xl bg-card p-4 space-y-3 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-medium text-foreground">📏 Distance Estimator Model</h4>
@@ -515,7 +519,7 @@ export function TrainingView({ role }: { role: UserRole }) {
           </div>
 
           {/* Zone Classifier Card */}
-          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="rounded-xl bg-card p-4 space-y-3 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-medium text-foreground">🏢 Room/Zone Classifier</h4>
@@ -546,7 +550,7 @@ export function TrainingView({ role }: { role: UserRole }) {
 
           {/* Tournament Top Leaderboard */}
           {data?.tournament_leaderboard && data.tournament_leaderboard.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4 space-y-2.5">
+            <div className="rounded-xl bg-card p-4 space-y-2.5 shadow-xs">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 🏆 Top SuperLearner Tournament Models
               </h4>

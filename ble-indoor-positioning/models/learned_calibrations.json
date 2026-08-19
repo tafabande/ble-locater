@@ -2,68 +2,69 @@
     "version": 1,
     "building_name": "Hospital Main Wing (Floor 1)",
     "firmware_version": "2.4.0-esp32",
-    "training_sessions": 25320,
+    "training_sessions": 25503,
     "anchors": {
         "ANCHOR_10": {
             "eta": 1.5,
-            "bias": 1.7413,
-            "samples": 214972
+            "bias": 2.925,
+            "samples": 216409
         },
         "ANCHOR_11": {
             "eta": 1.5,
-            "bias": 2.6075,
-            "samples": 113125
+            "bias": 2.3702,
+            "samples": 113868
         },
         "ANCHOR_09": {
             "eta": 1.5,
-            "bias": 1.0855,
-            "samples": 234636
+            "bias": 1.7532,
+            "samples": 236198
         },
         "ANCHOR_04": {
-            "eta": 1.5453,
-            "bias": 1.1603,
-            "samples": 234875
+            "eta": 1.5578,
+            "bias": 1.2386,
+            "samples": 236440
         },
         "ANCHOR_08": {
             "eta": 1.5,
-            "bias": 1.9435,
-            "samples": 214427
+            "bias": 2.7997,
+            "samples": 215846
         },
         "ANCHOR_01": {
-            "eta": 1.5,
-            "bias": 1.4728,
-            "samples": 205094
+            "eta": 1.5005,
+            "bias": 2.7516,
+            "samples": 206467
         },
         "ANCHOR_06": {
             "eta": 1.5,
-            "bias": 1.4638,
-            "samples": 219200
+            "bias": 2.242,
+            "samples": 220680
         },
         "ANCHOR_03": {
             "eta": 1.5,
-            "bias": 1.4365,
-            "samples": 219030
+            "bias": 1.8255,
+            "samples": 220488
         },
         "ANCHOR_12": {
             "eta": 1.5,
-            "bias": 1.7391,
-            "samples": 234592
+            "bias": 1.5826,
+            "samples": 236162
         },
         "ANCHOR_07": {
             "eta": 1.5,
-            "bias": 2.1257,
-            "samples": 150664
+            "bias": 2.7311,
+            "samples": 151682
         },
         "ANCHOR_02": {
-            "eta": 1.5312,
-            "bias": 1.3446,
-            "samples": 234653
+            "eta": 1.5543,
+            "bias": 1.3164,
+            "samples": 236202
         },
         "ANCHOR_05": {
-            "eta": 1.5001,
-            "bias": 2.3985,
-            "samples": 203969
+            "eta": 1.5,
+            "bias": 2.5275,
+            "samples": 205319
         }
     },
-    "total_samples": 2479237,
-    "last_updated": "2026-08-19T13:15:05Z"
+    "total_samples": 2495761,
+    "last_updated": "2026-08-19T13:26:53Z"
+}

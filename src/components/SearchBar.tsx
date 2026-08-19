@@ -57,7 +57,7 @@ export function SearchBar({ items, focus, onFocus }: Props) {
   // When something is isolated, show a pill instead of the input.
   if (focused) {
     return (
-      <div className="flex items-center gap-2 rounded-full border border-accent bg-accent-soft py-1 pl-3 pr-1 text-xs">
+      <div className="flex items-center gap-2 rounded-full bg-accent-soft py-1 pl-3 pr-1 text-xs shadow-xs">
         <span className="font-mono text-[10px] uppercase tracking-wider text-accent">{focused.kind}</span>
         <span className="font-medium text-foreground">{focused.label}</span>
         <button
@@ -75,7 +75,7 @@ export function SearchBar({ items, focus, onFocus }: Props) {
 
   return (
     <div ref={wrapRef} className="relative w-44 sm:w-64">
-      <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 focus-within:ring-2 focus-within:ring-ring">
+      <div className="flex items-center gap-2 rounded-full bg-card px-3.5 py-1.5 shadow-xs focus-within:ring-2 focus-within:ring-ring">
         <svg viewBox="0 0 16 16" className="size-3.5 shrink-0 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth="1.6">
           <circle cx="7" cy="7" r="4.5" />
           <path d="M11 11l3 3" />
@@ -91,7 +91,7 @@ export function SearchBar({ items, focus, onFocus }: Props) {
       </div>
 
       {open && matches.length > 0 && (
-        <ul className="absolute right-0 z-30 mt-2 w-full min-w-[240px] overflow-hidden rounded-lg border border-border bg-card py-1 shadow-lg">
+        <ul className="absolute right-0 z-30 mt-2 w-full min-w-[240px] overflow-hidden rounded-xl bg-card py-1 shadow-xl">
           {matches.map((m, i) => (
             <li key={`${m.kind}-${m.id}`}>
               <button

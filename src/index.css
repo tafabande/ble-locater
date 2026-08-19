@@ -41,8 +41,8 @@
   --muted-foreground: #6b7472;
   --accent: #0d9488;
   --accent-soft: rgba(13, 148, 136, 0.12);
-  --border: #e3e7e6;
-  --ring: rgba(13, 148, 136, 0.45);
+  --border: rgba(18, 22, 25, 0.06);
+  --ring: rgba(13, 148, 136, 0.35);
   --status-online: #0ca30c;
   --status-stale: #eda100;
   --status-lost: #d03b3b;

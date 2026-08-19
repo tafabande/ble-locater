@@ -143,17 +143,17 @@ export function ReportsView({
   return (
     <div className="space-y-6">
       {/* Header Banner with Mode Toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-card p-5 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-foreground">
               📊 System Performance, ML Quality & Debug Report
             </h2>
             <span
-              className={`rounded-md border px-2.5 py-0.5 text-xs font-semibold ${
+              className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${
                 localMode === 'live'
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                  : 'border-sky-500/30 bg-sky-500/10 text-sky-400'
+                  ? 'bg-emerald-500/15 text-emerald-400'
+                  : 'bg-sky-500/15 text-sky-400'
               }`}
             >
               {localMode === 'live' ? '🟢 Live Hardware Mode' : '🎮 Demo Mode'}
@@ -167,12 +167,12 @@ export function ReportsView({
         {/* Live / Demo Mode Toggle & Export Button */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Toggle Control */}
-          <div className="flex items-center rounded-lg border border-border bg-panel p-1">
+          <div className="flex items-center rounded-lg bg-panel p-1 shadow-xs">
             <button
               onClick={() => handleModeChange('demo')}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 localMode === 'demo'
-                  ? 'bg-sky-600 text-white shadow-sm'
+                  ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -182,7 +182,7 @@ export function ReportsView({
               onClick={() => handleModeChange('live')}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 localMode === 'live'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -192,7 +192,7 @@ export function ReportsView({
 
           <button
             onClick={handleExportJSON}
-            className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition-colors flex items-center gap-1.5"
+            className="rounded-lg bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition-colors flex items-center gap-1.5 shadow-xs"
           >
             💾 Export Report (JSON)
           </button>
@@ -200,7 +200,7 @@ export function ReportsView({
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex border-b border-border text-sm">
+      <div className="flex border-b border-border/30 text-sm">
         <button
           onClick={() => setActiveTab('all')}
           className={`border-b-2 px-4 py-2 font-medium transition-colors ${
