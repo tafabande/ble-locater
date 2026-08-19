@@ -1,0 +1,179 @@
+{
+  "name": "Hospital 4-Room Ward & ICU (Default)",
+  "dimensions": {
+    "width": 10.0,
+    "height": 10.0,
+    "unit": "meters"
+  },
+  "anchors": [
+    {
+      "id": "ANCHOR_01",
+      "label": "Anchor 01",
+      "x": 0.2,
+      "y": 5.2,
+      "txPower": -77.8,
+      "channel": 37,
+      "host": true
+    },
+    {
+      "id": "ANCHOR_02",
+      "label": "Anchor 02",
+      "x": 4.8,
+      "y": 5.2,
+      "txPower": -77.8,
+      "channel": 38,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_03",
+      "label": "Anchor 03",
+      "x": 2.5,
+      "y": 9.8,
+      "txPower": -77.8,
+      "channel": 39,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_04",
+      "label": "Anchor 04",
+      "x": 5.2,
+      "y": 5.2,
+      "txPower": -77.8,
+      "channel": 37,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_05",
+      "label": "Anchor 05",
+      "x": 9.8,
+      "y": 5.2,
+      "txPower": -77.8,
+      "channel": 38,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_06",
+      "label": "Anchor 06",
+      "x": 7.5,
+      "y": 9.8,
+      "txPower": -77.8,
+      "channel": 39,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_07",
+      "label": "Anchor 07",
+      "x": 0.2,
+      "y": 0.2,
+      "txPower": -77.8,
+      "channel": 37,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_08",
+      "label": "Anchor 08",
+      "x": 4.8,
+      "y": 0.2,
+      "txPower": -77.8,
+      "channel": 38,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_09",
+      "label": "Anchor 09",
+      "x": 2.5,
+      "y": 4.8,
+      "txPower": -77.8,
+      "channel": 39,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_10",
+      "label": "Anchor 10",
+      "x": 5.2,
+      "y": 0.2,
+      "txPower": -77.8,
+      "channel": 37,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_11",
+      "label": "Anchor 11",
+      "x": 9.8,
+      "y": 0.2,
+      "txPower": -77.8,
+      "channel": 38,
+      "host": false
+    },
+    {
+      "id": "ANCHOR_12",
+      "label": "Anchor 12",
+      "x": 7.5,
+      "y": 4.8,
+      "txPower": -77.8,
+      "channel": 39,
+      "host": false
+    }
+  ],
+  "rooms": [
+    {
+      "id": "room_a",
+      "name": "Room A (ICU Bedroom 1)",
+      "x": 0.0,
+      "y": 5.0,
+      "w": 5.0,
+      "h": 5.0,
+      "restricted": false
+    },
+    {
+      "id": "room_b",
+      "name": "Room B (Patient Bedroom 2)",
+      "x": 5.0,
+      "y": 5.0,
+      "w": 5.0,
+      "h": 5.0,
+      "restricted": false
+    },
+    {
+      "id": "room_c",
+      "name": "Room C (Medical Station)",
+      "x": 0.0,
+      "y": 0.0,
+      "w": 5.0,
+      "h": 5.0,
+      "restricted": false
+    },
+    {
+      "id": "room_d",
+      "name": "Room D (Emergency Ward)",
+      "x": 5.0,
+      "y": 0.0,
+      "w": 5.0,
+      "h": 5.0,
+      "restricted": true
+    }
+  ],
+  "walls": [
+    {
+      "id": "w1",
+      "kind": "wall",
+      "label": "Central Partition",
+      "x": 4.9,
+      "y": 0.0,
+      "w": 0.2,
+      "h": 10.0,
+      "attenuation": 8.0
+    },
+    {
+      "id": "w2",
+      "kind": "wall",
+      "label": "Horizontal Divider",
+      "x": 0.0,
+      "y": 4.9,
+      "w": 10.0,
+      "h": 0.2,
+      "attenuation": 8.0
+    }
+  ],
+  "blueprint": null
+}

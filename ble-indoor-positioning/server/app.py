@@ -544,6 +544,10 @@ def direct_online_learn(item: DirectLearningInput):
 
 @app.get('/api/state')
 def get_position_state(tag_id: Optional[str]=Query(None, description='Filter by specific tag MAC. If omitted, returns all tags.')):
+    if hasattr(tag_id, 'default'):
+        tag_id = tag_id.default if isinstance(tag_id.default, str) else None
+    elif not isinstance(tag_id, str):
+        tag_id = None
     tag_manager = shared['tag_manager']
     if tag_id:
         if tag_id not in tag_manager.tags:
@@ -568,6 +572,10 @@ def update_tag_label(update: TagLabelUpdate):
 
 @app.get('/api/alerts')
 def get_alerts(tag_id: Optional[str]=Query(None)):
+    if hasattr(tag_id, 'default'):
+        tag_id = tag_id.default if isinstance(tag_id.default, str) else None
+    elif not isinstance(tag_id, str):
+        tag_id = None
     if tag_id:
         if tag_id in shared['tag_manager'].tags:
             tag = shared['tag_manager'].tags[tag_id]
@@ -585,6 +593,10 @@ def get_alerts(tag_id: Optional[str]=Query(None)):
 
 @app.post('/api/alerts/clear')
 def clear_alerts(tag_id: Optional[str]=Query(None)):
+    if hasattr(tag_id, 'default'):
+        tag_id = tag_id.default if isinstance(tag_id.default, str) else None
+    elif not isinstance(tag_id, str):
+        tag_id = None
     if tag_id:
         if tag_id in shared['tag_manager'].tags:
             tag = shared['tag_manager'].tags[tag_id]
@@ -598,11 +610,33 @@ def clear_alerts(tag_id: Optional[str]=Query(None)):
 
 @app.get('/api/history')
 def get_position_history(tag_id: Optional[str]=Query(None), limit: int=Query(200, ge=1, le=5000), since_ms: Optional[int]=Query(None)):
+    if hasattr(tag_id, 'default'):
+        tag_id = tag_id.default if isinstance(tag_id.default, str) else None
+    elif not isinstance(tag_id, str):
+        tag_id = None
+    if hasattr(limit, 'default'):
+        limit = limit.default if isinstance(limit.default, int) else 200
+    else:
+        try: limit = int(limit)
+        except (ValueError, TypeError): limit = 200
+    if hasattr(since_ms, 'default'):
+        since_ms = since_ms.default if isinstance(since_ms.default, int) else None
     records = shared['position_db'].get_history(tag_id=tag_id, limit=limit, since_ms=since_ms)
     return {'history': records, 'count': len(records)}
 
 @app.get('/api/search')
 def search_assets(q: str=Query('', description='Search query string'), user_room: Optional[str]=Query(None, description="User's current room for proximity ranking"), limit: int=Query(20, ge=1, le=100)):
+    if hasattr(q, 'default'):
+        q = q.default if isinstance(q.default, str) else ''
+    if hasattr(user_room, 'default'):
+        user_room = user_room.default if isinstance(user_room.default, str) else None
+    elif not isinstance(user_room, str):
+        user_room = None
+    if hasattr(limit, 'default'):
+        limit = limit.default if isinstance(limit.default, int) else 20
+    else:
+        try: limit = int(limit)
+        except (ValueError, TypeError): limit = 20
     results = shared['search_engine'].search(query=q, user_room=user_room, tag_states=shared['tag_manager'].tags, limit=limit)
     return {'query': q, 'user_room': user_room, 'results': results, 'count': len(results)}
 
@@ -666,11 +700,20 @@ def delete_asset(asset_id: str):
 
 @app.get('/api/nearby')
 def get_nearby_assets(room: str=Query(..., description="User's current room name"), max_distance: int=Query(2, ge=0, le=5)):
+    if hasattr(room, 'default'):
+        room = room.default if isinstance(room.default, str) else ""
+    if hasattr(max_distance, 'default'):
+        max_distance = max_distance.default if isinstance(max_distance.default, int) else 2
+    else:
+        try: max_distance = int(max_distance)
+        except (ValueError, TypeError): max_distance = 2
     results = shared['search_engine'].get_nearby(user_room=room, tag_states=shared['tag_manager'].tags, max_distance=max_distance)
     return {'room': room, 'nearby': results, 'count': len(results)}
 
 @app.get('/api/map/context')
 def get_contextual_map(room: str=Query(..., description="User's current room name")):
+    if hasattr(room, 'default'):
+        room = room.default if isinstance(room.default, str) else ""
     data = shared['search_engine'].get_context_map(user_room=room, tag_states=shared['tag_manager'].tags)
     return data
 
@@ -835,8 +878,29 @@ async def handle_control_action(body: ControlAction):
     
     raise HTTPException(status_code=400, detail=f"Unknown action: {act}")
 
+def _is_pipeline_running() -> bool:
+    if HAS_PSUTIL:
+        try:
+            for p in psutil.process_iter(['name', 'cmdline']):
+                cmd = p.info.get('cmdline') or []
+                if any('pipeline.py' in str(arg) for arg in cmd):
+                    return True
+        except Exception:
+            pass
+    return False
+
 @app.get('/api/training/status')
 async def get_training_status():
+    if web_service_state["training_job"]["status"] != "TRAINING" and _is_pipeline_running():
+        web_service_state["training_job"] = {
+            "status": "TRAINING",
+            "progress": 50,
+            "message": "ML Training Pipeline running (via Operations Console)..."
+        }
+    elif web_service_state["training_job"]["status"] == "TRAINING" and not _is_pipeline_running():
+        # Process ended externally or completed
+        pass
+
     models_dir = os.path.join(PROJECT_ROOT, "models")
     meta_path = os.path.join(models_dir, "model_metadata.json")
     
@@ -997,7 +1061,8 @@ async def save_schematic(payload: SchematicPayload):
                 if aid and "x" in a and "y" in a:
                     new_anchors[aid] = (float(a["x"]), float(a["y"]))
             if new_anchors:
-                shared['trilateration'].anchors = new_anchors
+                shared['anchors_config'].update(new_anchors)
+                shared['trilateration_engine'] = TrilaterationEngine(shared['anchors_config'])
                 logger.info(f"📍 Updated {len(new_anchors)} anchor coordinates in live positioning solver.")
         
         logger.info(f"💾 Schematic '{payload.name}' saved and deployed to live system.")
@@ -1015,7 +1080,7 @@ class TrainingRequest(BaseModel):
 
 @app.post('/api/training/run')
 async def trigger_training_run(req: TrainingRequest):
-    if web_service_state["training_job"]["status"] == "TRAINING":
+    if web_service_state["training_job"]["status"] == "TRAINING" or _is_pipeline_running():
         raise HTTPException(status_code=400, detail="A training run is already in progress.")
     
     web_service_state["training_job"] = {

@@ -211,8 +211,19 @@ class SearchEngine:
         self.registry = registry
 
     def search(self, query: str, user_room: Optional[str]=None, tag_states: Optional[dict]=None, limit: int=20) -> List[dict]:
-        if not query or not query.strip():
+        if not isinstance(query, str) or not query.strip():
             return []
+        if hasattr(user_room, 'default'):
+            user_room = user_room.default if isinstance(user_room.default, str) else None
+        elif not isinstance(user_room, str):
+            user_room = None
+        if hasattr(limit, 'default'):
+            limit = limit.default if isinstance(limit.default, int) else 20
+        else:
+            try:
+                limit = int(limit)
+            except (ValueError, TypeError):
+                limit = 20
         query_lower = query.strip().lower()
         all_assets = self.registry.get_all()
         now = time.time()
@@ -308,6 +319,15 @@ class SearchEngine:
         return results[:limit]
 
     def get_nearby(self, user_room: str, tag_states: Optional[dict]=None, max_distance: int=2) -> List[dict]:
+        if hasattr(user_room, 'default'):
+            user_room = user_room.default if isinstance(user_room.default, str) else ""
+        if hasattr(max_distance, 'default'):
+            max_distance = max_distance.default if isinstance(max_distance.default, int) else 2
+        else:
+            try:
+                max_distance = int(max_distance)
+            except (ValueError, TypeError):
+                max_distance = 2
         all_assets = self.registry.get_all()
         now = time.time()
         results = []

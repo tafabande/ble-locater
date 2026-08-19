@@ -119,10 +119,11 @@ def test_predict_distance_fallback():
     assert isinstance(dist, float)
     assert 0.1 <= dist <= 25.0
 
-def test_online_learner_adaptation():
+def test_online_learner_adaptation(tmp_path):
     from server.app import OnlineDistanceLearner
     learner = OnlineDistanceLearner(learning_rate=0.2)
-    anchor = 'ANCHOR_01'
+    learner.calib_filepath = str(tmp_path / "test_calib.json")
+    anchor = 'TEST_ANCHOR_99'
     initial_calib = learner.calibrate_prediction(anchor, 3.0, -85)
     for _ in range(20):
         learner.learn_sample(anchor, rssi=-85, true_dist=5.0, raw_pred_dist=3.0)
