@@ -60,7 +60,7 @@ The project aims to demonstrate that integrating machine learning with classical
 Indoor positioning systems have gained significant attention due to their applications in:
 
 * Warehouse inventory management
-* Hospital equipment tracking
+* Smart facility asset tracking
 * Smart factories
 * University laboratories
 * Asset management

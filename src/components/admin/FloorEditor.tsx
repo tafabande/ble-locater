@@ -33,8 +33,8 @@ export interface SchematicData {
 }
 
 const TEMPLATES: Record<string, SchematicData> = {
-  hospital: {
-    name: 'Hospital 4-Room Ward & ICU',
+  facility: {
+    name: '4-Room Smart Facility Complex',
     dimensions: { width: 10, height: 10, unit: 'meters' },
     blueprint: null,
     blueprintOpacity: 0.35,
@@ -58,16 +58,16 @@ const TEMPLATES: Record<string, SchematicData> = {
       { id: 'ANCHOR_12', label: 'Room C (TR)', x: 48, y: 48, roomId: 'room_c', corner: 'top-right', txPower: -77.8, channel: 39, host: false },
     ],
     rooms: [
-      { id: 'room_a', name: 'Room A (ICU Bedroom 1)', x: 0, y: 50, w: 50, h: 50, restricted: false, allow: [], nodeCount: 4 },
-      { id: 'room_b', name: 'Room B (Patient Bedroom 2)', x: 50, y: 50, w: 50, h: 50, restricted: false, allow: [], nodeCount: 4 },
-      { id: 'room_c', name: 'Room C (Medical Station)', x: 0, y: 0, w: 50, h: 50, restricted: false, allow: [], nodeCount: 4 },
-      { id: 'room_d', name: 'Room D (Emergency Ward)', x: 50, y: 0, w: 50, h: 50, restricted: true, allow: ['WC:HR:00:00:00:04'], nodeCount: 4 },
+      { id: 'room_a', name: 'Room A (Executive Suite 1)', x: 0, y: 50, w: 50, h: 50, restricted: false, allow: [], nodeCount: 4 },
+      { id: 'room_b', name: 'Room B (Meeting Room 2)', x: 50, y: 50, w: 50, h: 50, restricted: false, allow: [], nodeCount: 4 },
+      { id: 'room_c', name: 'Room C (Operations Hub)', x: 0, y: 0, w: 50, h: 50, restricted: false, allow: [], nodeCount: 4 },
+      { id: 'room_d', name: 'Room D (Main Entrance)', x: 50, y: 0, w: 50, h: 50, restricted: true, allow: ['WC:HR:00:00:00:04'], nodeCount: 4 },
     ],
     walls: [
       { id: 'w1', kind: 'wall', label: 'Central Partition', x: 49, y: 0, w: 2, h: 100, attenuation: 8 },
       { id: 'w2', kind: 'wall', label: 'Horizontal Divider', x: 0, y: 49, w: 100, h: 2, attenuation: 8 },
-      { id: 'd1', kind: 'door', label: 'ICU Door', x: 22, y: 48.5, w: 6, h: 3, attenuation: 0 },
-      { id: 'd2', kind: 'door', label: 'Ward Door', x: 72, y: 48.5, w: 6, h: 3, attenuation: 0 },
+      { id: 'd1', kind: 'door', label: 'Zone A Door', x: 22, y: 48.5, w: 6, h: 3, attenuation: 0 },
+      { id: 'd2', kind: 'door', label: 'Zone D Door', x: 72, y: 48.5, w: 6, h: 3, attenuation: 0 },
     ],
   },
   office: {
@@ -107,7 +107,7 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
   const jsonInputRef = useRef<HTMLInputElement>(null)
 
   // Building & schematic dimensions
-  const [schematicName, setSchematicName] = useState('Hospital 4-Room Ward')
+  const [schematicName, setSchematicName] = useState('4-Room Facility Complex')
   const [buildingDims, setBuildingDims] = useState({ width: 10, height: 10, unit: 'meters' })
   const [blueprintImg, setBlueprintImg] = useState<string | null>(() => localStorage.getItem('rtls_blueprint_img'))
   const [blueprintOpacity, setBlueprintOpacity] = useState<number>(() => Number(localStorage.getItem('rtls_blueprint_opacity')) || 0.4)
@@ -116,12 +116,12 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
   // Anchors & Rooms state
   const [anchors, setAnchors] = useState<SchematicAnchor[]>(() => {
     const saved = localStorage.getItem('rtls_schematic_anchors')
-    return saved ? JSON.parse(saved) : TEMPLATES.hospital.anchors
+    return saved ? JSON.parse(saved) : TEMPLATES.facility.anchors
   })
 
   const [rooms, setRooms] = useState<SchematicRoom[]>(() => {
     const saved = localStorage.getItem('rtls_schematic_rooms')
-    return saved ? JSON.parse(saved) : TEMPLATES.hospital.rooms
+    return saved ? JSON.parse(saved) : TEMPLATES.facility.rooms
   })
 
   const [activeLayer, setActiveLayer] = useState<ActiveLayer>('rooms')

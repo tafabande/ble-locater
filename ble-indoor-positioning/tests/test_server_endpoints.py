@@ -5,7 +5,7 @@ from server.app import (
     get_control_status,
     handle_control_action, ControlAction,
     get_schematic, save_schematic, SchematicPayload,
-    get_training_status, reload_models,
+    get_training_status, reload_models, cancel_training_run,
     add_raw_packet, add_raw_packets_batch, PacketData,
     direct_online_learn, DirectLearningInput,
     get_position_state, list_tags, update_tag_label, TagLabelUpdate,
@@ -38,6 +38,11 @@ async def test_async_endpoints():
 
     train_status = await get_training_status()
     assert "available_models" in train_status
+    assert "last_successful_run" in train_status
+    assert "last_result" in train_status
+
+    cancel_res = await cancel_training_run()
+    assert cancel_res["status"] == "ok"
 
     reload_res = await reload_models()
     assert reload_res["status"] == "ok"
@@ -89,19 +94,23 @@ def test_sync_search_and_map_endpoints():
     search_res = search_assets(q="test")
     assert "results" in search_res
 
-    nearby_res = get_nearby_assets(room="Room A (ICU Bedroom 1)")
+    nearby_res = get_nearby_assets(room="Room A (Executive Suite 1)")
     assert "nearby" in nearby_res
 
-    context_map = get_contextual_map(room="Room A (ICU Bedroom 1)")
+    context_map = get_contextual_map(room="Room A (Executive Suite 1)")
     assert context_map is not None
 
 def test_sync_asset_crud_endpoints():
     test_id = "unit_test_asset_01"
+    try:
+        delete_asset(test_id)
+    except Exception:
+        pass
     create_dto = AssetCreate(
         id=test_id,
-        name="Unit Test Stretcher",
+        name="Unit Test Equipment",
         type="equipment",
-        department="ICU",
+        department="Operations",
         floor=1,
         room="Room A",
         ble_mac="TAG_TEST_01",
@@ -115,7 +124,7 @@ def test_sync_asset_crud_endpoints():
     assert "assets" in a_list
 
     a_single = get_asset(test_id)
-    assert a_single["name"] == "Unit Test Stretcher"
+    assert a_single["name"] == "Unit Test Equipment"
 
     upd_res = update_asset(test_id, AssetUpdate(notes="Updated notes"))
     assert upd_res["status"] == "success"

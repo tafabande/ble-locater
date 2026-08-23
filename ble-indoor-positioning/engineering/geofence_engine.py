@@ -95,7 +95,7 @@ class GeofenceEngine:
             self._load_default_rules()
 
     def _load_default_rules(self):
-        self.rules = [GeofenceRule('Room A', 'Room D', 'HIGH', '🚨 CRITICAL: Patient exited ICU (Room A) directly into Emergency Ward (Room D)!'), GeofenceRule('Room A', 'Room B', 'WARNING', '⚠️ WARNING: Patient exited ICU (Room A) into Patient Bedroom 2 (Room B).'), GeofenceRule('Room A', 'Room C', 'WARNING', '⚠️ WARNING: Patient exited ICU (Room A) into Medical Station (Room C).'), GeofenceRule('Room C', 'Room D', 'LOW', 'ℹ️ INFO: Tag moved from Medical Station (Room C) to Emergency Ward (Room D).')]
+        self.rules = [GeofenceRule('Room A', 'Room D', 'HIGH', '🚨 CRITICAL: Tag exited Executive Suite (Room A) directly into Main Entrance (Room D)!'), GeofenceRule('Room A', 'Room B', 'WARNING', '⚠️ WARNING: Tag exited Executive Suite (Room A) into Meeting Room 2 (Room B).'), GeofenceRule('Room A', 'Room C', 'WARNING', '⚠️ WARNING: Tag exited Executive Suite (Room A) into Operations Hub (Room C).'), GeofenceRule('Room C', 'Room D', 'LOW', 'ℹ️ INFO: Tag moved from Operations Hub (Room C) to Main Entrance (Room D).')]
 
     def evaluate_transition(self, tag_id: str, old_room: str, new_room: str) -> Optional[dict]:
         if not old_room or not new_room or old_room == new_room:
@@ -107,7 +107,7 @@ class GeofenceEngine:
                 break
         if not matched_rule:
             if 'Room A' in old_room:
-                matched_rule = GeofenceRule('Room A', new_room, 'HIGH', f'🚨 CRITICAL: Tag {tag_id} exited ICU (Room A) into {new_room}!')
+                matched_rule = GeofenceRule('Room A', new_room, 'HIGH', f'🚨 CRITICAL: Tag {tag_id} exited Executive Suite (Room A) into {new_room}!')
             else:
                 matched_rule = GeofenceRule(old_room, new_room, 'LOW', f'ℹ️ Tag {tag_id} moved from {old_room} to {new_room}.')
         timestamp_str = time.strftime('%H:%M:%S', time.localtime())

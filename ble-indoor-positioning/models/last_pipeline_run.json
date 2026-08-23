@@ -1,0 +1,12 @@
+{
+  "status": "CANCELLED",
+  "last_successful_run": "2026-08-19T16:22:47.148346",
+  "last_result": {
+    "status": "CANCELLED",
+    "timestamp": "2026-08-23T13:06:38.054700",
+    "duration": "Cancelled",
+    "algorithm": "End-to-End Pipeline",
+    "dataset": "observations.csv",
+    "message": "Pipeline execution cancelled by operator."
+  }
+}

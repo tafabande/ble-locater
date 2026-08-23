@@ -28,10 +28,10 @@ public class HUDTableUI : MonoBehaviour
 
     private string ResolveRoomName(float x, float z)
     {
-        if (x < 5.0f && z >= 5.0f) return "Room A (ICU Bedroom 1)";
-        if (x >= 5.0f && z >= 5.0f) return "Room B (Patient Bedroom 2)";
-        if (x < 5.0f && z < 5.0f) return "Room C (Medical Station)";
-        return "Room D (Emergency Ward)";
+        if (x < 5.0f && z >= 5.0f) return "Room A (Executive Suite 1)";
+        if (x >= 5.0f && z >= 5.0f) return "Room B (Meeting Room 2)";
+        if (x < 5.0f && z < 5.0f) return "Room C (Operations Hub)";
+        return "Room D (Main Entrance)";
     }
 
     void OnGUI()

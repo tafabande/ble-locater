@@ -22,6 +22,7 @@
 | `2026-08-05 19:34` | **Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)** | 32,728 | 54 | `Bayesian Ridge` | **1.5290m** | **0.0765** | 91.0% | **+37.6%** |
 | `2026-08-05 21:01` | **Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)** | 32,728 | 59 | `Bagging Ensemble` | **0.8751m** | **0.5834** | 93.8% | **+64.3%** |
 | `2026-08-17 00:50` | **Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)** | 32,728 | 59 | `Bagging Ensemble` | **0.8751m** | **0.5834** | 93.9% | **+64.3%** |
+| `2026-08-19 16:22` | **Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)** | 32,728 | 59 | `Bagging Ensemble` | **0.8751m** | **0.5834** | 93.9% | **+64.3%** |
 
 ## 🔬 Chronological Experiment Milestone Log
 
@@ -150,6 +151,15 @@
 
 ### Iteration 15: Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)
 - **Timestamp**: `2026-08-17 00:50:16`
+- **Dataset Size**: `32,728` observation windows
+- **Feature Set**: `59` extracted channels
+- **Champion Model**: `Bagging Ensemble`
+- **Performance Metrics**: Test MAE = `0.8751m` | RMSE = `1.1756m` | R² = `0.5834`
+- **Zone Classification**: `93.93%` Accuracy
+- **Key Methodology / Breakthrough**: In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection.
+
+### Iteration 16: Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)
+- **Timestamp**: `2026-08-19 16:22:47`
 - **Dataset Size**: `32,728` observation windows
 - **Feature Set**: `59` extracted channels
 - **Champion Model**: `Bagging Ensemble`

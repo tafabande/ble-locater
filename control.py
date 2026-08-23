@@ -591,6 +591,22 @@ class OperationsConsole:
         )
         self.ml_stats_lbl.pack(side="left", padx=(10, 0))
 
+        # Last Successful Run & Last Result rows
+        self.ml_run_info_frame = tk.Frame(self.ml_diag_frame, bg=c["bg"])
+        self.ml_run_info_frame.pack(fill="x", padx=12, pady=(2, 4))
+
+        self.ml_last_successful_lbl = tk.Label(
+            self.ml_run_info_frame, text="Last Successful Run: Loading...", bg=c["bg"],
+            fg=c["ink"], font=("Segoe UI", 8, "bold"), anchor="w",
+        )
+        self.ml_last_successful_lbl.pack(fill="x")
+
+        self.ml_last_result_lbl = tk.Label(
+            self.ml_run_info_frame, text="Last Result: Loading...", bg=c["bg"],
+            fg=c["muted"], font=("Segoe UI", 8), anchor="w", justify="left", wraplength=780,
+        )
+        self.ml_last_result_lbl.pack(fill="x", pady=(1, 0))
+
         # Artifacts checklist
         self.ml_artifacts_lbl = tk.Label(
             self.ml_diag_frame, text="", bg=c["bg"], fg=c["muted"],
@@ -633,7 +649,16 @@ class OperationsConsole:
             activebackground=c["border"],
             command=self._show_model_leaderboard,
         )
-        self.ml_leaderboard_btn.pack(side="left")
+        self.ml_leaderboard_btn.pack(side="left", padx=(0, 6))
+
+        self.ml_cancel_btn = tk.Button(
+            ml_tools, text="⛔ Cancel Pipeline Run",
+            bg=c["white"], fg=c["red"], font=("Segoe UI", 8, "bold"),
+            relief="solid", borderwidth=1, padx=10, pady=4, cursor="hand2",
+            activebackground=c["red_soft"], state="disabled",
+            command=self._cancel_pipeline_run,
+        )
+        self.ml_cancel_btn.pack(side="left")
 
     # ── Activity log (always visible) ────────────────────────────
 
@@ -774,87 +799,172 @@ class OperationsConsole:
     def _update_ml_diagnostics(self) -> None:
         """Inspect models and datasets on disk and update the diagnostics card."""
         c = self.C
-        models_dir = PROJECT_ROOT / "models"
-        datasets_dir = PROJECT_ROOT / "datasets"
-        meta_file = models_dir / "model_metadata.json"
-        dist_file = models_dir / "distance_estimator.joblib"
-        zone_file = models_dir / "zone_classifier.joblib"
-        obs_file = datasets_dir / "observations.csv"
+        try:
+            models_dir = PROJECT_ROOT / "models"
+            datasets_dir = PROJECT_ROOT / "datasets"
+            meta_file = models_dir / "model_metadata.json"
+            run_file = models_dir / "last_pipeline_run.json"
+            dist_file = models_dir / "distance_estimator.joblib"
+            zone_file = models_dir / "zone_classifier.joblib"
+            obs_file = datasets_dir / "observations.csv"
 
-        has_dist = dist_file.exists()
-        has_zone = zone_file.exists()
-        has_obs = obs_file.exists()
+            has_dist = dist_file.exists()
+            has_zone = zone_file.exists()
+            has_obs = obs_file.exists()
 
-        obs_count = 0
-        if has_obs:
-            try:
-                with open(obs_file, "r", encoding="utf-8", errors="ignore") as f:
-                    obs_count = max(0, sum(1 for _ in f) - 1)
-            except Exception:
-                pass
+            obs_count = 0
+            if has_obs:
+                try:
+                    with open(obs_file, "r", encoding="utf-8", errors="ignore") as f:
+                        obs_count = max(0, sum(1 for _ in f) - 1)
+                except Exception:
+                    pass
 
-        remote_job = self._check_remote_training_status()
-        is_remote_training = remote_job.get("status") == "TRAINING"
-        is_pipeline_running = self._running("pipeline") or is_remote_training
+            remote_job = self._check_remote_training_status()
+            is_remote_training = remote_job.get("status") == "TRAINING"
+            is_pipeline_running = self._running("pipeline") or is_remote_training
 
-        if is_pipeline_running:
-            self.ml_status_badge.configure(text="● TRAINING IN PROGRESS", fg=c["blue"])
-            if is_remote_training:
-                pct = remote_job.get("progress", 50)
-                msg = remote_job.get("message", "ML Training in progress...")
-                self.ml_prog_bar["value"] = pct
-                self.ml_prog_lbl.configure(text=f"Progress ({pct}%): {msg}")
-            self.ml_test_btn.configure(state="disabled")
-            if self.selected_key == "pipeline":
-                self.detail_start_btn.configure(state="disabled")
-        else:
-            self.ml_test_btn.configure(state="normal")
-            if has_dist and has_zone:
-                self.ml_status_badge.configure(text="● MODELS TRAINED & READY", fg=c["green"])
-            elif has_dist or has_zone:
-                self.ml_status_badge.configure(text="● PARTIALLY TRAINED", fg="#D97706")
+            # Parse champion metrics
+            champ_name = "None"
+            stats_txt = "No trained models found on disk"
+            if meta_file.exists():
+                try:
+                    with open(meta_file, "r", encoding="utf-8") as f:
+                        meta = json.load(f)
+                    champ_name = (
+                        meta.get("champion_model")
+                        or meta.get("distance_model", {}).get("best_model_type", "CatBoostRegressor")
+                    )
+                    metrics = meta.get("metrics", {})
+                    mae = metrics.get("test_mae") or meta.get("distance_model", {}).get("mae_meters")
+                    rmse = metrics.get("test_rmse") or meta.get("distance_model", {}).get("rmse")
+                    r2 = metrics.get("test_r2") or meta.get("distance_model", {}).get("r2_score")
+                    zone_acc = meta.get("zone_metrics", {}).get("accuracy") or meta.get("zone_model", {}).get("accuracy")
+
+                    parts = []
+                    if mae is not None:
+                        parts.append(f"MAE: {float(mae):.3f}m")
+                    if rmse is not None:
+                        parts.append(f"RMSE: {float(rmse):.3f}m")
+                    if r2 is not None:
+                        parts.append(f"R²: {float(r2):.2f}")
+                    if zone_acc is not None:
+                        parts.append(f"Zone Acc: {float(zone_acc)*100:.1f}%")
+                    if parts:
+                        stats_txt = " · ".join(parts)
+                except Exception:
+                    pass
+
+            # Load last pipeline run record
+            last_run_data = {}
+            if run_file.exists():
+                try:
+                    with open(run_file, "r", encoding="utf-8") as rf:
+                        last_run_data = json.load(rf)
+                except Exception:
+                    pass
+
+            # Format Last Successful Run timestamp
+            last_succ_ts = last_run_data.get("last_successful_run")
+            last_succ_str = "Never"
+            if last_succ_ts:
+                try:
+                    import datetime
+                    dt = datetime.datetime.fromisoformat(last_succ_ts)
+                    last_succ_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    last_succ_str = str(last_succ_ts)
+            elif meta_file.exists():
+                try:
+                    import datetime
+                    mtime = meta_file.stat().st_mtime
+                    dt = datetime.datetime.fromtimestamp(mtime)
+                    last_succ_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    pass
+
+            self.ml_last_successful_lbl.configure(text=f"Last Successful Run: {last_succ_str}")
+
+            # Format Last Result summary
+            last_res = last_run_data.get("last_result")
+            if last_res:
+                res_status = last_res.get("status", "UNKNOWN")
+                duration = last_res.get("duration", "N/A")
+                algo = last_res.get("algorithm", "Pipeline")
+                msg = last_res.get("message", "")
+                
+                if res_status == "COMPLETED":
+                    mae_val = last_res.get("mae_meters")
+                    r2_val = last_res.get("r2_score")
+                    acc_val = last_res.get("zone_accuracy")
+                    metrics_str = f"MAE: {mae_val}m · R²: {r2_val} · Zone Acc: {acc_val}%" if mae_val is not None else msg
+                    last_result_txt = f"Last Result: [{res_status}] {algo} ({duration}) — {metrics_str}"
+                elif res_status == "CANCELLED":
+                    last_result_txt = f"Last Result: [CANCELLED] Pipeline execution cancelled by operator ({duration})"
+                elif res_status in ("ERROR", "FAILED"):
+                    last_result_txt = f"Last Result: [FAILED] ❌ {msg} ({duration})"
+                else:
+                    last_result_txt = f"Last Result: [{res_status}] {msg}"
+            elif meta_file.exists():
+                last_result_txt = f"Last Result: [COMPLETED] {champ_name} — {stats_txt}"
             else:
-                self.ml_status_badge.configure(text="○ NOT TRAINED", fg=c["muted"])
+                last_result_txt = "Last Result: No recorded pipeline executions"
 
-        # Parse champion metrics
-        champ_name = "None"
-        stats_txt = "No trained models found on disk"
-        if meta_file.exists():
-            try:
-                with open(meta_file, "r", encoding="utf-8") as f:
-                    meta = json.load(f)
-                champ_name = (
-                    meta.get("champion_model")
-                    or meta.get("distance_model", {}).get("best_model_type", "CatBoostRegressor")
-                )
-                metrics = meta.get("metrics", {})
-                mae = metrics.get("test_mae") or meta.get("distance_model", {}).get("mae_meters")
-                rmse = metrics.get("test_rmse") or meta.get("distance_model", {}).get("rmse")
-                r2 = metrics.get("test_r2") or meta.get("distance_model", {}).get("r2_score")
-                zone_acc = meta.get("zone_metrics", {}).get("accuracy") or meta.get("zone_model", {}).get("accuracy")
+            self.ml_last_result_lbl.configure(text=last_result_txt)
 
-                parts = []
-                if mae is not None:
-                    parts.append(f"MAE: {float(mae):.3f}m")
-                if rmse is not None:
-                    parts.append(f"RMSE: {float(rmse):.3f}m")
-                if r2 is not None:
-                    parts.append(f"R²: {float(r2):.2f}")
-                if zone_acc is not None:
-                    parts.append(f"Zone Acc: {float(zone_acc)*100:.1f}%")
-                if parts:
-                    stats_txt = " · ".join(parts)
-            except Exception:
+            # Update status badge & cancel button state
+            if is_pipeline_running:
+                self.ml_status_badge.configure(text="● RUNNING IN PROGRESS", fg=c["blue"])
+                if is_remote_training:
+                    pct = remote_job.get("progress", 50)
+                    msg = remote_job.get("message", "ML Training in progress...")
+                    self.ml_prog_bar["value"] = pct
+                    self.ml_prog_lbl.configure(text=f"Progress ({pct}%): {msg}")
+                self.ml_test_btn.configure(state="disabled")
+                self.ml_cancel_btn.configure(state="normal")
+                if self.selected_key == "pipeline":
+                    self.detail_start_btn.configure(state="disabled")
+            else:
+                self.ml_test_btn.configure(state="normal")
+                self.ml_cancel_btn.configure(state="disabled")
+                last_st = last_run_data.get("status") or ("COMPLETED" if has_dist and has_zone else "IDLE")
+                if last_st == "COMPLETED" or (has_dist and has_zone):
+                    self.ml_status_badge.configure(text="● PIPELINE COMPLETED", fg=c["green"])
+                elif last_st == "CANCELLED":
+                    self.ml_status_badge.configure(text="● RUN CANCELLED", fg="#D97706")
+                elif last_st in ("ERROR", "FAILED"):
+                    self.ml_status_badge.configure(text="● RUN FAILED", fg=c["red"])
+                else:
+                    self.ml_status_badge.configure(text="○ PIPELINE IDLE", fg=c["muted"])
+
+            self.ml_champ_lbl.configure(text=f"Champion: {champ_name}")
+            self.ml_stats_lbl.configure(text=stats_txt)
+
+            # Artifacts checklist
+            art_dist = f"✓ distance_estimator.joblib ({dist_file.stat().st_size // 1024} KB)" if has_dist else "✗ distance_estimator.joblib"
+            art_zone = f"✓ zone_classifier.joblib ({zone_file.stat().st_size // 1024} KB)" if has_zone else "✗ zone_classifier.joblib"
+            art_obs = f"✓ observations.csv ({obs_count:,} samples)" if has_obs else "✗ observations.csv"
+            self.ml_artifacts_lbl.configure(text=f"Artefacts:  {art_dist}   |   {art_zone}   |   {art_obs}")
+        except Exception as e:
+            self._log(f"❌ [LOUD ERROR] Diagnostics card update error: {e}", "Error")
+            self.ml_status_badge.configure(text="● DIAGNOSTICS ERROR", fg=c["red"])
+            self.ml_last_result_lbl.configure(text=f"Last Result: [ERROR] ⚠️ Diagnostics failure: {e}")
+
+    def _cancel_pipeline_run(self) -> None:
+        """Cancel an active pipeline run locally or via API."""
+        self._log("Cancelling active training pipeline...", "Pipeline")
+        if self._running("pipeline"):
+            self.stop_service("pipeline")
+        
+        try:
+            import urllib.request
+            req = urllib.request.Request("http://127.0.0.1:8000/api/training/cancel", method="POST")
+            with urllib.request.urlopen(req, timeout=1.0) as resp:
                 pass
+        except Exception:
+            pass
 
-        self.ml_champ_lbl.configure(text=f"Champion: {champ_name}")
-        self.ml_stats_lbl.configure(text=stats_txt)
-
-        # Artifacts checklist
-        art_dist = f"✓ distance_estimator.joblib ({dist_file.stat().st_size // 1024} KB)" if has_dist else "✗ distance_estimator.joblib"
-        art_zone = f"✓ zone_classifier.joblib ({zone_file.stat().st_size // 1024} KB)" if has_zone else "✗ zone_classifier.joblib"
-        art_obs = f"✓ observations.csv ({obs_count:,} samples)" if has_obs else "✗ observations.csv"
-        self.ml_artifacts_lbl.configure(text=f"Artefacts:  {art_dist}   |   {art_zone}   |   {art_obs}")
+        self._update_ml_diagnostics()
 
     def _update_pipeline_progress(self, percent: int, stage: str) -> None:
         """Update the live progress bar and label from the UI thread."""
@@ -915,8 +1025,19 @@ class OperationsConsole:
                         import numpy as np
                         dist_model = joblib.load(dist_file)
                         zone_model = joblib.load(zone_file)
-                        # Create dummy feature vector (60 features)
-                        dummy_x = np.random.randn(1, 60)
+                        
+                        n_features = 59
+                        if meta_file.exists():
+                            try:
+                                with open(meta_file, "r", encoding="utf-8") as f:
+                                    meta_data = json.load(f)
+                                    feature_cols = meta_data.get("feature_cols") or meta_data.get("all_feature_cols")
+                                    if feature_cols:
+                                        n_features = len(feature_cols)
+                            except Exception:
+                                pass
+                        
+                        dummy_x = np.random.randn(1, n_features)
                         pred_dist = dist_model.predict(dummy_x)[0]
                         pred_zone = zone_model.predict(dummy_x)[0]
                         lines.append("  [PASS] Model Inference Smoke Test: SUCCESS")

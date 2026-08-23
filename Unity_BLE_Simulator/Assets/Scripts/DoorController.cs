@@ -17,20 +17,14 @@ public class DoorController : MonoBehaviour
 
     private Vector3 singleClosedPos;
     private Vector3 singleOpenPos;
-<<<<<<< HEAD
-=======
-    private Vector3 smoothVelocityLeft;
-    private Vector3 smoothVelocityRight;
->>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
     private Collider doorCollider;
-    private float currentOpenFactor = 0f; // 0 = Closed, 1 = Fully Open
+    private float currentOpenFactor = 0f;
 
     void Start()
     {
         doorCollider = GetComponent<Collider>();
 
-        // Auto-find panels if child objects exist
         if (leftPanel == null && transform.Find("LeftLeaf") != null) leftPanel = transform.Find("LeftLeaf");
         if (rightPanel == null && transform.Find("RightLeaf") != null) rightPanel = transform.Find("RightLeaf");
 
@@ -51,7 +45,6 @@ public class DoorController : MonoBehaviour
             singleOpenPos = singleClosedPos + offset;
         }
 
-        // Auto-find LED indicator
         if (statusLedLight == null)
         {
             Transform ledChild = transform.Find("StatusLED");
@@ -73,8 +66,8 @@ public class DoorController : MonoBehaviour
             if (hit.gameObject != gameObject && (
                 hit.name.Contains("True_Tag") || 
                 hit.name.Contains("Ghost_Tag") || 
-                hit.name.Contains("Dr_") || 
-                hit.name.Contains("Nurse_") || 
+                hit.name.Contains("User_") || 
+                hit.name.Contains("Personnel_") || 
                 hit.name.Contains("Visitor_") || 
                 hit.GetComponent<HumanWalker>() != null ||
                 hit.GetComponentInParent<HumanWalker>() != null
@@ -86,17 +79,8 @@ public class DoorController : MonoBehaviour
         }
 
         float targetFactor = shouldOpen ? 1.0f : 0.0f;
-<<<<<<< HEAD
-        // Smooth damped easing transition
         currentOpenFactor = Mathf.MoveTowards(currentOpenFactor, targetFactor, Time.deltaTime * openSpeed * 0.5f);
         float smoothEased = Mathf.SmoothStep(0f, 1f, currentOpenFactor);
-=======
-        // Realistic overshoot bounce easing transition
-        currentOpenFactor = Mathf.MoveTowards(currentOpenFactor, targetFactor, Time.deltaTime * openSpeed * 0.5f);
-        float t = currentOpenFactor;
-        float smoothEased = t < 0.5f ? 4f * t * t * t : 1f - Mathf.Pow(-2f * t + 2f, 3f) / 2f;
-        if (t > 0.8f) smoothEased += Mathf.Sin((t - 0.8f) * 15f) * 0.05f * (1f - t);
->>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
 
         if (leftPanel != null && rightPanel != null)
         {
@@ -108,7 +92,6 @@ public class DoorController : MonoBehaviour
             transform.position = Vector3.Lerp(singleClosedPos, singleOpenPos, smoothEased);
         }
 
-        // Update Door Status LED light (Red when closed, glowing Green when open)
         Color ledColor = Color.Lerp(new Color(1f, 0.1f, 0.1f), new Color(0.1f, 1f, 0.3f), smoothEased);
         if (statusLedLight != null)
         {

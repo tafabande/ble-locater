@@ -23,10 +23,10 @@ class CalibrationStorage:
                 return data
             except Exception as e:
                 logger.warning(f'⚠️ CalibrationStorage: Failed to load calibration file ({e}). Resetting to defaults.')
-        return {'version': 1, 'building_name': 'Hospital Main Wing (Floor 1)', 'firmware_version': '2.4.0-esp32', 'training_sessions': 1, 'anchors': {}, 'total_samples': 0, 'last_updated': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+        return {'version': 1, 'building_name': 'Smart Facility Complex (Floor 1)', 'firmware_version': '2.4.0-esp32', 'training_sessions': 1, 'anchors': {}, 'total_samples': 0, 'last_updated': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
 
     @classmethod
-    def save(cls, learner, filepath: str=None, building_name: str='Hospital Main Wing (Floor 1)', firmware_version: str='2.4.0-esp32') -> bool:
+    def save(cls, learner, filepath: str=None, building_name: str='Smart Facility Complex (Floor 1)', firmware_version: str='2.4.0-esp32') -> bool:
         target_path = filepath or cls.DEFAULT_FILEPATH
         with _save_lock:
             try:

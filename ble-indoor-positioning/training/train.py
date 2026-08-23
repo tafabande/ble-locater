@@ -291,8 +291,8 @@ def instantiate_candidates() -> dict:
         candidates['XGBoost Regressor'] = xgb
         candidates['XGBoost (Deep Tuned)'] = xgb_tuned
     if HAS_CATBOOST:
-        cat = CatBoostRegressor(iterations=400, learning_rate=0.05, depth=6, l2_leaf_reg=3.0, random_seed=RANDOM_STATE, verbose=0)
-        cat_deep = CatBoostRegressor(iterations=600, learning_rate=0.03, depth=8, l2_leaf_reg=5.0, bagging_temperature=0.5, random_seed=RANDOM_STATE, verbose=0)
+        cat = CatBoostRegressor(iterations=400, learning_rate=0.05, depth=6, l2_leaf_reg=3.0, random_seed=RANDOM_STATE, verbose=0, allow_writing_files=False)
+        cat_deep = CatBoostRegressor(iterations=600, learning_rate=0.03, depth=8, l2_leaf_reg=5.0, bagging_temperature=0.5, random_seed=RANDOM_STATE, verbose=0, allow_writing_files=False)
         candidates['CatBoost Regressor'] = cat
         candidates['CatBoost (Deep Tuned)'] = cat_deep
     if HAS_LIGHTGBM:
@@ -647,7 +647,7 @@ def instantiate_classification_candidates() -> dict:
     if HAS_XGBOOST:
         candidates['XGBoost Classifier'] = XGBClassifier(n_estimators=400, learning_rate=0.05, max_depth=6, subsample=0.8, colsample_bytree=0.8, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0, eval_metric='mlogloss')
     if HAS_CATBOOST:
-        candidates['CatBoost Classifier'] = CatBoostClassifier(iterations=400, learning_rate=0.05, depth=6, l2_leaf_reg=3.0, random_seed=RANDOM_STATE, verbose=0)
+        candidates['CatBoost Classifier'] = CatBoostClassifier(iterations=400, learning_rate=0.05, depth=6, l2_leaf_reg=3.0, random_seed=RANDOM_STATE, verbose=0, allow_writing_files=False)
     if HAS_LIGHTGBM:
         candidates['LightGBM Classifier'] = LGBMClassifier(n_estimators=400, learning_rate=0.05, max_depth=6, num_leaves=31, random_state=RANDOM_STATE, n_jobs=-1, verbose=-1)
     return candidates
@@ -877,6 +877,7 @@ def generate_plots(result: dict, output_dir: str, zone_result: dict=None):
             ax.set_ylim(0, 105)
             ax.set_title(f"Per-Zone Accuracy ({zone_result['zone_accuracy']}% overall)")
             ax.grid(True, alpha=0.3, axis='y')
+            ax.set_xticks(range(len(zone_labels)))
             ax.set_xticklabels(zone_labels, rotation=20, ha='right', fontsize=7)
             for bar in bars:
                 yval = bar.get_height()

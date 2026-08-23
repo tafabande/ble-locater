@@ -90,14 +90,14 @@ const DOMAIN_PALETTES: Record<DomainCategory, { label: string; icon: string; ite
       { type: 'pallet_jack', label: 'Pallet Jack Bay', w: 1.5, h: 0.8, icon: '🛒', bg: '#ea580c' }
     ]
   },
-  healthcare: {
-    label: 'Healthcare & Clinic',
-    icon: '🏥',
+  facility: {
+    label: 'Operations & Facilities',
+    icon: '🏢',
     items: [
-      { type: 'icu_bed', label: 'ICU Bed', w: 2.0, h: 1.2, icon: '🛏️', bg: '#2563eb' },
-      { type: 'patient_bed', label: 'Patient Bed', w: 2.0, h: 1.2, icon: '🛌', bg: '#059669' },
-      { type: 'crash_cart', label: 'Crash Cart', w: 1.0, h: 0.8, icon: '🛒', bg: '#dc2626' },
-      { type: 'nurses_desk', label: 'Nurses Station', w: 2.5, h: 1.2, icon: '🏥', bg: '#7c3aed' }
+      { type: 'workstation_desk', label: 'Workstation Desk', w: 2.0, h: 1.2, icon: '🖥️', bg: '#2563eb' },
+      { type: 'modular_desk', label: 'Modular Desk', w: 2.0, h: 1.2, icon: '💻', bg: '#059669' },
+      { type: 'utility_cart', label: 'Utility Cart', w: 1.0, h: 0.8, icon: '🛒', bg: '#dc2626' },
+      { type: 'ops_station', label: 'Operations Station', w: 2.5, h: 1.2, icon: '🏢', bg: '#7c3aed' }
     ]
   },
   custom: {

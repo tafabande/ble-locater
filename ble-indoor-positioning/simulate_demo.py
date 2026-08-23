@@ -8,7 +8,7 @@ import sys
 URL_SINGLE = 'http://127.0.0.1:8000/api/observation'
 URL_BATCH = 'http://127.0.0.1:8000/api/observation/batch'
 
-# 12 Anchors across 4 Rooms (Room A: ICU, Room B: Patient, Room C: Medical, Room D: Emergency)
+# 12 Anchors across 4 Rooms (Room A: Executive Suite, Room B: Meeting Room, Room C: Operations Hub, Room D: Main Entrance)
 ANCHORS = {
     'ANCHOR_01': (0.2, 5.2), 'ANCHOR_02': (4.8, 5.2), 'ANCHOR_03': (2.5, 9.8),  # Room A
     'ANCHOR_04': (5.2, 5.2), 'ANCHOR_05': (9.8, 5.2), 'ANCHOR_06': (7.5, 9.8),  # Room B
@@ -18,11 +18,11 @@ ANCHORS = {
 
 TAGS = [
     {'mac': '52:06:26:03:01:DA', 'name': 'SIMULATED_TAG', 'cx': 5.0, 'cy': 5.0, 'rx': 4.0, 'ry': 4.0, 'speed': 1.0},
-    {'mac': 'EC:G1:00:00:00:01', 'name': 'ECG Machine #01', 'cx': 2.5, 'cy': 7.5, 'rx': 1.8, 'ry': 1.8, 'speed': 0.8},
-    {'mac': 'WC:HR:00:00:00:04', 'name': 'Wheelchair #03', 'cx': 5.0, 'cy': 2.5, 'rx': 3.5, 'ry': 1.5, 'speed': 1.2},
-    {'mac': 'ST:AF:00:00:00:09', 'name': 'Dr. Sarah Chen', 'cx': 5.0, 'cy': 7.5, 'rx': 3.8, 'ry': 1.5, 'speed': 1.0},
-    {'mac': 'PA:TN:00:00:00:11', 'name': 'Patient — Bed 1A', 'cx': 2.5, 'cy': 7.5, 'rx': 0.5, 'ry': 0.5, 'speed': 0.3},
-    {'mac': 'CA:RT:00:00:00:08', 'name': 'Medication Cart #02', 'cx': 7.5, 'cy': 7.5, 'rx': 1.5, 'ry': 1.5, 'speed': 0.7},
+    {'mac': 'EC:G1:00:00:00:01', 'name': 'Laser Scanner #01', 'cx': 2.5, 'cy': 7.5, 'rx': 1.8, 'ry': 1.8, 'speed': 0.8},
+    {'mac': 'WC:HR:00:00:00:04', 'name': 'Utility Trolley #03', 'cx': 5.0, 'cy': 2.5, 'rx': 3.5, 'ry': 1.5, 'speed': 1.2},
+    {'mac': 'ST:AF:00:00:00:09', 'name': 'Sarah Chen (Exec)', 'cx': 5.0, 'cy': 7.5, 'rx': 3.8, 'ry': 1.5, 'speed': 1.0},
+    {'mac': 'PA:TN:00:00:00:11', 'name': 'Personnel Tag — Desk 1A', 'cx': 2.5, 'cy': 7.5, 'rx': 0.5, 'ry': 0.5, 'speed': 0.3},
+    {'mac': 'CA:RT:00:00:00:08', 'name': 'Equipment Storage Cart', 'cx': 7.5, 'cy': 7.5, 'rx': 1.5, 'ry': 1.5, 'speed': 0.7},
 ]
 
 def distance_to_rssi(d):
@@ -33,12 +33,12 @@ def distance_to_rssi(d):
     return max(-100, min(-30, int(rssi + noise)))
 
 def main():
-    parser = argparse.ArgumentParser(description='Simulate moving BLE hospital tags.')
+    parser = argparse.ArgumentParser(description='Simulate moving BLE asset tags.')
     parser.add_argument('--speed', type=float, default=1.0, help='Movement speed multiplier')
     args = parser.parse_args()
 
-    print('--- Hospital BLE Tag Simulation Started ---')
-    print('Simulating 6 live hospital tags across Room A, B, C, D...')
+    print('--- Indoor BLE Tag Simulation Started ---')
+    print('Simulating 6 live asset tags across Room A, B, C, D...')
     print('Press Ctrl+C to terminate.')
 
     t = 0.0

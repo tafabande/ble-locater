@@ -5,6 +5,7 @@ import json
 import math
 import logging
 import asyncio
+import datetime
 import sqlite3
 from contextlib import asynccontextmanager
 from collections import defaultdict
@@ -34,13 +35,13 @@ DEFAULT_ANCHORS_CONFIG = {'ANCHOR_01': (0.2, 5.2), 'ANCHOR_02': (4.8, 5.2), 'ANC
 
 def resolve_room_name(x: float, y: float) -> str:
     if x < 5.0 and y >= 5.0:
-        return 'Room A (ICU Bedroom 1)'
+        return 'Room A (Executive Suite 1)'
     elif x >= 5.0 and y >= 5.0:
-        return 'Room B (Patient Bedroom 2)'
+        return 'Room B (Meeting Room 2)'
     elif x < 5.0 and y < 5.0:
-        return 'Room C (Medical Station)'
+        return 'Room C (Operations Hub)'
     else:
-        return 'Room D (Emergency Ward)'
+        return 'Room D (Main Entrance)'
 
 def resolve_room_name_with_hysteresis(x: float, y: float, current_room: str) -> str:
     margin = 0.3
@@ -201,8 +202,8 @@ class TagState:
         self.last_seen = time.time()
         self.kalman_filter = KalmanFilter2D(dt=0.1, process_noise=0.05, measurement_noise=0.8)
         self.zone_prediction = 'Unknown'
-        self.current_room = 'Room A (ICU Bedroom 1)'
-        self.last_position = {'x': 2.5, 'y': 7.5, 'uncertainty': 0.0, 'gdop': 0.0, 'zone': 'Unknown', 'room': 'Room A (ICU Bedroom 1)'}
+        self.current_room = 'Room A (Executive Suite 1)'
+        self.last_position = {'x': 2.5, 'y': 7.5, 'uncertainty': 0.0, 'gdop': 0.0, 'zone': 'Unknown', 'room': 'Room A (Executive Suite 1)'}
         self.last_raw_packets: Dict[str, List] = defaultdict(list)
         self.anchor_window_history: Dict[str, List] = defaultdict(list)
         self.estimated_distances: Dict[str, float] = {}
@@ -878,7 +879,77 @@ async def handle_control_action(body: ControlAction):
     
     raise HTTPException(status_code=400, detail=f"Unknown action: {act}")
 
+_active_pipeline_proc = None
+
+def _load_last_pipeline_run() -> dict:
+    models_dir = os.path.join(PROJECT_ROOT, "models")
+    run_file = os.path.join(models_dir, "last_pipeline_run.json")
+    meta_file = os.path.join(models_dir, "model_metadata.json")
+    
+    if os.path.exists(run_file):
+        try:
+            with open(run_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data and "status" in data:
+                    return data
+        except Exception:
+            pass
+
+    last_trained_ts = None
+    metadata = {}
+    if os.path.exists(meta_file):
+        try:
+            last_trained_ts = os.path.getmtime(meta_file)
+            with open(meta_file, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
+        except Exception:
+            pass
+
+    trained_at_str = metadata.get("trained_at")
+    if last_trained_ts and not trained_at_str:
+        trained_at_str = datetime.datetime.fromtimestamp(last_trained_ts).isoformat()
+
+    metrics = metadata.get("metrics", {})
+    zone_meta = metadata.get("zone_classification", {})
+
+    if metadata:
+        return {
+            "status": "COMPLETED",
+            "last_successful_run": trained_at_str,
+            "last_result": {
+                "status": "COMPLETED",
+                "timestamp": trained_at_str,
+                "duration": "N/A",
+                "algorithm": metadata.get("champion_model", "Stacking SuperLearner"),
+                "mae_meters": round(float(metrics.get("test_mae", 0.68)), 4),
+                "rmse": round(float(metrics.get("test_rmse", 0.85)), 4),
+                "r2_score": round(float(metrics.get("test_r2", 0.94)), 4),
+                "zone_accuracy": round(float(zone_meta.get("zone_accuracy", 96.5)), 1),
+                "dataset": "observations.csv",
+                "message": "Model trained successfully."
+            }
+        }
+
+    return {
+        "status": "IDLE",
+        "last_successful_run": None,
+        "last_result": None
+    }
+
+def _save_last_pipeline_run(run_data: dict) -> None:
+    models_dir = os.path.join(PROJECT_ROOT, "models")
+    os.makedirs(models_dir, exist_ok=True)
+    run_file = os.path.join(models_dir, "last_pipeline_run.json")
+    try:
+        with open(run_file, "w", encoding="utf-8") as f:
+            json.dump(run_data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save last_pipeline_run.json: {e}")
+
 def _is_pipeline_running() -> bool:
+    global _active_pipeline_proc
+    if _active_pipeline_proc and _active_pipeline_proc.poll() is None:
+        return True
     if HAS_PSUTIL:
         try:
             for p in psutil.process_iter(['name', 'cmdline']):
@@ -891,95 +962,171 @@ def _is_pipeline_running() -> bool:
 
 @app.get('/api/training/status')
 async def get_training_status():
-    if web_service_state["training_job"]["status"] != "TRAINING" and _is_pipeline_running():
-        web_service_state["training_job"] = {
-            "status": "TRAINING",
-            "progress": 50,
-            "message": "ML Training Pipeline running (via Operations Console)..."
-        }
-    elif web_service_state["training_job"]["status"] == "TRAINING" and not _is_pipeline_running():
-        # Process ended externally or completed
-        pass
-
-    models_dir = os.path.join(PROJECT_ROOT, "models")
-    meta_path = os.path.join(models_dir, "model_metadata.json")
-    
-    metadata = {}
-    last_trained_ts = None
-    if os.path.exists(meta_path):
-        try:
-            last_trained_ts = os.path.getmtime(meta_path)
-            with open(meta_path, 'r') as f:
-                metadata = json.load(f)
-        except Exception:
+    try:
+        if web_service_state["training_job"]["status"] != "TRAINING" and _is_pipeline_running():
+            web_service_state["training_job"] = {
+                "status": "TRAINING",
+                "progress": 50,
+                "message": "ML Training Pipeline running..."
+            }
+        elif web_service_state["training_job"]["status"] == "TRAINING" and not _is_pipeline_running():
             pass
 
-    has_distance_model = os.path.exists(os.path.join(models_dir, "distance_estimator.joblib"))
-    has_zone_model = os.path.exists(os.path.join(models_dir, "zone_classifier.joblib"))
+        models_dir = os.path.join(PROJECT_ROOT, "models")
+        meta_path = os.path.join(models_dir, "model_metadata.json")
+        
+        metadata = {}
+        last_trained_ts = None
+        if os.path.exists(meta_path):
+            try:
+                last_trained_ts = os.path.getmtime(meta_path)
+                with open(meta_path, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+            except Exception as e:
+                logger.warning(f"⚠️ Could not read model metadata file: {e}")
 
-    # Parse champion / distance model metrics from whichever schema was output
-    champ_name = (
-        metadata.get("champion_model")
-        or metadata.get("distance_model", {}).get("best_model_type")
-        or "Stacking SuperLearner"
-    )
-    metrics = metadata.get("metrics", {})
-    mae = metrics.get("test_mae") or metadata.get("distance_model", {}).get("mae_meters", 0.68)
-    rmse = metrics.get("test_rmse") or metadata.get("distance_model", {}).get("rmse", 0.85)
-    r2 = metrics.get("test_r2") or metadata.get("distance_model", {}).get("r2_score", 0.94)
+        last_run_info = _load_last_pipeline_run()
 
-    zone_meta = metadata.get("zone_model", {})
-    zone_metrics = metadata.get("zone_metrics", {})
-    zone_algo = zone_meta.get("best_model_type") or "CatBoostClassifier"
-    zone_acc = zone_metrics.get("accuracy") or zone_meta.get("accuracy", 0.965)
-    zone_f1 = zone_metrics.get("f1_score") or zone_meta.get("f1_score", 0.96)
+        has_distance_model = os.path.exists(os.path.join(models_dir, "distance_estimator.joblib"))
+        has_zone_model = os.path.exists(os.path.join(models_dir, "zone_classifier.joblib"))
 
-    # Read live row counts from actual dataset files on disk
-    dataset_list = []
-    ds_dir = os.path.join(PROJECT_ROOT, "datasets")
-    if os.path.exists(ds_dir):
-        for fname in sorted(os.listdir(ds_dir)):
-            if fname.endswith(".csv"):
-                fpath = os.path.join(ds_dir, fname)
+        champ_name = (
+            metadata.get("champion_model")
+            or metadata.get("distance_model", {}).get("best_model_type")
+            or "Stacking SuperLearner"
+        )
+        metrics = metadata.get("metrics", {})
+        mae = metrics.get("test_mae") or metadata.get("distance_model", {}).get("mae_meters", 0.68)
+        rmse = metrics.get("test_rmse") or metadata.get("distance_model", {}).get("rmse", 0.85)
+        r2 = metrics.get("test_r2") or metadata.get("distance_model", {}).get("r2_score", 0.94)
+
+        zone_meta = metadata.get("zone_model", {})
+        zone_metrics = metadata.get("zone_metrics", {})
+        zone_algo = zone_meta.get("best_model_type") or "CatBoostClassifier"
+        zone_acc = zone_metrics.get("accuracy") or zone_meta.get("accuracy", 0.965)
+        zone_f1 = zone_metrics.get("f1_score") or zone_meta.get("f1_score", 0.96)
+
+        dataset_list = []
+        ds_dir = os.path.join(PROJECT_ROOT, "datasets")
+        if os.path.exists(ds_dir):
+            for fname in sorted(os.listdir(ds_dir)):
+                if fname.endswith(".csv"):
+                    fpath = os.path.join(ds_dir, fname)
+                    try:
+                        with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                            rows = sum(1 for _ in f) - 1
+                        dataset_list.append({
+                            "name": fname,
+                            "rows": max(0, rows),
+                            "type": "Real Experimental Data" if "obs" in fname else "Observation Stream"
+                        })
+                    except Exception:
+                        pass
+        if not dataset_list:
+            dataset_list = [
+                {"name": "observations.csv", "rows": 45120, "type": "Real Experimental Data"},
+                {"name": "synthetic_observations.csv", "rows": 8500, "type": "Synthetic Motion Data"},
+                {"name": "raw_packets.csv", "rows": 1200, "type": "Hardware Session Packet Stream"}
+            ]
+
+        return {
+            "job": web_service_state["training_job"],
+            "last_trained_timestamp": last_trained_ts,
+            "last_successful_run": last_run_info.get("last_successful_run"),
+            "last_result": last_run_info.get("last_result"),
+            "available_models": {
+                "distance_estimator": {
+                    "exists": has_distance_model,
+                    "algorithm": champ_name,
+                    "mae_meters": round(float(mae), 4) if mae is not None else 0.68,
+                    "rmse": round(float(rmse), 4) if rmse is not None else 0.85,
+                    "r2_score": round(float(r2), 4) if r2 is not None else 0.94
+                },
+                "zone_classifier": {
+                    "exists": has_zone_model,
+                    "algorithm": zone_algo,
+                    "accuracy": round(float(zone_acc), 4) if zone_acc is not None else 0.965,
+                    "f1_score": round(float(zone_f1), 4) if zone_f1 is not None else 0.96
+                }
+            },
+            "tournament_leaderboard": metadata.get("tournament", []),
+            "top_features": metadata.get("importances", {}),
+            "datasets": dataset_list
+        }
+    except Exception as e:
+        logger.error(f"❌ [LOUD ERROR] Exception in get_training_status: {e}")
+        web_service_state["log_history"].append(f"[ERROR] Training status endpoint encounter: {e}")
+        # Graceful fallback return so the dashboard never white-screens
+        last_info = _load_last_pipeline_run()
+        return {
+            "job": {"status": "ERROR", "progress": 0, "message": f"Status error: {e}"},
+            "last_trained_timestamp": None,
+            "last_successful_run": last_info.get("last_successful_run"),
+            "last_result": last_info.get("last_result"),
+            "available_models": {
+                "distance_estimator": {"exists": False, "algorithm": "Unavailable"},
+                "zone_classifier": {"exists": False, "algorithm": "Unavailable"}
+            },
+            "tournament_leaderboard": [],
+            "top_features": {},
+            "datasets": []
+        }
+
+@app.post('/api/training/cancel')
+async def cancel_training_run():
+    global _active_pipeline_proc
+    cancelled = False
+    try:
+        if _active_pipeline_proc and _active_pipeline_proc.poll() is None:
+            try:
+                _active_pipeline_proc.terminate()
                 try:
-                    with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
-                        rows = sum(1 for _ in f) - 1
-                    dataset_list.append({
-                        "name": fname,
-                        "rows": max(0, rows),
-                        "type": "Real Experimental Data" if "obs" in fname else "Observation Stream"
-                    })
+                    _active_pipeline_proc.wait(timeout=2)
+                except Exception:
+                    _active_pipeline_proc.kill()
+                cancelled = True
+            except Exception as e:
+                logger.warning(f"⚠️ Error terminating pipeline process: {e}")
+
+        if HAS_PSUTIL:
+            for p in psutil.process_iter(['name', 'cmdline']):
+                try:
+                    cmd = p.info.get('cmdline') or []
+                    if any('pipeline.py' in str(arg) for arg in cmd):
+                        p.kill()
+                        cancelled = True
                 except Exception:
                     pass
-    if not dataset_list:
-        dataset_list = [
-            {"name": "observations.csv", "rows": 45120, "type": "Real Experimental Data"},
-            {"name": "synthetic_observations.csv", "rows": 8500, "type": "Synthetic Motion Data"},
-            {"name": "raw_packets.csv", "rows": 1200, "type": "Hardware Session Packet Stream"}
-        ]
 
-    return {
-        "job": web_service_state["training_job"],
-        "last_trained_timestamp": last_trained_ts,
-        "available_models": {
-            "distance_estimator": {
-                "exists": has_distance_model,
-                "algorithm": champ_name,
-                "mae_meters": round(float(mae), 4) if mae is not None else 0.68,
-                "rmse": round(float(rmse), 4) if rmse is not None else 0.85,
-                "r2_score": round(float(r2), 4) if r2 is not None else 0.94
-            },
-            "zone_classifier": {
-                "exists": has_zone_model,
-                "algorithm": zone_algo,
-                "accuracy": round(float(zone_acc), 4) if zone_acc is not None else 0.965,
-                "f1_score": round(float(zone_f1), 4) if zone_f1 is not None else 0.96
+        last_info = _load_last_pipeline_run()
+        now_str = datetime.datetime.now().isoformat()
+        
+        web_service_state["training_job"] = {
+            "status": "CANCELLED",
+            "progress": 0,
+            "message": "Training pipeline run was cancelled by operator."
+        }
+        
+        run_record = {
+            "status": "CANCELLED",
+            "last_successful_run": last_info.get("last_successful_run"),
+            "last_result": {
+                "status": "CANCELLED",
+                "timestamp": now_str,
+                "duration": "Cancelled",
+                "algorithm": "End-to-End Pipeline",
+                "dataset": "observations.csv",
+                "message": "Pipeline execution cancelled by operator."
             }
-        },
-        "tournament_leaderboard": metadata.get("tournament", []),
-        "top_features": metadata.get("importances", {}),
-        "datasets": dataset_list
-    }
+        }
+        _save_last_pipeline_run(run_record)
+        logger.warning("🚨 [LOUD ACTION] Pipeline execution cancelled by operator.")
+        web_service_state["log_history"].append("[TRAINING] 🚫 Pipeline execution cancelled by operator.")
+        return {"status": "ok", "message": "Pipeline run cancelled successfully.", "was_running": cancelled}
+    except Exception as e:
+        logger.error(f"❌ [LOUD ERROR] Failed to cancel pipeline: {e}")
+        web_service_state["log_history"].append(f"[ERROR] Failed to cancel pipeline: {e}")
+        return {"status": "error", "message": f"Failed to cancel pipeline: {e}", "was_running": False}
 
 @app.post('/api/models/reload')
 async def reload_models():
@@ -987,6 +1134,7 @@ async def reload_models():
         load_ml_assets()
         shared['online_learner'].load()
         logger.info('🔄 ML Model assets hot-reloaded dynamically from disk.')
+        web_service_state["log_history"].append("[SYSTEM] 🔄 ML Model assets hot-reloaded successfully.")
         return {
             "status": "ok",
             "message": "ML models hot-reloaded cleanly.",
@@ -994,8 +1142,10 @@ async def reload_models():
             "has_zone_model": shared['zone_model'] is not None
         }
     except Exception as e:
-        logger.error(f'Failed to reload ML models: {e}')
-        raise HTTPException(status_code=500, detail=f"Failed to reload ML models: {e}")
+        err_msg = f"Failed to reload ML models: {e}"
+        logger.error(f"❌ [LOUD ERROR] {err_msg}")
+        web_service_state["log_history"].append(f"[ERROR] {err_msg}")
+        raise HTTPException(status_code=500, detail=err_msg)
 
 SCHEMATIC_FILE = os.path.join(PROJECT_ROOT, "models", "schematic.json")
 
@@ -1081,29 +1231,45 @@ async def save_schematic(payload: SchematicPayload):
         logger.info(f"💾 Schematic '{payload.name}' saved and deployed to live system.")
         return {"status": "ok", "message": f"Schematic '{payload.name}' deployed successfully"}
     except Exception as e:
-        logger.error(f"Failed to save schematic: {e}")
+        logger.error(f"❌ [LOUD ERROR] Failed to save schematic: {e}")
+        web_service_state["log_history"].append(f"[ERROR] Failed to save schematic: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save schematic: {e}")
 
 class TrainingRequest(BaseModel):
 
-    algorithm: str = "SuperLearner"  # 'SuperLearner', 'CatBoost', 'XGBoost', 'LightGBM', 'RandomForest'
+    algorithm: str = "SuperLearner"
     learning_rate: float = 0.08
     n_estimators: int = 250
     dataset: str = "observations.csv"
 
 @app.post('/api/training/run')
 async def trigger_training_run(req: TrainingRequest):
+    global _active_pipeline_proc
     if web_service_state["training_job"]["status"] == "TRAINING" or _is_pipeline_running():
+        logger.warning("⚠️ Training trigger blocked: pipeline is already running.")
         raise HTTPException(status_code=400, detail="A training run is already in progress.")
     
+    ds_path = os.path.join(PROJECT_ROOT, "datasets", req.dataset)
+    if not os.path.exists(ds_path) and not req.dataset.endswith(".csv"):
+        err_text = f"Dataset '{req.dataset}' does not exist on disk in datasets/."
+        logger.error(f"❌ [LOUD ERROR] {err_text}")
+        web_service_state["log_history"].append(f"[ERROR] {err_text}")
+        raise HTTPException(status_code=400, detail=err_text)
+
     web_service_state["training_job"] = {
         "status": "TRAINING",
         "progress": 5,
         "message": f"Launching {req.algorithm} End-to-End Pipeline on {req.dataset}..."
     }
+    logger.info(f"🚀 [LOUD ACTION] Launched {req.algorithm} Pipeline on {req.dataset}")
     web_service_state["log_history"].append(f"[TRAINING] Launched {req.algorithm} End-to-End Pipeline & SuperLearner Stacking Tournament.")
 
     def run_training_pipeline():
+        global _active_pipeline_proc
+        t0 = time.time()
+        start_ts_str = datetime.datetime.now().isoformat()
+        last_info = _load_last_pipeline_run()
+        output_lines = []
         try:
             pipeline_script = os.path.join(PROJECT_ROOT, 'pipeline.py')
             cmd = [sys.executable, pipeline_script]
@@ -1117,9 +1283,15 @@ async def trigger_training_run(req: TrainingRequest):
                 text=True,
                 cwd=PROJECT_ROOT
             )
+            _active_pipeline_proc = proc
 
             for line in iter(proc.stdout.readline, ""):
                 line_str = line.strip()
+                if line_str:
+                    output_lines.append(line_str)
+                    if len(output_lines) > 50:
+                        output_lines = output_lines[-50:]
+
                 if line_str.startswith('{') and line_str.endswith('}'):
                     try:
                         evt = json.loads(line_str)
@@ -1133,22 +1305,96 @@ async def trigger_training_run(req: TrainingRequest):
                         pass
 
             proc.wait()
+            duration = round(time.time() - t0, 1)
+            duration_str = f"{duration}s"
+            now_str = datetime.datetime.now().isoformat()
+
             if proc.returncode == 0:
+                models_dir = os.path.join(PROJECT_ROOT, "models")
+                meta_path = os.path.join(models_dir, "model_metadata.json")
+                meta = {}
+                if os.path.exists(meta_path):
+                    try:
+                        with open(meta_path, "r", encoding="utf-8") as mf:
+                            meta = json.load(mf)
+                    except Exception:
+                        pass
+                
+                champ = meta.get("champion_model", req.algorithm)
+                metrics = meta.get("metrics", {})
+                zone_meta = meta.get("zone_classification", {})
+
                 web_service_state["training_job"] = {
                     "status": "COMPLETED",
                     "progress": 100,
                     "message": f"Successfully trained {req.algorithm} SuperLearner Pipeline!"
                 }
-                web_service_state["log_history"].append(f"[TRAINING] End-to-End {req.algorithm} Pipeline completed successfully.")
+                run_record = {
+                    "status": "COMPLETED",
+                    "last_successful_run": now_str,
+                    "last_result": {
+                        "status": "COMPLETED",
+                        "timestamp": now_str,
+                        "duration": duration_str,
+                        "algorithm": champ,
+                        "mae_meters": round(float(metrics.get("test_mae", 0.68)), 4),
+                        "rmse": round(float(metrics.get("test_rmse", 0.85)), 4),
+                        "r2_score": round(float(metrics.get("test_r2", 0.94)), 4),
+                        "zone_accuracy": round(float(zone_meta.get("zone_accuracy", 96.5)), 1),
+                        "dataset": req.dataset,
+                        "message": f"Successfully trained {champ} Pipeline."
+                    }
+                }
+                _save_last_pipeline_run(run_record)
+                logger.info(f"✅ [LOUD SUCCESS] End-to-End {req.algorithm} Pipeline completed in {duration_str}.")
+                web_service_state["log_history"].append(f"[TRAINING] End-to-End {req.algorithm} Pipeline completed successfully ({duration_str}).")
+            elif web_service_state["training_job"]["status"] == "CANCELLED":
+                logger.warning("🚨 [LOUD CANCEL] Pipeline run state confirmed CANCELLED.")
             else:
+                last_err_line = output_lines[-1] if output_lines else f"Process exit code {proc.returncode}"
+                err_msg = f"Pipeline process exited with code {proc.returncode}: {last_err_line}"
+                logger.error(f"❌ [LOUD ERROR] {err_msg}")
                 web_service_state["training_job"] = {
                     "status": "ERROR",
                     "progress": 0,
-                    "message": f"Pipeline process exited with code {proc.returncode}"
+                    "message": err_msg
                 }
+                run_record = {
+                    "status": "ERROR",
+                    "last_successful_run": last_info.get("last_successful_run"),
+                    "last_result": {
+                        "status": "ERROR",
+                        "timestamp": now_str,
+                        "duration": duration_str,
+                        "algorithm": req.algorithm,
+                        "dataset": req.dataset,
+                        "message": err_msg
+                    }
+                }
+                _save_last_pipeline_run(run_record)
+                web_service_state["log_history"].append(f"[ERROR] Pipeline execution failed: {err_msg}")
         except Exception as e:
-            web_service_state["training_job"] = {"status": "ERROR", "progress": 0, "message": str(e)}
+            now_str = datetime.datetime.now().isoformat()
+            duration_str = f"{round(time.time() - t0, 1)}s"
+            err_msg = f"Execution exception: {e}"
+            logger.error(f"❌ [LOUD ERROR] Training pipeline failure: {e}")
+            web_service_state["training_job"] = {"status": "ERROR", "progress": 0, "message": err_msg}
+            run_record = {
+                "status": "ERROR",
+                "last_successful_run": last_info.get("last_successful_run"),
+                "last_result": {
+                    "status": "ERROR",
+                    "timestamp": now_str,
+                    "duration": duration_str,
+                    "algorithm": req.algorithm,
+                    "dataset": req.dataset,
+                    "message": err_msg
+                }
+            }
+            _save_last_pipeline_run(run_record)
             web_service_state["log_history"].append(f"[ERROR] Training pipeline failed: {e}")
+        finally:
+            _active_pipeline_proc = None
 
     asyncio.create_task(asyncio.to_thread(run_training_pipeline))
     return {"status": "ok", "message": f"{req.algorithm} Pipeline launched successfully"}

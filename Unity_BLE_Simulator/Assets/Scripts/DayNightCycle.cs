@@ -63,29 +63,24 @@ public class DayNightCycle : MonoBehaviour
         {
             sunLight.transform.rotation = Quaternion.Euler(sunAngle, -30f, 0f);
 
-            // Interpolate color and intensity based on sun height
             float sunElevation = Mathf.Sin(timeOfDayNormalized * Mathf.PI * 2f);
             if (sunElevation > 0.3f)
             {
-                // Day / Noon
                 sunLight.color = Color.Lerp(morningSunColor, noonSunColor, (sunElevation - 0.3f) / 0.7f);
                 sunLight.intensity = Mathf.Lerp(0.8f, 1.25f, sunElevation);
             }
             else if (sunElevation > -0.1f)
             {
-                // Sunrise / Sunset
                 sunLight.color = Color.Lerp(eveningSunColor, morningSunColor, (sunElevation + 0.1f) / 0.4f);
                 sunLight.intensity = Mathf.Lerp(0.3f, 0.8f, (sunElevation + 0.1f) / 0.4f);
             }
             else
             {
-                // Night
                 sunLight.color = nightSunColor;
                 sunLight.intensity = 0.15f;
             }
         }
 
-        // Adjust room ceiling lights inversely to outdoor sunlight
         float ceilingIntensity = Mathf.Lerp(1.1f, 0.4f, Mathf.Max(0, Mathf.Sin(timeOfDayNormalized * Mathf.PI * 2f)));
         if (roomCeilingLights != null)
         {

@@ -320,6 +320,9 @@ def process_raw_csv(filepath: str, target_mac: str=None, drop_duplicates: bool=F
     if not os.path.exists(filepath):
         logger.warning(f'File not found: {filepath}')
         return pd.DataFrame()
+    if os.path.getsize(filepath) == 0:
+        logger.info(f'Skipping empty CSV file (0 bytes): {os.path.basename(filepath)}')
+        return pd.DataFrame()
     try:
         df = pd.read_csv(filepath)
     except Exception as e:

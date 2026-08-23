@@ -1,5 +1,5 @@
 {
-  "name": "Hospital 4-Room Ward & ICU (Default)",
+  "name": "4-Room Smart Facility Complex (Default)",
   "dimensions": {
     "width": 10.0,
     "height": 10.0,
@@ -120,7 +120,7 @@
   "rooms": [
     {
       "id": "room_a",
-      "name": "Room A (ICU Bedroom 1)",
+      "name": "Room A (Executive Suite 1)",
       "x": 0.0,
       "y": 5.0,
       "w": 5.0,
@@ -129,7 +129,7 @@
     },
     {
       "id": "room_b",
-      "name": "Room B (Patient Bedroom 2)",
+      "name": "Room B (Meeting Room 2)",
       "x": 5.0,
       "y": 5.0,
       "w": 5.0,
@@ -138,7 +138,7 @@
     },
     {
       "id": "room_c",
-      "name": "Room C (Medical Station)",
+      "name": "Room C (Operations Hub)",
       "x": 0.0,
       "y": 0.0,
       "w": 5.0,
@@ -147,7 +147,7 @@
     },
     {
       "id": "room_d",
-      "name": "Room D (Emergency Ward)",
+      "name": "Room D (Main Entrance)",
       "x": 5.0,
       "y": 0.0,
       "w": 5.0,

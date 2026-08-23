@@ -19,13 +19,28 @@ interface TournamentEntry {
   med_ae?: number
 }
 
+interface LastResultMetrics {
+  status: 'COMPLETED' | 'ERROR' | 'CANCELLED' | 'IDLE' | 'TRAINING'
+  timestamp?: string
+  duration?: string
+  algorithm?: string
+  mae_meters?: number
+  rmse?: number
+  r2_score?: number
+  zone_accuracy?: number
+  dataset?: string
+  message?: string
+}
+
 interface TrainingStatus {
   job: {
-    status: 'IDLE' | 'TRAINING' | 'COMPLETED' | 'ERROR'
+    status: 'IDLE' | 'TRAINING' | 'COMPLETED' | 'ERROR' | 'CANCELLED'
     progress: number
     message: string
   }
   last_trained_timestamp?: number | null
+  last_successful_run?: string | null
+  last_result?: LastResultMetrics | null
   available_models: {
     distance_estimator: ModelMetrics
     zone_classifier: ModelMetrics
@@ -46,6 +61,7 @@ export function TrainingView({ role }: { role: UserRole }) {
   const [dataset, setDataset] = useState<string>('observations.csv')
   const [submitting, setSubmitting] = useState(false)
   const [reloading, setReloading] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isBackendOffline, setIsBackendOffline] = useState(false)
@@ -141,6 +157,31 @@ export function TrainingView({ role }: { role: UserRole }) {
     }
   }
 
+  const cancelRun = async () => {
+    if (!canTrain) {
+      setErrorMessage('Admin role required to cancel pipeline run.')
+      return
+    }
+    setCancelling(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/training/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (res.ok) {
+        setSuccessMessage('Pipeline execution cancelled.')
+        await fetchTrainingStatus()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setErrorMessage(err.detail || 'Failed to cancel pipeline run.')
+      }
+    } catch {
+      setErrorMessage('Could not contact server to cancel pipeline.')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   const reloadModels = async () => {
     if (!canTrain) {
       setErrorMessage('Admin role required to reload trained model files.')
@@ -200,10 +241,21 @@ export function TrainingView({ role }: { role: UserRole }) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' (' + d.toLocaleDateString() + ')'
   }
 
+  const formatIsoTimestamp = (tsStr?: string | null) => {
+    if (!tsStr) return null
+    try {
+      const d = new Date(tsStr)
+      if (isNaN(d.getTime())) return tsStr
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' (' + d.toLocaleDateString() + ')'
+    } catch {
+      return tsStr
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-pop-in">
       {/* Header Banner */}
-      <div className="rounded-xl bg-purple-500/10 p-5 shadow-xs">
+      <div className="rounded-xl bg-purple-500/10 p-5 shadow-xs transition-gpu hover-lift">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-purple-300 flex items-center gap-2">
@@ -212,12 +264,12 @@ export function TrainingView({ role }: { role: UserRole }) {
             <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
               Engineers 60 temporal & RSSI features, evaluates base model tournaments (CatBoost, XGBoost, LightGBM, RandomForest), and trains the Stacking SuperLearner Ensemble for sub-meter positioning accuracy.
             </p>
-            {data?.last_trained_timestamp && (
-              <div className="mt-2 text-xs text-purple-200/80 flex items-center gap-2 font-mono">
-                <span className="size-1.5 rounded-full bg-emerald-400" />
-                <span>Last Updated From Python Trainer: <strong>{formatTimestamp(data.last_trained_timestamp)}</strong></span>
+            <div className="mt-2 flex flex-wrap items-center gap-4 text-xs font-mono text-purple-200/80">
+              <div className="flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                <span>Last Successful Run: <strong>{formatIsoTimestamp(data?.last_successful_run) || (data?.last_trained_timestamp ? formatTimestamp(data.last_trained_timestamp) : 'Never')}</strong></span>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Controls & Job State Badge */}
@@ -226,21 +278,37 @@ export function TrainingView({ role }: { role: UserRole }) {
               onClick={reloadModels}
               disabled={reloading || !canTrain}
               title="Hot-reload the latest models saved on disk directly into the active positioning engine"
-              className="rounded-lg bg-purple-500/15 hover:bg-purple-500/25 px-3 py-1.5 text-xs font-semibold text-purple-200 transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+              className="rounded-lg bg-purple-500/15 hover:bg-purple-500/25 px-3 py-1.5 text-xs font-semibold text-purple-200 transition-gpu hover-lift flex items-center gap-1.5 shadow-xs disabled:opacity-50"
             >
               <span className={reloading ? 'animate-spin' : ''}>🔄</span>
               {reloading ? 'Reloading...' : 'Reload Active Models'}
             </button>
 
+            {jobStatus === 'TRAINING' && canTrain && (
+              <button
+                onClick={cancelRun}
+                disabled={cancelling}
+                title="Cancel the active training pipeline run"
+                className="rounded-lg bg-rose-500/20 hover:bg-rose-500/30 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-gpu hover-lift flex items-center gap-1 shadow-xs disabled:opacity-50"
+              >
+                {cancelling ? 'Cancelling...' : '⛔ Cancel Run'}
+              </button>
+            )}
+
             {jobStatus === 'TRAINING' && (
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 animate-pulse flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-amber-400 animate-ping" />
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 animate-pulse flex items-center gap-1.5 gpu-accelerated">
+                <span className="size-2 rounded-full bg-amber-400 animate-ping-ring" />
                 ⚡ EXECUTING PIPELINE ({data?.job?.progress ?? 0}%)
               </span>
             )}
             {jobStatus === 'COMPLETED' && (
-              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 flex items-center gap-1.5 animate-pulse-glow">
                 ✅ PIPELINE COMPLETED
+              </span>
+            )}
+            {jobStatus === 'CANCELLED' && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                🚫 PIPELINE CANCELLED
               </span>
             )}
             {jobStatus === 'ERROR' && (
@@ -256,6 +324,61 @@ export function TrainingView({ role }: { role: UserRole }) {
           </div>
         </div>
       </div>
+
+      {/* Last Execution Result Card */}
+      {data?.last_result && (
+        <div className="rounded-xl border border-purple-500/20 bg-card p-4 space-y-3 shadow-xs transition-gpu hover-lift animate-pop-in">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-purple-300 flex items-center gap-2">
+              <span>📋 Last Execution Result</span>
+              <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                data.last_result.status === 'COMPLETED'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : data.last_result.status === 'CANCELLED'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+              }`}>
+                {data.last_result.status}
+              </span>
+            </h3>
+            {data.last_result.timestamp && (
+              <span className="text-[11px] font-mono text-muted-foreground">
+                Executed: {formatIsoTimestamp(data.last_result.timestamp)}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="rounded-lg bg-panel p-2.5 space-y-0.5">
+              <span className="text-[10px] text-muted-foreground block">Champion Model</span>
+              <span className="font-semibold text-foreground truncate block">{data.last_result.algorithm || 'N/A'}</span>
+            </div>
+            <div className="rounded-lg bg-panel p-2.5 space-y-0.5">
+              <span className="text-[10px] text-muted-foreground block">Execution Duration</span>
+              <span className="font-semibold text-purple-300 font-mono block">{data.last_result.duration || 'N/A'}</span>
+            </div>
+            <div className="rounded-lg bg-panel p-2.5 space-y-0.5">
+              <span className="text-[10px] text-muted-foreground block">Distance Error (MAE)</span>
+              <span className="font-semibold text-emerald-400 font-mono block">
+                {data.last_result.mae_meters !== undefined ? `${data.last_result.mae_meters} m` : 'N/A'}
+              </span>
+            </div>
+            <div className="rounded-lg bg-panel p-2.5 space-y-0.5">
+              <span className="text-[10px] text-muted-foreground block">Zone Precision</span>
+              <span className="font-semibold text-sky-400 font-mono block">
+                {data.last_result.zone_accuracy !== undefined ? `${data.last_result.zone_accuracy}%` : 'N/A'}
+              </span>
+            </div>
+          </div>
+
+          {data.last_result.message && (
+            <div className="text-xs text-muted-foreground font-mono bg-panel/50 p-2 rounded-lg border border-border/40">
+              <span className="text-purple-300 font-semibold">Outcome: </span>
+              {data.last_result.message}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Success Notification Banner */}
       {successMessage && (

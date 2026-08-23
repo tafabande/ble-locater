@@ -9,10 +9,10 @@ from server.db import create_db_engine, Asset
 
 logger = logging.getLogger('ASSET_REGISTRY')
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROOM_IDS = {'Room A (ICU Bedroom 1)': 'room_a', 'Room B (Patient Bedroom 2)': 'room_b', 'Room C (Medical Station)': 'room_c', 'Room D (Emergency Ward)': 'room_d'}
+ROOM_IDS = {'Room A (Executive Suite 1)': 'room_a', 'Room B (Meeting Room 2)': 'room_b', 'Room C (Operations Hub)': 'room_c', 'Room D (Main Entrance)': 'room_d'}
 ROOM_NAMES = {v: k for k, v in ROOM_IDS.items()}
 ROOM_ADJACENCY: Dict[str, Dict[str, int]] = {'room_a': {'room_b': 1, 'room_c': 1, 'room_d': 2}, 'room_b': {'room_a': 1, 'room_d': 1, 'room_c': 2}, 'room_c': {'room_a': 1, 'room_d': 1, 'room_b': 2}, 'room_d': {'room_b': 1, 'room_c': 1, 'room_a': 2}}
-ROOM_META = {'room_a': {'name': 'Room A', 'full_name': 'Room A (ICU Bedroom 1)', 'short': 'ICU', 'x': 2.5, 'y': 7.5, 'color': '#89b4fa', 'icon': '🏥'}, 'room_b': {'name': 'Room B', 'full_name': 'Room B (Patient Bedroom 2)', 'short': 'Patient', 'x': 7.5, 'y': 7.5, 'color': '#a6e3a1', 'icon': '🛏️'}, 'room_c': {'name': 'Room C', 'full_name': 'Room C (Medical Station)', 'short': 'Medical', 'x': 2.5, 'y': 2.5, 'color': '#fab387', 'icon': '💊'}, 'room_d': {'name': 'Room D', 'full_name': 'Room D (Emergency Ward)', 'short': 'Emergency', 'x': 7.5, 'y': 2.5, 'color': '#f38ba8', 'icon': '🚑'}}
+ROOM_META = {'room_a': {'name': 'Room A', 'full_name': 'Room A (Executive Suite 1)', 'short': 'Zone A', 'x': 2.5, 'y': 7.5, 'color': '#89b4fa', 'icon': '🏢'}, 'room_b': {'name': 'Room B', 'full_name': 'Room B (Meeting Room 2)', 'short': 'Zone B', 'x': 7.5, 'y': 7.5, 'color': '#a6e3a1', 'icon': '🖥️'}, 'room_c': {'name': 'Room C', 'full_name': 'Room C (Operations Hub)', 'short': 'Zone C', 'x': 2.5, 'y': 2.5, 'color': '#fab387', 'icon': '⚙️'}, 'room_d': {'name': 'Room D', 'full_name': 'Room D (Main Entrance)', 'short': 'Zone D', 'x': 7.5, 'y': 2.5, 'color': '#f38ba8', 'icon': '🚪'}}
 
 def get_room_id(room_name: str) -> Optional[str]:
     if room_name in ROOM_IDS:
@@ -67,18 +67,18 @@ class AssetRegistry:
     def _seed_demo_data(self, session: Session):
         now = int(time.time() * 1000)
         demo_assets = [
-            ('EQUIP-001', 'ECG Machine #01', 'medical_equipment', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'EC:G1:00:00:00:01', 'active', 'Portable 12-lead ECG'),
-            ('EQUIP-002', 'ECG Machine #02', 'medical_equipment', 'Emergency Ward', 1, 'Room D (Emergency Ward)', 'EC:G2:00:00:00:02', 'active', 'Bedside monitor'),
-            ('EQUIP-003', 'Infusion Pump #01', 'medical_equipment', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'PU:MP:00:00:00:03', 'active', 'IV infusion pump'),
-            ('EQUIP-004', 'Wheelchair #03', 'mobility', 'Medical Station', 1, 'Room C (Medical Station)', 'WC:HR:00:00:00:04', 'active', 'Standard wheelchair'),
-            ('EQUIP-005', 'Defibrillator #01', 'medical_equipment', 'Emergency Ward', 1, 'Room D (Emergency Ward)', 'DE:FB:00:00:00:05', 'active', 'AED defibrillator'),
-            ('EQUIP-006', 'Portable X-Ray', 'medical_equipment', 'Medical Station', 1, 'Room C (Medical Station)', 'XR:AY:00:00:00:06', 'active', 'Mobile X-ray unit'),
-            ('OFFICE-001', 'Printer #01', 'office_equipment', 'Medical Station', 1, 'Room C (Medical Station)', 'PR:NT:00:00:00:07', 'active', 'Network laser printer'),
-            ('OFFICE-002', 'Medication Cart #02', 'supply_cart', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'CA:RT:00:00:00:08', 'active', 'Locked medication cart'),
-            ('STAFF-001', 'Dr. Sarah Chen', 'staff', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'ST:AF:00:00:00:09', 'active', 'ICU attending physician'),
-            ('STAFF-002', 'Nurse John', 'staff', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'ST:AF:00:00:00:10', 'active', 'Floor nurse'),
-            ('PAT-001', 'Patient — Bed 1A', 'patient', 'ICU', 1, 'Room A (ICU Bedroom 1)', 'PA:TN:00:00:00:11', 'active', 'ICU patient, bed 1A'),
-            ('PAT-002', 'Patient — Bed 2B', 'patient', 'Patient Bedroom', 1, 'Room B (Patient Bedroom 2)', 'PA:TN:00:00:00:12', 'active', 'General ward patient')
+            ('EQUIP-001', 'Laser Scanner #01', 'facility_equipment', 'Executive Suite', 1, 'Room A (Executive Suite 1)', 'EC:G1:00:00:00:01', 'active', 'Portable 3D Scanner'),
+            ('EQUIP-002', 'Network Switch #02', 'facility_equipment', 'Main Entrance', 1, 'Room D (Main Entrance)', 'EC:G2:00:00:00:02', 'active', 'Gigabit PoE Switch'),
+            ('EQUIP-003', 'Power Workstation #01', 'facility_equipment', 'Executive Suite', 1, 'Room A (Executive Suite 1)', 'PU:MP:00:00:00:03', 'active', 'UPS Power Station'),
+            ('EQUIP-004', 'Utility Trolley #03', 'mobility', 'Operations Hub', 1, 'Room C (Operations Hub)', 'WC:HR:00:00:00:04', 'active', 'Heavy-duty trolley'),
+            ('EQUIP-005', 'Server Unit #01', 'facility_equipment', 'Main Entrance', 1, 'Room D (Main Entrance)', 'DE:FB:00:00:00:05', 'active', 'Rackmount Server'),
+            ('EQUIP-006', 'Mobile Testing Rig', 'facility_equipment', 'Operations Hub', 1, 'Room C (Operations Hub)', 'XR:AY:00:00:00:06', 'active', 'Field Diagnostic Unit'),
+            ('OFFICE-001', 'Printer #01', 'office_equipment', 'Operations Hub', 1, 'Room C (Operations Hub)', 'PR:NT:00:00:00:07', 'active', 'Network laser printer'),
+            ('OFFICE-002', 'Equipment Storage Cart', 'supply_cart', 'Meeting Room', 1, 'Room B (Meeting Room 2)', 'CA:RT:00:00:00:08', 'active', 'Mobile storage cart'),
+            ('STAFF-001', 'Sarah Chen', 'staff', 'Executive Suite', 1, 'Room A (Executive Suite 1)', 'ST:AF:00:00:00:09', 'active', 'Executive Director'),
+            ('STAFF-002', 'John Taylor', 'staff', 'Meeting Room', 1, 'Room B (Meeting Room 2)', 'ST:AF:00:00:00:10', 'active', 'Operations Lead'),
+            ('PAT-001', 'Personnel Tag — Desk 1A', 'personnel', 'Executive Suite', 1, 'Room A (Executive Suite 1)', 'PA:TN:00:00:00:11', 'active', 'Executive staff tag'),
+            ('PAT-002', 'Personnel Tag — Desk 2B', 'personnel', 'Meeting Room', 1, 'Room B (Meeting Room 2)', 'PA:TN:00:00:00:12', 'active', 'General occupant tag')
         ]
         try:
             for a in demo_assets:
@@ -118,46 +118,32 @@ class AssetRegistry:
             logger.error(f'Failed to fetch asset by MAC {ble_mac}: {e}')
             return None
 
-    def create(self, asset_data: dict) -> Optional[dict]:
+    def create(self, asset_data: dict) -> dict:
         try:
-            now = int(time.time() * 1000)
-            asset = Asset(
-                id=asset_data['id'],
-                name=asset_data['name'],
-                type=asset_data.get('type', 'equipment'),
-                department=asset_data.get('department', ''),
-                floor=asset_data.get('floor', 1),
-                room=asset_data.get('room', ''),
-                ble_mac=asset_data.get('ble_mac', ''),
-                status=asset_data.get('status', 'active'),
-                notes=asset_data.get('notes', ''),
-                created_at=now
-            )
             with Session(self.engine) as session:
+                if 'created_at' not in asset_data or not asset_data['created_at']:
+                    asset_data['created_at'] = int(time.time() * 1000)
+                asset = Asset(**asset_data)
                 session.add(asset)
                 session.commit()
                 session.refresh(asset)
                 return asset.model_dump()
         except Exception as e:
             logger.error(f'Failed to create asset: {e}')
-            return None
+            raise
 
     def update(self, asset_id: str, updates: dict) -> Optional[dict]:
-        allowed_fields = {'name', 'type', 'department', 'floor', 'room', 'ble_mac', 'status', 'notes'}
-        fields = {k: v for k, v in updates.items() if k in allowed_fields}
-        if not fields:
-            return self.get_by_id(asset_id)
         try:
             with Session(self.engine) as session:
                 asset = session.get(Asset, asset_id)
-                if not asset:
-                    return None
-                for key, val in fields.items():
-                    setattr(asset, key, val)
-                session.add(asset)
-                session.commit()
-                session.refresh(asset)
-                return asset.model_dump()
+                if asset:
+                    for k, v in updates.items():
+                        if hasattr(asset, k) and k != 'id':
+                            setattr(asset, k, v)
+                    session.commit()
+                    session.refresh(asset)
+                    return asset.model_dump()
+                return None
         except Exception as e:
             logger.error(f'Failed to update asset {asset_id}: {e}')
             return None
@@ -194,7 +180,7 @@ class AssetRegistry:
         except Exception as e:
             logger.error(f'Failed to fetch assets of type {asset_type}: {e}')
             return []
-ASSET_TYPE_ICONS = {'medical_equipment': '🩺', 'office_equipment': '🖨️', 'mobility': '♿', 'supply_cart': '🛒', 'staff': '👤', 'patient': '🏥', 'equipment': '📦'}
+ASSET_TYPE_ICONS = {'facility_equipment': '🛠️', 'office_equipment': '🖨️', 'mobility': '📦', 'supply_cart': '🛒', 'staff': '👤', 'personnel': '🏷️', 'equipment': '📦'}
 
 @dataclass
 class SearchResult:

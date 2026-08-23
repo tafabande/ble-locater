@@ -6,7 +6,7 @@ sys.path.insert(0, PROJECT_ROOT)
 from server.app import predict_distance_for_anchor, shared, DEFAULT_ANCHORS_CONFIG, perform_localization, TagState
 from localization.trilateration import TrilaterationEngine
 print('--- TESTING MULTI-TAG DISTANCE PREDICTION & TRILATERATION ---')
-test_tag = TagState('TEST_TAG_01', 'Test Patient 1')
+test_tag = TagState('TEST_TAG_01', 'Test Asset 1')
 rssis_anchor1 = [-78, -77, -79, -78]
 rssis_anchor2 = [-85, -84, -86, -85]
 rssis_anchor3 = [-92, -91, -93, -92]

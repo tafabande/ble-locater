@@ -81,10 +81,9 @@ public class TagVisualizer : MonoBehaviour
                 } else {
                     string json = Encoding.UTF8.GetString(buffer, 0, result.Count);
                     
-                    // Bulletproof Extraction: Bypasses JsonUtility Dictionary Limitations
                     try {
-                        int xIdx = json.IndexOf("\"x\":");
-                        int yIdx = json.IndexOf("\"y\":");
+                        int xIdx = json.IndexOf(""x":");
+                        int yIdx = json.IndexOf(""y":");
                         if (xIdx != -1 && yIdx != -1) {
                             int xEnd = json.IndexOf(",", xIdx);
                             int yEnd = json.IndexOf(",", yIdx);
@@ -95,19 +94,19 @@ public class TagVisualizer : MonoBehaviour
                                 nextX = float.Parse(xStr, CultureInfo.InvariantCulture) * scaleFactor;
                                 nextZ = float.Parse(yStr, CultureInfo.InvariantCulture) * scaleFactor;
 
-                                int roomIdx = json.IndexOf("\"room\":");
+                                int roomIdx = json.IndexOf(""room":");
                                 if (roomIdx != -1) {
-                                    int q1 = json.IndexOf("\"", roomIdx + 7);
-                                    int q2 = json.IndexOf("\"", q1 + 1);
+                                    int q1 = json.IndexOf(""", roomIdx + 7);
+                                    int q2 = json.IndexOf(""", q1 + 1);
                                     if (q1 != -1 && q2 != -1) {
                                         predictedRoom = json.Substring(q1 + 1, q2 - (q1 + 1));
                                     }
                                 }
 
-                                int zoneIdx = json.IndexOf("\"zone\":");
+                                int zoneIdx = json.IndexOf(""zone":");
                                 if (zoneIdx != -1) {
-                                    int q1 = json.IndexOf("\"", zoneIdx + 7);
-                                    int q2 = json.IndexOf("\"", q1 + 1);
+                                    int q1 = json.IndexOf(""", zoneIdx + 7);
+                                    int q2 = json.IndexOf(""", q1 + 1);
                                     if (q1 != -1 && q2 != -1) {
                                         currentZone = json.Substring(q1 + 1, q2 - (q1 + 1));
                                     }

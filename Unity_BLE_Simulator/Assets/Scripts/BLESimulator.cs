@@ -24,7 +24,7 @@ public class BLESimulator : MonoBehaviour
 
     [Header("Calibrated Dataset RSSI Parameters")]
     public float txPowerAt1m = -77.8f; 
-    public float pathLossExponentClear = 2.7f;
+    public float pathLossExponentClear = 1.5f;
     public float pathLossExponentObstacle = 3.6f;
     public float noiseStdDev = 0.5f; 
 
@@ -66,7 +66,7 @@ public class BLESimulator : MonoBehaviour
     {
         if (hudText != null && Camera.main != null)
         {
-            hudText.text = string.Format("\ud83d\udcf1 PATIENT TAG (TAG_01)\nPos: ({0:F2}m, {1:F2}m)", 
+            hudText.text = string.Format("\ud83d\udcf1 ASSET TAG (TAG_01)\nPos: ({0:F2}m, {1:F2}m)", 
                 transform.position.x, transform.position.z);
             hudText.transform.rotation = Quaternion.LookRotation(hudText.transform.position - Camera.main.transform.position);
         }

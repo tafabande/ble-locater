@@ -56,14 +56,12 @@ public class HumanWalker : MonoBehaviour
                                      new Vector3(targetPos.x, 0, targetPos.z)) > 0.25f)
             {
                 Vector3 rawDir = (targetPos - transform.position);
-                // Flatten to XZ plane to prevent Y-component leakage into horizontal movement
                 Vector3 dir = new Vector3(rawDir.x, 0f, rawDir.z).normalized;
                 
                 if (Physics.Raycast(transform.position, dir, out RaycastHit hit, 0.8f))
                 {
                     if (!hit.collider.isTrigger && !hit.collider.name.Contains("Door"))
                     {
-                        // Use dot product to pick the cross direction that moves towards target
                         Vector3 cross1 = Vector3.Cross(hit.normal, Vector3.up).normalized;
                         Vector3 cross2 = -cross1;
                         Vector3 toTarget = new Vector3(rawDir.x, 0f, rawDir.z).normalized;
@@ -89,14 +87,9 @@ public class HumanWalker : MonoBehaviour
 
     void Update()
     {
-        // 1. Procedural Walking Gait Animation (Leg & Arm Swinging)
         if (isWalking)
         {
-<<<<<<< HEAD
-            walkCycleTimer += Time.deltaTime * walkSpeed * 5.5f;
-=======
-            walkCycleTimer += Time.deltaTime * walkSpeed * 8.0f;
->>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
+            walkCycleTimer += Time.deltaTime * walkSpeed * 6.5f;
             float legAngle = Mathf.Sin(walkCycleTimer) * 28.0f;
             float armAngle = Mathf.Sin(walkCycleTimer) * 24.0f;
 
@@ -105,26 +98,20 @@ public class HumanWalker : MonoBehaviour
 
             if (leftArm != null) leftArm.localRotation = Quaternion.Euler(-armAngle, 0, 0);
             if (rightArm != null) rightArm.localRotation = Quaternion.Euler(armAngle, 0, 0);
-<<<<<<< HEAD
-=======
 
-            // Added bobbing and swaying for realism
             float bob = Mathf.Abs(Mathf.Sin(walkCycleTimer)) * 0.08f;
             float sway = Mathf.Sin(walkCycleTimer / 2f) * 2f;
             if (transform.childCount > 0) transform.GetChild(0).localPosition = new Vector3(0, bob, 0);
             if (headMesh != null) headMesh.localRotation = Quaternion.Euler(0, 0, sway);
->>>>>>> 9241cedb03a2ecf937a315d68a351a45e83da2b5
         }
         else
         {
-            // Smoothly return limbs to upright standing idle posture
             if (leftLeg != null) leftLeg.localRotation = Quaternion.Slerp(leftLeg.localRotation, Quaternion.identity, Time.deltaTime * 8.0f);
             if (rightLeg != null) rightLeg.localRotation = Quaternion.Slerp(rightLeg.localRotation, Quaternion.identity, Time.deltaTime * 8.0f);
             if (leftArm != null) leftArm.localRotation = Quaternion.Slerp(leftArm.localRotation, Quaternion.identity, Time.deltaTime * 8.0f);
             if (rightArm != null) rightArm.localRotation = Quaternion.Slerp(rightArm.localRotation, Quaternion.identity, Time.deltaTime * 8.0f);
         }
 
-        // 2. Billboarding floating HUD text towards camera
         if (labelText != null && Camera.main != null)
         {
             labelText.transform.rotation = Quaternion.LookRotation(labelText.transform.position - Camera.main.transform.position);

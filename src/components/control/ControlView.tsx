@@ -82,7 +82,7 @@ export function ControlView({ role }: { role: UserRole }) {
     {
       id: 'simulator',
       name: 'Demo Motion Generator',
-      desc: 'Simulates tag motion across hospital rooms without hardware.',
+      desc: 'Simulates tag motion across indoor facility rooms without hardware.',
       status: data?.services?.simulator?.status ?? 'OFFLINE',
       badgeColor: data?.services?.simulator?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20',
       actionStart: 'start_sim',
