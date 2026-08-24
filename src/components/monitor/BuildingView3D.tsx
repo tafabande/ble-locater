@@ -66,6 +66,9 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
     setCam((c) => ({ ...c, zoom: Math.max(0.6, Math.min(4, c.zoom * (e.deltaY < 0 ? 1.12 : 0.89))) }))
   }
 
+  const handleZoomIn = () => setCam((c) => ({ ...c, zoom: Math.min(3.5, Math.round(c.zoom * 1.25 * 100) / 100) }))
+  const handleZoomOut = () => setCam((c) => ({ ...c, zoom: Math.max(0.6, Math.round(c.zoom * 0.8 * 100) / 100) }))
+
   // ---- focus isolation (search) -----------------------------------------
   const focusTag = sim.tags.find((t) => t.id === focus)
   const focusAnchor = sim.anchors.find((a) => a.id === focus)
@@ -92,7 +95,7 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
   }
 
   return (
-    <div className="relative overflow-hidden rounded-md border border-border bg-panel">
+    <div className="relative overflow-hidden rounded-xl border border-border/40 bg-panel shadow-xs">
       <svg
         ref={svgRef}
         viewBox={`${VB.x} ${VB.y} ${VB.w} ${VB.h}`}
@@ -120,9 +123,14 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
             return (
               <g key={f.id}>
                 <polygon points={poly(...slab)} fill="var(--muted)" fillOpacity={0.5 * dim} stroke="var(--border)" strokeWidth="0.4" opacity={dim} />
-                <text x={iso(4, 96, zBase).X - 3} y={iso(4, 96, zBase).Y + 4} fontSize="3" textAnchor="end" fill="var(--muted-foreground)" fontFamily="var(--font-mono)" opacity={dim}>
-                  {f.name}
-                </text>
+                
+                {/* Storey Name Label Pill */}
+                <g transform={`translate(${iso(4, 96, zBase).X - 18}, ${iso(4, 96, zBase).Y + 1})`}>
+                  <rect x="0" y="0" width="16" height="4.5" rx="1" fill="var(--card)" fillOpacity="0.9" stroke="var(--border)" strokeWidth="0.2" opacity={dim} />
+                  <text x="8" y="3.2" fontSize="2.8" fontWeight="600" textAnchor="middle" fill="var(--foreground)" fontFamily="var(--font-sans)" opacity={dim}>
+                    {f.name}
+                  </text>
+                </g>
 
                 {sim.geofences.map((z) => {
                   const p = [iso(z.x, z.y, zBase), iso(z.x + z.w, z.y, zBase), iso(z.x + z.w, z.y + z.h, zBase), iso(z.x, z.y + z.h, zBase)]
@@ -149,8 +157,15 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
                   return (
                     <g key={a.id} opacity={dim}>
                       <line x1={top.X} y1={top.Y} x2={foot.X} y2={foot.Y} stroke="var(--muted-foreground)" strokeWidth="0.15" strokeDasharray="0.6 0.6" opacity="0.6" />
-                      <rect x={top.X - 1.2} y={top.Y - 1.2} width="2.4" height="2.4" rx="0.4" fill={hl ? 'var(--accent)' : 'var(--card)'} stroke="var(--foreground)" strokeWidth="0.28" />
-                      {activeFloor === f.id && <text x={top.X + 1.8} y={top.Y - 1} fontSize="2.4" fill="var(--foreground)" fontFamily="var(--font-mono)">{a.id}</text>}
+                      <rect x={top.X - 1.2} y={top.Y - 1.2} width="2.4" height="2.4" rx="0.5" fill={hl ? 'var(--accent)' : 'var(--card)'} stroke="var(--foreground)" strokeWidth="0.3" />
+                      {activeFloor === f.id && (
+                        <g transform={`translate(${top.X + 1.8}, ${top.Y - 2.5})`}>
+                          <rect x="0" y="0" width={a.id.length * 1.5 + 1} height="2.8" rx="0.6" fill="var(--card)" fillOpacity="0.9" stroke="var(--border)" strokeWidth="0.2" />
+                          <text x="0.8" y="2.0" fontSize="2.0" fontWeight="600" fill="var(--foreground)" fontFamily="var(--font-mono)">
+                            {a.id}
+                          </text>
+                        </g>
+                      )}
                     </g>
                   )
                 })}
@@ -161,7 +176,7 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
                     if (!a) return null
                     const p1 = iso(a.x, a.y, zBase + a.z)
                     const p2 = iso(activeTag.x, activeTag.y, zBase)
-                    return <line key={r.anchorId} x1={p1.X} y1={p1.Y} x2={p2.X} y2={p2.Y} stroke="var(--accent)" strokeWidth="0.3" strokeDasharray="1 0.8" opacity="0.7" />
+                    return <line key={r.anchorId} x1={p1.X} y1={p1.Y} x2={p2.X} y2={p2.Y} stroke="var(--accent)" strokeWidth="0.3" strokeDasharray="1 0.8" opacity="0.85" />
                   })}
 
                 {floorTags.map((t) => {
@@ -178,8 +193,15 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
                           <animate attributeName="opacity" from="0.5" to="0" dur={t.violating ? '1.2s' : '2s'} repeatCount="indefinite" />
                         </circle>
                       )}
-                      <circle cx={p.X} cy={p.Y} r={isActive ? 2 : 1.5} fill={color} stroke="var(--card)" strokeWidth="0.4" />
-                      {isActive && <text x={p.X} y={p.Y - 3.4} fontSize="2.6" textAnchor="middle" fill="var(--foreground)" fontFamily="var(--font-mono)" fontWeight="600">{t.label}</text>}
+                      <circle cx={p.X} cy={p.Y} r={isActive ? 2.2 : 1.6} fill={color} stroke="var(--card)" strokeWidth="0.4" />
+                      
+                      {/* High contrast 3D Tag label pill */}
+                      <g transform={`translate(${p.X}, ${p.Y - 3.8})`}>
+                        <rect x={-(t.label.length * 1.0 + 1)} y="-2.2" width={t.label.length * 2.0 + 2} height="3.2" rx="0.8" fill="var(--card)" fillOpacity="0.95" stroke={color} strokeWidth="0.3" />
+                        <text x="0" y="0" fontSize="2.2" textAnchor="middle" fill="var(--foreground)" fontFamily="var(--font-sans)" fontWeight="700">
+                          {t.label}
+                        </text>
+                      </g>
                     </g>
                   )
                 })}
@@ -189,24 +211,46 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
         </g>
       </svg>
 
+      {/* Floating 3D Controls HUD for Mobile */}
+      <div className="absolute right-2 top-2 flex flex-col gap-1.5 z-20">
+        <button
+          onClick={handleZoomIn}
+          title="Zoom In"
+          className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 font-bold text-foreground shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+        >
+          +
+        </button>
+        <button
+          onClick={handleZoomOut}
+          title="Zoom Out"
+          className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 font-bold text-foreground shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+        >
+          −
+        </button>
+        <button
+          onClick={() => setCam(DEFAULT_CAM)}
+          title="Reset Orbit View"
+          className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 text-xs font-bold text-accent shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+        >
+          ⟲
+        </button>
+      </div>
+
       {activeTag && (
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded-md border border-border bg-card/95 px-3 py-2 font-mono text-[11px] shadow-sm backdrop-blur">
-          <div className="font-semibold text-foreground">TAG-{activeTag.id}</div>
-          <div className="text-muted-foreground">x {activeTag.x.toFixed(1)} · y {activeTag.y.toFixed(1)} · fl {activeTag.floor + 1}</div>
-          <div className="text-muted-foreground">σ {activeTag.uncertainty} m · {activeTag.zone}</div>
-          {activeTag.violating && <div style={{ color: 'var(--status-lost)' }}>⚠ Geofence breach</div>}
+        <div className="pointer-events-none absolute bottom-2 left-2 rounded-xl border border-border/40 bg-card/95 p-2.5 font-mono text-[11px] shadow-md backdrop-blur max-w-[calc(100%-1rem)]">
+          <div className="font-semibold text-foreground flex items-center gap-1.5">
+            <span className="size-2 rounded-full" style={{ background: STATUS_META[activeTag.status].color }} />
+            TAG-{activeTag.id} · {activeTag.label}
+          </div>
+          <div className="text-muted-foreground text-[10px] mt-0.5">x {activeTag.x.toFixed(1)} · y {activeTag.y.toFixed(1)} · fl {activeTag.floor + 1}</div>
+          <div className="text-muted-foreground text-[10px]">σ {activeTag.uncertainty} m · {activeTag.zone}</div>
+          {activeTag.violating && <div className="text-rose-600 font-bold text-[10px] mt-0.5">⚠ Geofence breach</div>}
         </div>
       )}
 
-      <div className="pointer-events-none absolute left-2 top-2 rounded-md border border-border bg-card/85 px-2 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur">
+      <div className="pointer-events-none absolute left-2 top-2 hidden sm:block rounded-md border border-border/40 bg-card/85 px-2.5 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur">
         drag orbit · scroll zoom · shift-drag pan
       </div>
-      <button
-        onClick={() => setCam(DEFAULT_CAM)}
-        className="absolute right-2 top-2 rounded-md border border-border bg-card/90 px-2 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
-      >
-        ⟲ Reset view
-      </button>
     </div>
   )
 }

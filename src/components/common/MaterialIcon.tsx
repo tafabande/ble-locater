@@ -135,6 +135,16 @@ export function M3Battery({ size = 20, className = '', ...props }: IconProps) {
 // MATERIAL DESIGN 3 ACTIONS & UTILITY ICONS
 // ═══════════════════════════════════════════════════════════════════
 
+export function M3Layers({ size = 20, className = '', ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} {...defaultProps} className={className} {...props}>
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  )
+}
+
 export function M3Search({ size = 20, className = '', ...props }: IconProps) {
   return (
     <svg width={size} height={size} {...defaultProps} className={className} {...props}>
