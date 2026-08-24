@@ -2,69 +2,69 @@
     "version": 1,
     "building_name": "Smart Facility Complex (Floor 1)",
     "firmware_version": "2.4.0-esp32",
-    "training_sessions": 27986,
+    "training_sessions": 28038,
     "anchors": {
+        "ANCHOR_09": {
+            "eta": 1.5,
+            "bias": 1.9334,
+            "samples": 255012
+        },
+        "ANCHOR_01": {
+            "eta": 1.7006,
+            "bias": 2.1858,
+            "samples": 222961
+        },
         "ANCHOR_04": {
-            "eta": 1.5264,
-            "bias": 2.1015,
-            "samples": 254779
-        },
-        "ANCHOR_02": {
-            "eta": 1.5206,
-            "bias": 1.9993,
-            "samples": 254599
-        },
-        "ANCHOR_11": {
-            "eta": 1.5,
-            "bias": 3.1449,
-            "samples": 122686
-        },
-        "ANCHOR_10": {
-            "eta": 1.5,
-            "bias": 3.4219,
-            "samples": 233191
+            "eta": 1.5019,
+            "bias": 1.825,
+            "samples": 255274
         },
         "ANCHOR_12": {
             "eta": 1.5,
-            "bias": 2.5277,
-            "samples": 254494
-        },
-        "ANCHOR_07": {
-            "eta": 1.5,
-            "bias": 1.887,
-            "samples": 163471
-        },
-        "ANCHOR_09": {
-            "eta": 1.5,
-            "bias": 2.4562,
-            "samples": 254519
-        },
-        "ANCHOR_01": {
-            "eta": 1.5001,
-            "bias": 2.5921,
-            "samples": 222538
-        },
-        "ANCHOR_05": {
-            "eta": 1.5,
-            "bias": 2.6602,
-            "samples": 221306
-        },
-        "ANCHOR_06": {
-            "eta": 1.5,
-            "bias": 1.9424,
-            "samples": 237865
-        },
-        "ANCHOR_08": {
-            "eta": 1.5,
-            "bias": 3.5767,
-            "samples": 232661
+            "bias": 2.6304,
+            "samples": 254982
         },
         "ANCHOR_03": {
             "eta": 1.5,
-            "bias": 2.2867,
-            "samples": 237595
+            "bias": 2.3714,
+            "samples": 238059
+        },
+        "ANCHOR_06": {
+            "eta": 1.5,
+            "bias": 3.3537,
+            "samples": 238334
+        },
+        "ANCHOR_11": {
+            "eta": 1.5,
+            "bias": 3.7003,
+            "samples": 122933
+        },
+        "ANCHOR_05": {
+            "eta": 1.5,
+            "bias": 3.1023,
+            "samples": 221746
+        },
+        "ANCHOR_02": {
+            "eta": 1.5017,
+            "bias": 2.0403,
+            "samples": 255087
+        },
+        "ANCHOR_08": {
+            "eta": 1.5,
+            "bias": 3.5982,
+            "samples": 233104
+        },
+        "ANCHOR_10": {
+            "eta": 1.5,
+            "bias": 3.1168,
+            "samples": 233636
+        },
+        "ANCHOR_07": {
+            "eta": 1.5,
+            "bias": 4.1444,
+            "samples": 163776
         }
     },
-    "total_samples": 2689704,
-    "last_updated": "2026-08-24T14:42:35Z"
+    "total_samples": 2694904,
+    "last_updated": "2026-08-24T15:05:11Z"
 }
