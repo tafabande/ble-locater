@@ -44,6 +44,10 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: parseInt(process.env.PORT || '3000'),
       strictPort: false,
+      hmr: {
+        host: 'localhost',
+        clientPort: 3000,
+      },
       proxy: {
         '/api': {
           target: 'http://127.0.0.1:8000',
