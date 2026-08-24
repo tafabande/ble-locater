@@ -1,4 +1,6 @@
+import TypeIt from 'typeit-react'
 import type { ConnStatus } from '../lib/datasource'
+import { M3Refresh, M3Error } from './common/MaterialIcon'
 
 interface Props {
   status: ConnStatus
@@ -11,31 +13,30 @@ interface Props {
 export function ConnectionScreen({ status, endpoint, error, onRetry, onDemo }: Props) {
   const connecting = status === 'connecting'
   return (
-    <div className="grid min-h-[420px] place-items-center rounded-[var(--radius)] border border-dashed border-border bg-card p-8">
+    <div className="grid min-h-[420px] place-items-center rounded-xl border border-dashed border-border/40 bg-card p-8 shadow-xs">
       <div className="max-w-md text-center">
         <div className="relative mx-auto mb-5 grid size-14 place-items-center rounded-full bg-panel">
-          {connecting && (
-            <span
-              className="absolute inset-0 rounded-full border-2 border-accent"
-              style={{ animation: 'ping-ring 1.8s ease-out infinite' }}
-            />
+          {connecting ? (
+            <M3Refresh size={24} className="animate-spin text-accent" />
+          ) : (
+            <M3Error size={24} className="text-rose-600" />
           )}
-          <span
-            className="size-3 rounded-full"
-            style={{ background: connecting ? 'var(--status-stale)' : 'var(--status-lost)' }}
-          />
         </div>
 
         <h2 className="font-serif text-lg font-semibold">
           {connecting ? 'Connecting to anchor mesh…' : 'No live data source'}
         </h2>
-        <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-          {connecting
-            ? 'Polling the ESP32 web server for real-time positioning packets.'
-            : 'Could not reach the anchor mesh web server. Check that a node is powered on, joined to the WiFi, and serving the positioning API.'}
-        </p>
+        <div className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground min-h-[40px]">
+          {connecting ? (
+            <TypeIt options={{ speed: 25, cursor: false, waitUntilVisible: false }}>
+              Polling the ESP32 web server for real-time positioning telemetry packets...
+            </TypeIt>
+          ) : (
+            'Could not reach the anchor mesh web server. Check that a node is powered on, joined to the WiFi, and serving the positioning API.'
+          )}
+        </div>
 
-        <div className="mx-auto mt-5 w-full max-w-sm rounded-md border border-border bg-panel p-3 text-left font-mono text-[11px]">
+        <div className="mx-auto mt-5 w-full max-w-sm rounded-lg border border-border/40 bg-panel p-3 text-left font-mono text-[11px]">
           <div className="flex justify-between">
             <span className="text-muted-foreground">GET</span>
             <span className="truncate pl-2 text-foreground">{endpoint}</span>
@@ -43,7 +44,7 @@ export function ConnectionScreen({ status, endpoint, error, onRetry, onDemo }: P
           {error && (
             <div className="mt-1 flex justify-between">
               <span className="text-muted-foreground">error</span>
-              <span className="pl-2" style={{ color: 'var(--status-lost)' }}>
+              <span className="pl-2 text-rose-600 font-semibold">
                 {error}
               </span>
             </div>
@@ -54,13 +55,14 @@ export function ConnectionScreen({ status, endpoint, error, onRetry, onDemo }: P
           <div className="mt-5 flex items-center justify-center gap-2">
             <button
               onClick={onRetry}
-              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus:ring-2 focus:ring-ring"
+              className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              Retry connection
+              <M3Refresh size={14} />
+              Retry Connection
             </button>
             <button
               onClick={onDemo}
-              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              className="rounded-lg border border-border/40 bg-panel px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent"
             >
               Switch to Simulation
             </button>

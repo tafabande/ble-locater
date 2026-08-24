@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import TypeIt from 'typeit-react'
 import type { ConnStatus, Mode } from '../lib/datasource'
-import type { Alert, SimState } from '../lib/simulation'
+import type { SimState } from '../lib/simulation'
+import { M3Error, M3Refresh } from './common/MaterialIcon'
 
 interface Props {
   mode: Mode
@@ -25,27 +27,29 @@ export function ErrorDiagnosticBanner({ mode, connStatus, error, endpoint, sim, 
     return null
   }
 
+  const errorMsg = isLiveError
+    ? error || `Cannot connect to live server at ${endpoint}`
+    : criticalAlerts.length > 0
+    ? criticalAlerts[0].message
+    : 'One or more telemetry pipeline stages reported execution anomalies.'
+
   return (
-    <div className="mb-6 overflow-hidden rounded-lg border border-red-200 bg-red-50/90 p-4 text-red-900 shadow-sm backdrop-blur dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+    <div className="mb-6 overflow-hidden rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-foreground shadow-xs backdrop-blur">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="flex size-7 shrink-0 place-items-center rounded-full bg-red-100 text-center font-mono text-sm font-bold text-red-600 dark:bg-red-900/60 dark:text-red-300">
-            !
-          </span>
+          <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-rose-500/20 text-rose-600">
+            <M3Error size={20} />
+          </div>
           <div>
-            <h3 className="text-sm font-bold tracking-tight">
+            <h3 className="text-sm font-semibold tracking-tight text-rose-600">
               {isLiveError
-                ? 'Loud Alert: Live Hardware Endpoint Error'
+                ? 'System Alert: Live Hardware Endpoint Error'
                 : criticalAlerts.length > 0
-                ? `Loud Alert: ${criticalAlerts.length} Critical System Event(s)`
-                : 'Loud Alert: Pipeline Processing Warning'}
+                ? `System Alert: ${criticalAlerts.length} Critical System Event(s)`
+                : 'System Alert: Pipeline Processing Warning'}
             </h3>
-            <p className="mt-0.5 text-xs text-red-700 dark:text-red-300">
-              {isLiveError
-                ? error || `Cannot connect to live server at ${endpoint}`
-                : criticalAlerts.length > 0
-                ? criticalAlerts[0].message
-                : 'One or more telemetry pipeline stages reported execution anomalies.'}
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {errorMsg}
             </p>
           </div>
         </div>
@@ -55,13 +59,14 @@ export function ErrorDiagnosticBanner({ mode, connStatus, error, endpoint, sim, 
             <>
               <button
                 onClick={onRetry}
-                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-accent"
               >
+                <M3Refresh size={14} />
                 Retry API
               </button>
               <button
                 onClick={onSwitchDemo}
-                className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-900/40 dark:text-red-200"
+                className="rounded-lg border border-border/40 bg-panel px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent"
               >
                 Use Simulation Engine
               </button>

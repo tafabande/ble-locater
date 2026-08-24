@@ -60,7 +60,7 @@ describe('Frontend Component Tests & Error Resilience', () => {
       />
     )
 
-    expect(screen.getByText('Loud Alert: Live Hardware Endpoint Error')).toBeInTheDocument()
+    expect(screen.getByText(/System Alert: Live Hardware Endpoint Error/i)).toBeInTheDocument()
     expect(screen.getByText('Connection Refused: Cannot reach http://localhost:8000/api/state.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Show Diagnostics ▼'))
@@ -122,7 +122,7 @@ describe('Frontend Component Tests & Error Resilience', () => {
     expect(screen.getByText('No live data source')).toBeInTheDocument()
     expect(screen.getByText('HTTP 500 Internal Error')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Retry connection'))
+    fireEvent.click(screen.getByText(/Retry connection/i))
     expect(onRetry).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByText('Switch to Simulation'))

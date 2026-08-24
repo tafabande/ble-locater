@@ -2,69 +2,69 @@
     "version": 1,
     "building_name": "Smart Facility Complex (Floor 1)",
     "firmware_version": "2.4.0-esp32",
-    "training_sessions": 27945,
+    "training_sessions": 27986,
     "anchors": {
         "ANCHOR_04": {
-            "eta": 1.5006,
-            "bias": 1.2057,
-            "samples": 254395
+            "eta": 1.5264,
+            "bias": 2.1015,
+            "samples": 254779
         },
         "ANCHOR_02": {
-            "eta": 1.5002,
-            "bias": 1.157,
-            "samples": 254219
+            "eta": 1.5206,
+            "bias": 1.9993,
+            "samples": 254599
         },
         "ANCHOR_11": {
             "eta": 1.5,
             "bias": 3.1449,
-            "samples": 122507
+            "samples": 122686
         },
         "ANCHOR_10": {
             "eta": 1.5,
-            "bias": 2.0715,
-            "samples": 232834
+            "bias": 3.4219,
+            "samples": 233191
         },
         "ANCHOR_12": {
             "eta": 1.5,
-            "bias": 1.5644,
-            "samples": 254113
+            "bias": 2.5277,
+            "samples": 254494
         },
         "ANCHOR_07": {
             "eta": 1.5,
-            "bias": 1.7824,
-            "samples": 163226
+            "bias": 1.887,
+            "samples": 163471
         },
         "ANCHOR_09": {
             "eta": 1.5,
-            "bias": 1.397,
-            "samples": 254142
+            "bias": 2.4562,
+            "samples": 254519
         },
         "ANCHOR_01": {
-            "eta": 1.5802,
-            "bias": 0.7208,
-            "samples": 222198
+            "eta": 1.5001,
+            "bias": 2.5921,
+            "samples": 222538
         },
         "ANCHOR_05": {
             "eta": 1.5,
-            "bias": 1.1587,
-            "samples": 220975
+            "bias": 2.6602,
+            "samples": 221306
         },
         "ANCHOR_06": {
             "eta": 1.5,
-            "bias": 1.5685,
-            "samples": 237505
+            "bias": 1.9424,
+            "samples": 237865
         },
         "ANCHOR_08": {
             "eta": 1.5,
-            "bias": 1.4407,
-            "samples": 232303
+            "bias": 3.5767,
+            "samples": 232661
         },
         "ANCHOR_03": {
             "eta": 1.5,
-            "bias": 1.4029,
-            "samples": 237244
+            "bias": 2.2867,
+            "samples": 237595
         }
     },
-    "total_samples": 2685661,
-    "last_updated": "2026-08-24T14:39:36Z"
+    "total_samples": 2689704,
+    "last_updated": "2026-08-24T14:42:35Z"
 }

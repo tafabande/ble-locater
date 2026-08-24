@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { M3Search, M3Close } from './common/MaterialIcon'
 
 export interface SearchItem {
   id: string
@@ -63,11 +64,9 @@ export function SearchBar({ items, focus, onFocus }: Props) {
         <button
           onClick={() => onFocus(null)}
           aria-label="Clear focus"
-          className="grid size-5 place-items-center rounded-full text-accent transition-colors hover:bg-accent hover:text-primary-foreground"
+          className="grid size-5 place-items-center rounded-full text-accent transition-colors hover:bg-accent hover:text-primary-foreground focus-visible:outline-2 focus-visible:outline-accent"
         >
-          <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M4 4l8 8M12 4l-8 8" />
-          </svg>
+          <M3Close size={12} />
         </button>
       </div>
     )
@@ -75,11 +74,8 @@ export function SearchBar({ items, focus, onFocus }: Props) {
 
   return (
     <div ref={wrapRef} className="relative w-44 sm:w-64">
-      <div className="flex items-center gap-2 rounded-full bg-card px-3.5 py-1.5 shadow-xs focus-within:ring-2 focus-within:ring-ring">
-        <svg viewBox="0 0 16 16" className="size-3.5 shrink-0 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <circle cx="7" cy="7" r="4.5" />
-          <path d="M11 11l3 3" />
-        </svg>
+      <div className="flex items-center gap-2 rounded-full border border-border/40 bg-card px-3.5 py-1.5 shadow-xs focus-within:ring-2 focus-within:ring-accent">
+        <M3Search size={16} className="shrink-0 text-muted-foreground" />
         <input
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true) }}

@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { type MapItem, type MapItemKind, type Geofence } from '../../lib/simulation'
+import { M3Grid, M3Upload, M3Download, M3Deploy } from '../common/MaterialIcon'
 
 interface Props {
   mapItems: MapItem[]
@@ -616,45 +617,51 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
             <button
               onClick={() => autoLayoutAllRooms(4)}
               title="Place 4 corner anchor nodes in every room automatically"
-              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded-lg border border-border/40 bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              🔲 Auto 4-Corners (All Rooms)
+              <M3Grid size={14} />
+              Auto 4-Corners
             </button>
 
             <button
               onClick={() => autoLayoutAllRooms(3)}
               title="Place 3 triangulation anchor nodes in every room automatically"
-              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded-lg border border-border/40 bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              🔺 Auto 3-Nodes (All Rooms)
+              <M3Grid size={14} />
+              Auto 3-Nodes
             </button>
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded-lg border border-border/40 bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              🖼️ Upload Blueprint
+              <M3Upload size={14} />
+              Blueprint
             </button>
 
             <button
               onClick={() => jsonInputRef.current?.click()}
-              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded-lg border border-border/40 bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              📥 Import JSON
+              <M3Upload size={14} />
+              Import JSON
             </button>
 
             <button
               onClick={handleExportJson}
-              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded-lg border border-border/40 bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              📤 Export JSON
+              <M3Download size={14} />
+              Export JSON
             </button>
 
             <button
               onClick={deployToBackend}
-              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-1.5 text-xs font-bold text-primary-foreground transition-colors shadow-sm flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-1.5 text-xs font-bold text-primary-foreground transition-colors shadow-xs flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              🚀 Deploy to Live RTLS
+              <M3Deploy size={14} />
+              Deploy to Live RTLS
             </button>
           </div>
         </div>

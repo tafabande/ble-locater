@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
+import TypeIt from 'typeit-react'
 import { clockTime } from '../lib/format'
 import type { ConnStatus, Mode } from '../lib/datasource'
 import { ROLE_LABELS, canAccess, type UserRole } from '../lib/rbac'
 import { SearchBar, type SearchItem } from './SearchBar'
+import { M3Monitor, M3Operations, M3Training, M3Reports, M3Admin } from './common/MaterialIcon'
 
 export type View = 'monitor' | 'control' | 'training' | 'admin' | 'reports'
 
@@ -29,57 +31,31 @@ const NAV: { id: View; label: string; minRole: UserRole; icon: ReactNode }[] = [
     id: 'monitor',
     label: 'Live Monitor',
     minRole: 'viewer',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
-        <circle cx="12" cy="12" r="2.5" />
-        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
-        <circle cx="12" cy="12" r="8.5" opacity="0.5" />
-      </svg>
-    ),
+    icon: <M3Monitor size={18} />,
   },
   {
     id: 'control',
     label: 'Operations',
     minRole: 'operator',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-      </svg>
-    ),
+    icon: <M3Operations size={18} />,
   },
   {
     id: 'training',
     label: 'ML Training',
     minRole: 'operator',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
-        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    ),
+    icon: <M3Training size={18} />,
   },
   {
     id: 'reports',
     label: 'Reports & Debug',
     minRole: 'viewer',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="16" y1="13" x2="8" y2="13" />
-        <line x1="16" y1="17" x2="8" y2="17" />
-      </svg>
-    ),
+    icon: <M3Reports size={18} />,
   },
   {
     id: 'admin',
     label: 'Admin',
     minRole: 'admin',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-[18px]">
-        <path d="M4 6h16M4 12h16M4 18h10" />
-      </svg>
-    ),
+    icon: <M3Admin size={18} />,
   },
 ]
 
@@ -268,9 +244,16 @@ function TopBar({ now, view, role, mode, onMode, connStatus, searchItems, focus,
           {view === 'monitor' ? 'Indoor Positioning' : view === 'control' ? 'Operations' : view === 'training' ? 'ML Training' : view === 'reports' ? 'Reports' : 'Administration'}
         </h1>
         <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
-          {view === 'monitor'
-            ? 'Real-time BLE tag movement across anchor mesh'
-            : `Signed in as ${ROLE_LABELS[role]}`}
+          {view === 'monitor' ? (
+            <TypeIt
+              key="monitor"
+              options={{ speed: 30, cursor: false, waitUntilVisible: false }}
+            >
+              Real-time BLE tag movement across anchor mesh · 60 FPS Trilateration
+            </TypeIt>
+          ) : (
+            `Signed in as ${ROLE_LABELS[role]}`
+          )}
         </p>
       </div>
       <div className="flex items-center gap-3">
