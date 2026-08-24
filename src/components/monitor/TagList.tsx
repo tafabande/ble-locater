@@ -9,8 +9,8 @@ interface Props {
 
 export function TagList({ tags, selected, onSelect }: Props) {
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="rounded-[var(--radius)] border border-border/40 bg-card shadow-xs">
+      <div className="flex items-center justify-between border-b border-border/30 px-4 py-3">
         <h2 className="text-sm font-semibold">Tag Roster</h2>
         <span className="font-mono text-[11px] text-muted-foreground">{tags.length} devices</span>
       </div>
@@ -22,7 +22,7 @@ export function TagList({ tags, selected, onSelect }: Props) {
             <button
               key={t.id}
               onClick={() => onSelect(isSel ? null : t.id)}
-              className={`flex w-full items-center gap-3 border-b border-border px-4 py-2.5 text-left transition-colors last:border-0 ${
+              className={`flex w-full items-center gap-3 border-b border-border/30 px-4 py-2.5 text-left transition-colors last:border-0 focus-visible:outline-2 focus-visible:outline-accent ${
                 isSel ? 'bg-accent-soft' : 'hover:bg-muted'
               }`}
             >
@@ -51,7 +51,7 @@ export function TagList({ tags, selected, onSelect }: Props) {
           )
         })}
       </div>
-      <div className="border-t border-border px-4 py-2 font-mono text-[10px] text-muted-foreground">
+      <div className="border-t border-border/30 px-4 py-2 font-mono text-[10px] text-muted-foreground">
         Last packet: {tags.length ? relativeTime(Date.now() - tags[0].lastSeen) : '—'}
       </div>
     </div>

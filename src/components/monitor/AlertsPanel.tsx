@@ -21,8 +21,8 @@ const KIND_ICON: Record<Alert['kind'], string> = {
 export function AlertsPanel({ alerts }: Props) {
   const open = alerts.filter((a) => !a.acknowledged).length
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="rounded-[var(--radius)] border border-border/40 bg-card shadow-xs">
+      <div className="flex items-center justify-between border-b border-border/30 px-4 py-3">
         <h2 className="text-sm font-semibold">Alerts</h2>
         <span
           className="rounded-full px-2 py-0.5 font-mono text-[11px] font-medium"
@@ -36,7 +36,7 @@ export function AlertsPanel({ alerts }: Props) {
         {alerts.map((a) => {
           const s = SEV[a.severity]
           return (
-            <div key={a.id} className={`flex gap-3 border-b border-border px-4 py-2.5 last:border-0 ${a.acknowledged ? 'opacity-55' : ''}`}>
+            <div key={a.id} className={`flex gap-3 border-b border-border/30 px-4 py-2.5 last:border-0 ${a.acknowledged ? 'opacity-55' : ''}`}>
               <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded text-[11px]" style={{ background: 'var(--accent-soft)', color: s.color }}>
                 {KIND_ICON[a.kind]}
               </span>

@@ -28,7 +28,7 @@ export function SpatialView({ sim, mapItems, selected, onSelect, focus, onFocus 
   const floorName = FLOORS.find((f) => f.id === activeFloor)?.name ?? 'Ground'
 
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card p-4 sm:p-5">
+    <div className="rounded-[var(--radius)] border border-border/40 bg-card p-4 sm:p-5 shadow-xs">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Facility 1 · {floorName}</h2>

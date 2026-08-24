@@ -18,7 +18,7 @@ export function PipelineStatus({ pipeline }: Props) {
     : 'ok'
 
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card p-4 sm:p-5">
+    <div className="rounded-[var(--radius)] border border-border/40 bg-card p-4 sm:p-5 shadow-xs">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">Processing Pipeline</h2>

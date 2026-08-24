@@ -30,8 +30,8 @@ export function TagDetail({ tag }: Props) {
   const pct = (r: number) => Math.max(0, Math.min(100, ((r - minRssi) / (maxRssi - minRssi)) * 100))
 
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="rounded-[var(--radius)] border border-border/40 bg-card shadow-xs">
+      <div className="flex items-center justify-between border-b border-border/30 px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold">{tag.label}</h2>
           <p className="font-mono text-[11px] text-muted-foreground">TAG-{tag.id}</p>
@@ -46,12 +46,12 @@ export function TagDetail({ tag }: Props) {
       </div>
 
       {tag.violating && (
-        <div className="flex items-center gap-2 border-b border-border bg-[rgba(208,59,59,0.08)] px-4 py-2 text-xs font-medium" style={{ color: 'var(--status-lost)' }}>
+        <div className="flex items-center gap-2 border-b border-border/30 bg-[rgba(208,59,59,0.08)] px-4 py-2 text-xs font-medium" style={{ color: 'var(--status-lost)' }}>
           ⚠ Geofence breach — unauthorized zone
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-px border-b border-border bg-border">
+      <div className="grid grid-cols-4 gap-px border-b border-border/30 bg-border/20">
         <Cell label="Zone" value={tag.zone} />
         <Cell label="Battery" value={`${Math.round(tag.battery)}%`} color={batteryColor(tag.battery)} mono />
         <Cell label="Position" value={`${tag.x.toFixed(0)},${tag.y.toFixed(0)}`} mono />

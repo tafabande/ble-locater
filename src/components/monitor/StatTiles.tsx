@@ -24,8 +24,8 @@ export function StatTiles({ sim }: Props) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {tiles.map((t) => (
-        <div key={t.label} className="rounded-[var(--radius)] border border-border bg-card p-4">
-          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{t.label}</div>
+        <div key={t.label} className="rounded-[var(--radius)] border border-border/40 bg-card p-4 shadow-xs hover:border-border/60 transition-colors">
+          <div className="text-xs font-medium text-muted-foreground">{t.label}</div>
           <div
             className="mt-2 text-3xl font-semibold tabular-nums"
             style={{ color: t.danger ? 'var(--status-lost)' : t.accent ? 'var(--accent)' : 'var(--foreground)' }}

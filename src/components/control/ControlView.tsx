@@ -124,7 +124,7 @@ export function ControlView({ role }: { role: UserRole }) {
 
           <div className="space-y-3">
             {services.map((s) => (
-              <div key={s.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div key={s.id} className="rounded-xl border border-border/40 bg-card p-4 space-y-3 shadow-xs">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h4 className="text-sm font-medium text-foreground">{s.name}</h4>
@@ -136,18 +136,18 @@ export function ControlView({ role }: { role: UserRole }) {
                 </div>
 
                 {s.actionStart && (
-                  <div className="flex gap-2 pt-1 border-t border-border/50">
+                  <div className="flex gap-2 pt-1 border-t border-border/30">
                     <button
                       disabled={!canOperate || s.status === 'ACTIVE' || loadingAction !== null}
                       onClick={() => triggerAction(s.actionStart!)}
-                      className="rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 px-3 py-1 text-xs font-medium text-white transition-colors"
+                      className="rounded-md bg-accent hover:bg-accent/90 disabled:opacity-40 px-3 py-1 text-xs font-medium text-primary-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
                     >
                       Start
                     </button>
                     <button
                       disabled={!canOperate || s.status !== 'ACTIVE' || loadingAction !== null}
                       onClick={() => triggerAction(s.actionStop!)}
-                      className="rounded-md bg-rose-600/80 hover:bg-rose-600 disabled:opacity-40 px-3 py-1 text-xs font-medium text-white transition-colors"
+                      className="rounded-md bg-panel border border-border hover:bg-muted disabled:opacity-40 px-3 py-1 text-xs font-medium text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
                     >
                       Stop
                     </button>
@@ -158,7 +158,7 @@ export function ControlView({ role }: { role: UserRole }) {
           </div>
 
           {/* Self-Test Runner Card */}
-          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="rounded-xl border border-border/40 bg-card p-4 space-y-3 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-medium text-foreground flex items-center gap-1.5">
@@ -170,8 +170,8 @@ export function ControlView({ role }: { role: UserRole }) {
               </div>
               <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
                 data?.test_result?.status === 'ALL PASSED'
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  ? 'bg-accent-soft text-accent border-accent/20'
+                  : 'bg-panel text-muted-foreground border-border'
               }`}>
                 {data?.test_result?.status ?? 'READY'}
               </span>
@@ -179,12 +179,12 @@ export function ControlView({ role }: { role: UserRole }) {
 
             <div className="flex items-center justify-between text-xs pt-1">
               <span className="text-muted-foreground">
-                Passed: <strong className="text-emerald-400">{data?.test_result?.passed ?? 0}</strong> | Failed: <strong className="text-rose-400">{data?.test_result?.failed ?? 0}</strong>
+                Passed: <strong className="text-accent">{data?.test_result?.passed ?? 0}</strong> | Failed: <strong className="text-foreground">{data?.test_result?.failed ?? 0}</strong>
               </span>
               <button
                 disabled={!canOperate || loadingAction !== null}
                 onClick={() => triggerAction('run_tests')}
-                className="rounded-md bg-sky-600 hover:bg-sky-500 px-3 py-1 text-xs font-medium text-white transition-colors"
+                className="rounded-md bg-accent hover:bg-accent/90 px-3 py-1 text-xs font-medium text-primary-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
               >
                 Run Health Check
               </button>
@@ -197,7 +197,7 @@ export function ControlView({ role }: { role: UserRole }) {
           <h3 className="text-sm font-semibold text-foreground">Activity Log</h3>
 
           {/* Activity Console */}
-          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="rounded-xl border border-border/40 bg-card p-4 space-y-3 shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-xs font-semibold text-foreground">Activity Stream</h4>
               <div className="flex items-center gap-2">
