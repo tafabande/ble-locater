@@ -90,14 +90,14 @@ const DOMAIN_PALETTES: Record<DomainCategory, { label: string; icon: string; ite
       { type: 'pallet_jack', label: 'Pallet Jack Bay', w: 1.5, h: 0.8, icon: '🛒', bg: '#ea580c' }
     ]
   },
-  facility: {
-    label: 'Operations & Facilities',
-    icon: '🏢',
+  healthcare: {
+    label: 'Healthcare & Clinical',
+    icon: '🏥',
     items: [
-      { type: 'workstation_desk', label: 'Workstation Desk', w: 2.0, h: 1.2, icon: '🖥️', bg: '#2563eb' },
-      { type: 'modular_desk', label: 'Modular Desk', w: 2.0, h: 1.2, icon: '💻', bg: '#059669' },
-      { type: 'utility_cart', label: 'Utility Cart', w: 1.0, h: 0.8, icon: '🛒', bg: '#dc2626' },
-      { type: 'ops_station', label: 'Operations Station', w: 2.5, h: 1.2, icon: '🏢', bg: '#7c3aed' }
+      { type: 'hospital_bed', label: 'Clinical Bed', w: 2.2, h: 1.1, icon: '🛏️', bg: '#0284c7' },
+      { type: 'crash_cart', label: 'Crash Cart', w: 1.0, h: 0.8, icon: '🛒', bg: '#dc2626' },
+      { type: 'iv_pole', label: 'Infusion Pump Stand', w: 0.8, h: 0.8, icon: '🩺', bg: '#059669' },
+      { type: 'nurse_station', label: 'Nurse Station Pod', w: 3.0, h: 1.5, icon: '🏥', bg: '#2563eb' }
     ]
   },
   custom: {
@@ -373,7 +373,7 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
             <button
               key={s.id}
               onClick={() => setStep(s.id as any)}
-              className={`py-2 rounded-lg transition-all ${
+              className={`py-2 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
                 step === s.id
                   ? 'bg-accent text-primary-foreground shadow-xs font-bold'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -387,10 +387,10 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 overflow-hidden">
           {/* Controls & Palette Sidebar */}
-          <div className="lg:col-span-4 p-5 space-y-4 border-r border-border/40 overflow-y-auto bg-card">
+          <div className="lg:col-span-4 p-5 space-y-4 border-r border-border/40 overflow-y-auto bg-panel">
             {step === 1 && (
               <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-accent">Step 1: Facility Type & 3D Dimensions</h3>
+                <h3 className="text-xs font-semibold text-foreground">Step 1: Facility Type & 3D Dimensions</h3>
                 
                 {/* Facility Category Selector */}
                 <div className="space-y-1.5">
@@ -400,10 +400,10 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                       <button
                         key={cat}
                         onClick={() => setFacilityDomain(cat)}
-                        className={`flex items-center gap-1.5 p-2 rounded-lg text-xs font-medium transition-all ${
+                        className={`flex items-center gap-1.5 p-2 rounded-lg text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
                           facilityDomain === cat
                             ? 'bg-accent text-primary-foreground font-bold shadow-xs'
-                            : 'bg-panel text-muted-foreground hover:text-foreground'
+                            : 'bg-card text-muted-foreground hover:text-foreground'
                         }`}
                       >
                         <span>{DOMAIN_PALETTES[cat].icon}</span>
@@ -418,7 +418,7 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                   <input
                     value={roomName}
                     onChange={(e) => setRoomName(e.target.value)}
-                    className="w-full rounded-lg bg-panel px-3 py-2 text-xs border-0 shadow-xs focus:outline-none"
+                    className="w-full rounded-lg bg-card px-3 py-2 text-xs border-0 shadow-xs focus:outline-2 focus:outline-accent"
                   />
                 </div>
 
@@ -428,11 +428,9 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                     <input
                       type="number"
                       step="0.5"
-                      min="3"
-                      max="50"
                       value={dims.width}
-                      onChange={(e) => setDims((d) => ({ ...d, width: parseFloat(e.target.value) || 12 }))}
-                      className="w-full rounded-lg bg-panel px-3 py-2 text-xs border-0 shadow-xs focus:outline-none"
+                      onChange={(e) => setDims((d) => ({ ...d, width: parseFloat(e.target.value) || 5 }))}
+                      className="w-full rounded-lg bg-card px-3 py-2 text-xs border-0 shadow-xs focus:outline-2 focus:outline-accent"
                     />
                   </div>
                   <div className="space-y-1">
@@ -440,25 +438,21 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                     <input
                       type="number"
                       step="0.5"
-                      min="3"
-                      max="50"
                       value={dims.height}
-                      onChange={(e) => setDims((d) => ({ ...d, height: parseFloat(e.target.value) || 10 }))}
-                      className="w-full rounded-lg bg-panel px-3 py-2 text-xs border-0 shadow-xs focus:outline-none"
+                      onChange={(e) => setDims((d) => ({ ...d, height: parseFloat(e.target.value) || 5 }))}
+                      className="w-full rounded-lg bg-card px-3 py-2 text-xs border-0 shadow-xs focus:outline-2 focus:outline-accent"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1 pt-1">
-                  <label className="text-xs font-medium text-muted-foreground">3D Ceiling Height Z ({dims.depth}m)</label>
+                  <label className="text-xs font-medium text-muted-foreground">Ceiling Height Z ({dims.depth}m)</label>
                   <input
                     type="number"
-                    step="0.1"
-                    min="2"
-                    max="10"
+                    step="0.25"
                     value={dims.depth}
-                    onChange={(e) => setDims((d) => ({ ...d, depth: parseFloat(e.target.value) || 3.5 }))}
-                    className="w-full rounded-lg bg-panel px-3 py-2 text-xs border-0 shadow-xs focus:outline-none"
+                    onChange={(e) => setDims((d) => ({ ...d, depth: parseFloat(e.target.value) || 3 }))}
+                    className="w-full rounded-lg bg-card px-3 py-2 text-xs border-0 shadow-xs focus:outline-2 focus:outline-accent"
                   />
                 </div>
               </div>
@@ -467,7 +461,7 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
             {step === 2 && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-accent">
+                  <h3 className="text-xs font-semibold text-foreground">
                     {DOMAIN_PALETTES[facilityDomain].icon} {DOMAIN_PALETTES[facilityDomain].label} Palette
                   </h3>
                 </div>
@@ -481,7 +475,7 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                     <button
                       key={pal.type}
                       onClick={() => addFurniture(pal)}
-                      className="flex items-center gap-2 rounded-lg bg-panel hover:bg-muted/80 p-2.5 text-xs text-left transition-all shadow-xs"
+                      className="flex items-center gap-2 rounded-lg bg-card hover:bg-muted/80 p-2.5 text-xs text-left transition-colors shadow-xs focus-visible:outline-2 focus-visible:outline-accent"
                     >
                       <span className="text-base">{pal.icon}</span>
                       <div>
@@ -493,7 +487,7 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                 </div>
 
                 {/* Custom Object Creator Section */}
-                <div className="rounded-xl bg-panel p-3.5 space-y-2 border-t border-border/30 text-xs mt-3">
+                <div className="rounded-xl bg-card p-3.5 space-y-2 border border-border/30 text-xs mt-3">
                   <div className="font-bold text-foreground flex items-center gap-1.5">
                     <span>🛠️ Add Custom Object</span>
                   </div>
@@ -501,7 +495,7 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
                     placeholder="Object label..."
-                    className="w-full rounded-md bg-card px-2.5 py-1 text-xs border-0"
+                    className="w-full rounded-md bg-panel px-2.5 py-1 text-xs border-0"
                   />
                   <div className="grid grid-cols-3 gap-2">
                     <input
@@ -510,7 +504,7 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                       value={customW}
                       onChange={(e) => setCustomW(parseFloat(e.target.value) || 1)}
                       placeholder="W (m)"
-                      className="rounded-md bg-card px-2 py-1 text-xs border-0"
+                      className="rounded-md bg-panel px-2 py-1 text-xs border-0"
                     />
                     <input
                       type="number"
@@ -518,18 +512,18 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
                       value={customH}
                       onChange={(e) => setCustomH(parseFloat(e.target.value) || 1)}
                       placeholder="H (m)"
-                      className="rounded-md bg-card px-2 py-1 text-xs border-0"
+                      className="rounded-md bg-panel px-2 py-1 text-xs border-0"
                     />
                     <input
                       value={customIcon}
                       onChange={(e) => setCustomIcon(e.target.value)}
                       placeholder="Icon"
-                      className="rounded-md bg-card px-2 py-1 text-xs border-0 text-center"
+                      className="rounded-md bg-panel px-2 py-1 text-xs border-0 text-center"
                     />
                   </div>
                   <button
                     onClick={addCustomObject}
-                    className="w-full rounded-md bg-accent hover:bg-accent/90 text-primary-foreground py-1.5 font-semibold transition-colors shadow-xs"
+                    className="w-full rounded-md bg-accent hover:bg-accent/90 text-primary-foreground py-1.5 font-semibold transition-colors shadow-xs focus-visible:outline-2 focus-visible:outline-accent"
                   >
                     + Add Custom Item to Room
                   </button>
@@ -539,9 +533,9 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
 
             {step === 3 && (
               <div className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-accent">Step 3: Plant Fixed BLE Anchor Nodes</h3>
+                <h3 className="text-xs font-semibold text-foreground">Step 3: Plant Fixed BLE Anchor Nodes</h3>
                 <p className="text-xs text-muted-foreground">Click directly on the floorplan canvas to plant fixed receiver nodes (Anchors), or drag existing nodes.</p>
-                <div className="rounded-lg bg-panel p-3 text-xs space-y-1.5">
+                <div className="rounded-lg bg-card p-3 text-xs space-y-1.5">
                   <div className="font-semibold text-foreground">Active Planted Nodes: {anchors.length}</div>
                   <div className="text-[11px] text-muted-foreground">Minimum 3 nodes required for 2D/3D trilateration solver.</div>
                 </div>
@@ -550,9 +544,9 @@ export function RoomDesignWizard({ onClose, onSaved }: Props) {
 
             {step === 4 && (
               <div className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-accent">Step 4: Mobile Asset Tags</h3>
+                <h3 className="text-xs font-semibold text-foreground">Step 4: Mobile Asset Tags</h3>
                 <p className="text-xs text-muted-foreground">Click on the floorplan canvas to plant mobile asset tags or tracking badges.</p>
-                <div className="rounded-lg bg-panel p-3 text-xs space-y-1.5">
+                <div className="rounded-lg bg-card p-3 text-xs space-y-1.5">
                   <div className="font-semibold text-foreground">Configured Mobile Tags: {tags.length}</div>
                   <div className="text-[11px] text-muted-foreground">Tags transmit telemetry packets to installed anchors.</div>
                 </div>

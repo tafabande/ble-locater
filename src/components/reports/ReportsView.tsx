@@ -110,13 +110,13 @@ export function ReportsView({
       time: '5 mins ago',
       type: 'Geofence Safety Audit',
       desc: `Evaluated ${geofences.length} restricted zones — ${alertsCount} alert events recorded.`,
-      badge: alertsCount > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      badge: alertsCount > 0 ? 'bg-panel text-foreground border border-border' : 'bg-accent-soft text-accent border border-accent/20',
     },
     {
       time: '12 mins ago',
       type: 'Model Validation',
       desc: 'Validated CatBoost Champion model: sub-meter MAE verified at 0.342m.',
-      badge: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+      badge: 'bg-accent-soft text-accent border border-accent/20',
     },
   ]
 

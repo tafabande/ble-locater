@@ -131,11 +131,11 @@ export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus,
 function RoleSwitcher({ role, onRole }: { role: UserRole; onRole: (r: UserRole) => void }) {
   return (
     <div className="border-t border-border/40 px-5 py-4">
-      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Access role</label>
+      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Access role</label>
       <select
         value={role}
         onChange={(e) => onRole(e.target.value as UserRole)}
-        className="w-full rounded-md border-0 bg-panel px-2.5 py-1.5 text-xs text-foreground shadow-xs focus:outline-none"
+        className="w-full rounded-md border-0 bg-panel px-2.5 py-1.5 text-xs text-foreground shadow-xs focus:outline-2 focus:outline-accent"
         title="Demonstration RBAC role for dissertation access control"
       >
         {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
@@ -153,7 +153,7 @@ function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void })
         <button
           key={m}
           onClick={() => onMode(m)}
-          className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+          className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
             mode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
           }`}
         >
@@ -216,7 +216,7 @@ function NavButton({ active, onClick, icon, label }: { active: boolean; onClick:
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+      className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
         active ? 'bg-accent-soft text-accent' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
       }`}
     >

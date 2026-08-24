@@ -44,12 +44,12 @@ export function MonitorView({ sim, mapItems, selected, onSelect, focus, onFocus,
             {isAdmin ? (
               <button
                 onClick={() => setShowWizard(true)}
-                className="rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 px-4 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                className="rounded-lg bg-accent hover:bg-accent/90 text-primary-foreground px-4 py-2 text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
               >
                 🛠️ Launch Room Setup Wizard
               </button>
             ) : (
-              <span className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-300">
+              <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
                 Contact Sysadmin
               </span>
             )}
@@ -62,7 +62,7 @@ export function MonitorView({ sim, mapItems, selected, onSelect, focus, onFocus,
         <div className="flex justify-end">
           <button
             onClick={() => setShowWizard(true)}
-            className="rounded-lg bg-card hover:bg-panel px-3 py-1.5 text-xs font-semibold text-foreground transition-all shadow-xs flex items-center gap-1.5"
+            className="rounded-lg bg-card border border-border hover:bg-panel px-3 py-1.5 text-xs font-semibold text-foreground transition-colors shadow-xs flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
           >
             🛠️ 3D Room Designer & Node Setup
           </button>

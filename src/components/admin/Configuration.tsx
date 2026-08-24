@@ -160,9 +160,9 @@ function Toggle({ label, hint, on, onToggle }: { label: string; hint: string; on
         onClick={onToggle}
         role="switch"
         aria-checked={on}
-        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on ? 'bg-accent' : 'bg-muted'}`}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-accent ${on ? 'bg-accent' : 'bg-muted'}`}
       >
-        <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
+        <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-[left] ${on ? 'left-[18px]' : 'left-0.5'}`} />
       </button>
     </div>
   )

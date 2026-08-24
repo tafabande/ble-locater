@@ -255,18 +255,18 @@ export function TrainingView({ role }: { role: UserRole }) {
   return (
     <div className="space-y-6 animate-pop-in">
       {/* Header Banner */}
-      <div className="rounded-xl bg-purple-500/10 p-5 shadow-xs transition-gpu hover-lift">
+      <div className="rounded-xl border border-border bg-panel p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-purple-300 flex items-center gap-2">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
               👑 AI Studio — SuperLearner & End-to-End ML Pipeline
             </h2>
             <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
               Engineers 60 temporal & RSSI features, evaluates base model tournaments (CatBoost, XGBoost, LightGBM, RandomForest), and trains the Stacking SuperLearner Ensemble for sub-meter positioning accuracy.
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-4 text-xs font-mono text-purple-200/80">
+            <div className="mt-2 flex flex-wrap items-center gap-4 text-xs font-mono text-muted-foreground">
               <div className="flex items-center gap-1.5">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                <span className="size-1.5 rounded-full bg-accent animate-pulse-dot" />
                 <span>Last Successful Run: <strong>{formatIsoTimestamp(data?.last_successful_run) || (data?.last_trained_timestamp ? formatTimestamp(data.last_trained_timestamp) : 'Never')}</strong></span>
               </div>
             </div>
@@ -278,7 +278,7 @@ export function TrainingView({ role }: { role: UserRole }) {
               onClick={reloadModels}
               disabled={reloading || !canTrain}
               title="Hot-reload the latest models saved on disk directly into the active positioning engine"
-              className="rounded-lg bg-purple-500/15 hover:bg-purple-500/25 px-3 py-1.5 text-xs font-semibold text-purple-200 transition-gpu hover-lift flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+              className="rounded-lg bg-accent-soft hover:bg-accent/20 px-3 py-1.5 text-xs font-semibold text-accent transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
             >
               <span className={reloading ? 'animate-spin' : ''}>🔄</span>
               {reloading ? 'Reloading...' : 'Reload Active Models'}
@@ -289,35 +289,35 @@ export function TrainingView({ role }: { role: UserRole }) {
                 onClick={cancelRun}
                 disabled={cancelling}
                 title="Cancel the active training pipeline run"
-                className="rounded-lg bg-rose-500/20 hover:bg-rose-500/30 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-gpu hover-lift flex items-center gap-1 shadow-xs disabled:opacity-50"
+                className="rounded-lg bg-panel border border-border hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1 shadow-xs disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
               >
                 {cancelling ? 'Cancelling...' : '⛔ Cancel Run'}
               </button>
             )}
 
             {jobStatus === 'TRAINING' && (
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 animate-pulse flex items-center gap-1.5 gpu-accelerated">
-                <span className="size-2 rounded-full bg-amber-400 animate-ping-ring" />
+              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-accent animate-pulse flex items-center gap-1.5 gpu-accelerated">
+                <span className="size-2 rounded-full bg-accent animate-ping-ring" />
                 ⚡ EXECUTING PIPELINE ({data?.job?.progress ?? 0}%)
               </span>
             )}
             {jobStatus === 'COMPLETED' && (
-              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 flex items-center gap-1.5 animate-pulse-glow">
+              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-foreground flex items-center gap-1.5">
                 ✅ PIPELINE COMPLETED
               </span>
             )}
             {jobStatus === 'CANCELLED' && (
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                 🚫 PIPELINE CANCELLED
               </span>
             )}
             {jobStatus === 'ERROR' && (
-              <span className="rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-foreground flex items-center gap-1.5">
                 ❌ PIPELINE ERROR
               </span>
             )}
             {jobStatus === 'IDLE' && (
-              <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-300">
+              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-muted-foreground">
                 READY TO LAUNCH
               </span>
             )}
@@ -327,16 +327,16 @@ export function TrainingView({ role }: { role: UserRole }) {
 
       {/* Last Execution Result Card */}
       {data?.last_result && (
-        <div className="rounded-xl border border-purple-500/20 bg-card p-4 space-y-3 shadow-xs transition-gpu hover-lift animate-pop-in">
+        <div className="rounded-xl border border-border bg-panel p-4 space-y-3 shadow-xs animate-pop-in">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-purple-300 flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
               <span>📋 Last Execution Result</span>
               <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
                 data.last_result.status === 'COMPLETED'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  ? 'bg-accent-soft text-accent border border-accent/20'
                   : data.last_result.status === 'CANCELLED'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                  ? 'bg-muted text-muted-foreground border border-border'
+                  : 'bg-muted text-foreground border border-border'
               }`}>
                 {data.last_result.status}
               </span>
@@ -431,7 +431,7 @@ export function TrainingView({ role }: { role: UserRole }) {
               <button
                 onClick={handleRetryConnection}
                 disabled={isRetrying}
-                className="rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-semibold px-4 py-2 text-xs flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
+                className="rounded-lg bg-accent hover:bg-accent/90 text-primary-foreground font-semibold px-4 py-2 text-xs flex items-center gap-2 transition-colors shadow-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
               >
                 <span className={isRetrying ? 'animate-spin' : ''}>🔄</span>
                 {isRetrying ? 'Checking Port 8000...' : 'Start / Retry Connection'}
@@ -443,17 +443,17 @@ export function TrainingView({ role }: { role: UserRole }) {
 
       {/* Error Notification Banner */}
       {errorMessage && (
-        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 flex items-center justify-between gap-3 text-xs text-rose-300">
+        <div className="rounded-xl border border-border bg-panel p-4 flex items-center justify-between gap-3 text-xs text-foreground">
           <div className="flex items-center gap-2">
             <span className="text-lg">❌</span>
             <div>
-              <strong className="font-semibold block text-rose-200">Pipeline Execution Status</strong>
+              <strong className="font-semibold block text-foreground">Pipeline Execution Status</strong>
               <span>{errorMessage}</span>
             </div>
           </div>
           <button
             onClick={() => setErrorMessage(null)}
-            className="rounded-md bg-rose-500/20 hover:bg-rose-500/30 px-2.5 py-1 font-semibold text-rose-300 transition-colors"
+            className="rounded-md bg-muted hover:bg-muted/80 px-2.5 py-1 font-semibold text-foreground transition-colors"
           >
             Clear Message
           </button>
@@ -470,7 +470,7 @@ export function TrainingView({ role }: { role: UserRole }) {
             </h3>
 
             {!canTrain && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-medium text-amber-200">
+              <div className="rounded-lg border border-border bg-panel p-3 text-xs font-medium text-muted-foreground">
                 Operator can review training state and logs. Admin role is required to start training or reload models.
               </div>
             )}
@@ -484,9 +484,9 @@ export function TrainingView({ role }: { role: UserRole }) {
                     key={algo}
                     disabled={isTraining || !canTrain}
                     onClick={() => setAlgorithm(algo)}
-                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent ${
                       algorithm === algo
-                        ? 'border-purple-500/50 bg-purple-500/10 text-purple-300 font-bold shadow-sm'
+                        ? 'border-accent bg-accent-soft text-accent font-bold shadow-sm'
                         : 'border-border bg-panel text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -503,7 +503,7 @@ export function TrainingView({ role }: { role: UserRole }) {
                 disabled={isTraining || !canTrain}
                 value={dataset}
                 onChange={(e) => setDataset(e.target.value)}
-                className="w-full rounded-lg border border-border bg-panel px-3 py-2 text-xs text-foreground focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-lg border border-border bg-panel px-3 py-2 text-xs text-foreground focus:outline-2 focus:outline-accent disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {(data?.datasets ?? []).map((ds) => (
                   <option key={ds.name} value={ds.name}>
@@ -525,7 +525,7 @@ export function TrainingView({ role }: { role: UserRole }) {
                   step="0.01"
                   value={lr}
                   onChange={(e) => setLr(parseFloat(e.target.value))}
-                  className="w-full accent-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full accent-accent disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -539,7 +539,7 @@ export function TrainingView({ role }: { role: UserRole }) {
                   step="50"
                   value={trees}
                   onChange={(e) => setTrees(parseInt(e.target.value))}
-                  className="w-full accent-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full accent-accent disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -549,7 +549,7 @@ export function TrainingView({ role }: { role: UserRole }) {
               <button
                 disabled={isTraining || !canTrain}
                 onClick={startTournament}
-                className="w-full rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-purple-900/60 disabled:hover:bg-purple-900/60 px-4 py-2.5 text-xs font-semibold text-white transition-all flex items-center justify-center gap-2 shadow-sm"
+                className="w-full rounded-lg bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 text-xs font-semibold text-primary-foreground transition-colors flex items-center justify-center gap-2 shadow-sm focus-visible:outline-2 focus-visible:outline-accent"
               >
                 {submitting ? (
                   <>
@@ -569,14 +569,14 @@ export function TrainingView({ role }: { role: UserRole }) {
 
             {/* Live Progress Bar */}
             {isTraining && (
-              <div className="space-y-2 pt-2 rounded-lg border border-purple-500/20 bg-purple-500/5 p-3">
+              <div className="space-y-2 pt-2 rounded-lg border border-border bg-panel p-3">
                 <div className="flex justify-between text-xs">
-                  <span className="text-purple-200 font-medium">{data?.job?.message || 'Processing...'}</span>
-                  <span className="text-purple-300 font-bold">{data?.job?.progress ?? 0}%</span>
+                  <span className="text-foreground font-medium">{data?.job?.message || 'Processing...'}</span>
+                  <span className="text-accent font-bold">{data?.job?.progress ?? 0}%</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-panel overflow-hidden">
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-indigo-400 transition-all duration-500"
+                    className="h-full bg-accent transition-[width] duration-300"
                     style={{ width: `${Math.max(5, data?.job?.progress ?? 0)}%` }}
                   />
                 </div>

@@ -616,7 +616,7 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
             <button
               onClick={() => autoLayoutAllRooms(4)}
               title="Place 4 corner anchor nodes in every room automatically"
-              className="rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 text-xs font-semibold text-purple-300 transition-colors flex items-center gap-1.5"
+              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
               🔲 Auto 4-Corners (All Rooms)
             </button>
@@ -624,35 +624,35 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
             <button
               onClick={() => autoLayoutAllRooms(3)}
               title="Place 3 triangulation anchor nodes in every room automatically"
-              className="rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-3 py-1.5 text-xs font-semibold text-sky-300 transition-colors flex items-center gap-1.5"
+              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
               🔺 Auto 3-Nodes (All Rooms)
             </button>
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors"
+              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
             >
               🖼️ Upload Blueprint
             </button>
 
             <button
               onClick={() => jsonInputRef.current?.click()}
-              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors"
+              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
             >
               📥 Import JSON
             </button>
 
             <button
               onClick={handleExportJson}
-              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors"
+              className="rounded-lg border border-border bg-panel hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
             >
               📤 Export JSON
             </button>
 
             <button
               onClick={deployToBackend}
-              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-1.5 text-xs font-bold text-primary-foreground transition-all shadow-sm flex items-center gap-1.5"
+              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-1.5 text-xs font-bold text-primary-foreground transition-colors shadow-sm flex items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent"
             >
               🚀 Deploy to Live RTLS
             </button>
@@ -678,7 +678,7 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
           <button
             key={tab.id}
             onClick={() => setActiveLayer(tab.id as ActiveLayer)}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus-visible:outline-2 focus-visible:outline-accent ${
               activeLayer === tab.id
                 ? 'border-accent text-accent font-bold'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -706,13 +706,13 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
             <div className="flex items-center gap-2">
               <button
                 onClick={addRoom}
-                className="rounded-lg bg-purple-600 hover:bg-purple-500 px-3 py-1 text-xs font-semibold text-white transition-colors"
+                className="rounded-lg bg-accent hover:bg-accent/90 px-3 py-1 text-xs font-semibold text-primary-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
               >
                 + Add Room & 4 Nodes
               </button>
               <button
                 onClick={addAnchor}
-                className="rounded-lg bg-sky-600 hover:bg-sky-500 px-3 py-1 text-xs font-semibold text-white transition-colors"
+                className="rounded-lg bg-panel border border-border hover:bg-muted px-3 py-1 text-xs font-semibold text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
               >
                 + Custom Anchor
               </button>

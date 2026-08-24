@@ -84,7 +84,7 @@ export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoin
             </div>
             <button
               onClick={() => setShowWizard(true)}
-              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-2 text-xs font-bold text-primary-foreground transition-all shadow-sm flex items-center gap-2"
+              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-2 text-xs font-bold text-primary-foreground transition-colors shadow-sm flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-accent"
             >
               🛠️ Open 3D Room Designer Wizard
             </button>
@@ -113,7 +113,7 @@ export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoin
             </div>
             <button
               onClick={() => setShowWizard(true)}
-              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-2 text-xs font-bold text-primary-foreground transition-all shadow-sm flex items-center gap-2"
+              className="rounded-lg bg-accent hover:bg-accent/90 px-4 py-2 text-xs font-bold text-primary-foreground transition-colors shadow-sm flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-accent"
             >
               🛠️ Open 3D Room Setup Wizard
             </button>
