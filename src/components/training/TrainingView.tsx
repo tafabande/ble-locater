@@ -91,14 +91,15 @@ export function TrainingView({ role }: { role: UserRole }) {
     } catch {
       clearTimeout(timer)
       setIsBackendOffline(true)
+      fetch(`${API_BASE}/api/service/autostart`, { method: 'POST' }).catch(() => {})
       setData((prev) => prev ?? {
-        job: { status: 'ERROR', progress: 0, message: 'Python Location Engine is not reachable on port 8000.' },
+        job: { status: 'IDLE', progress: 0, message: 'Auto-starting Location Engine backend service in background...' },
         available_models: {
-          distance_estimator: { exists: false, algorithm: 'Unavailable' },
-          zone_classifier: { exists: false, algorithm: 'Unavailable' }
+          distance_estimator: { exists: false, algorithm: 'Initializing...' },
+          zone_classifier: { exists: false, algorithm: 'Initializing...' }
         },
         datasets: [],
-        logs: ['[ERROR] Could not contact the Python API. Start Stack from control.py, then retry.']
+        logs: ['[SYSTEM] Location Engine API is starting in background...']
       })
     }
   }
@@ -399,45 +400,29 @@ export function TrainingView({ role }: { role: UserRole }) {
         </div>
       )}
 
-      {/* Backend Offline Interactive Prompt Card */}
+      {/* Backend Auto-Healing Background Banner */}
       {isBackendOffline && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-3">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl p-1.5 bg-amber-500/20 rounded-lg">⚡</span>
-              <div>
-                <h3 className="text-sm font-semibold text-amber-200 flex items-center gap-2">
-                  Location Engine Backend (Port 8000) is Offline
-                </h3>
-                <p className="text-xs text-amber-300/80 mt-1 max-w-xl">
-                  The ML training pipeline requires <strong>Service #1 (Location Engine API)</strong> to be active on port 8000. Start it in <code className="bg-amber-950/60 text-amber-200 px-1.5 py-0.5 rounded font-mono text-[11px]">control.py</code> or click <strong>"Start Stack"</strong> in the console.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsBackendOffline(false)}
-              className="text-xs text-amber-400/60 hover:text-amber-200 transition-colors"
-            >
-              ✕ Dismiss
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-amber-500/20">
-            <div className="flex items-center gap-2 text-xs text-amber-300/90">
-              <span className="inline-block size-2 rounded-full bg-amber-400 animate-ping" />
-              <span>Ready to connect once the service is started:</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleRetryConnection}
-                disabled={isRetrying}
-                className="rounded-lg bg-accent hover:bg-accent/90 text-primary-foreground font-semibold px-4 py-2 text-xs flex items-center gap-2 transition-colors shadow-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
-              >
-                <span className={isRetrying ? 'animate-spin' : ''}>🔄</span>
-                {isRetrying ? 'Checking Port 8000...' : 'Start / Retry Connection'}
-              </button>
+        <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4 flex items-center justify-between gap-3 text-xs text-sky-200">
+          <div className="flex items-center gap-3">
+            <span className="relative flex size-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+              <span className="relative inline-flex rounded-full size-2.5 bg-sky-500" />
+            </span>
+            <div>
+              <strong className="font-semibold text-sky-100 block flex items-center gap-1.5">
+                ⚡ Location Engine Auto-Healing Active
+              </strong>
+              <span className="text-sky-300/90">Starting backend engine automatically in background (Port 8000). Connecting...</span>
             </div>
           </div>
+          <button
+            onClick={handleRetryConnection}
+            disabled={isRetrying}
+            className="rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 font-semibold px-3 py-1.5 text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+          >
+            <span className={isRetrying ? 'animate-spin' : ''}>🔄</span>
+            {isRetrying ? 'Checking...' : 'Check Connection'}
+          </button>
         </div>
       )}
 

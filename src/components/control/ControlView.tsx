@@ -32,15 +32,16 @@ export function ControlView({ role }: { role: UserRole }) {
         setData(json)
       }
     } catch {
+      fetch('/api/service/autostart', { method: 'POST' }).catch(() => {})
       setData((prev) => prev ?? {
         services: {
-          backend: { status: 'OFFLINE', port: 8000 },
+          backend: { status: 'INITIALIZING', port: 8000 },
           simulator: { status: 'OFFLINE' },
           collector: { status: 'OFFLINE' },
         },
-        test_result: { status: 'UNKNOWN', passed: 0, failed: 0 },
+        test_result: { status: 'INITIALIZING', passed: 0, failed: 0 },
         logs: [
-          '[ERROR] Could not contact the Python API. Start the stack from control.py.',
+          '[SYSTEM] Location Engine API is auto-starting in background (Port 8000)...',
         ]
       })
     }

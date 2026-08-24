@@ -132,15 +132,19 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
   const [deployStatus, setDeployStatus] = useState<string | null>(null)
   const [cornerInsetPct, setCornerInsetPct] = useState(2.0) // 2% inset from corners
 
-  const dragRef = useRef<{
-    id: string
-    type: 'anchor' | 'room' | 'wall' | 'room-resize'
-    handle?: 'tl' | 'tr' | 'bl' | 'br'
-    startX: number
-    startY: number
-    initialRoom?: SchematicRoom
-    dx: number
-    dy: number
+  // Photoshop-Style Layer Controls State
+  const [layers, setLayers] = useState<Record<string, { visible: boolean; locked: boolean }>>({
+    rooms: { visible: true, locked: false },
+    anchors: { visible: true, locked: false },
+    walls: { visible: true, locked: false },
+    blueprint: { visible: true, locked: false },
+  })
+
+  // Clipboard State for Copy-Paste
+  const [clipboard, setClipboard] = useState<{
+    type: 'room' | 'anchor' | 'wall'
+    item: any
+    attachedAnchors?: SchematicAnchor[]
   } | null>(null)
 
   // Persist
@@ -463,22 +467,153 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
     setActiveLayer('anchors')
   }
 
-  const addWall = (kind: MapItemKind) => {
-    const newW: MapItem = {
-      id: `${kind}_${Date.now().toString(36)}`,
-      kind,
-      label: kind === 'wall' ? 'Partition Wall' : kind === 'door' ? 'Doorway' : 'Furniture',
-      x: 40,
-      y: 40,
-      w: kind === 'wall' ? 20 : 6,
-      h: kind === 'wall' ? 2 : 6,
-      attenuation: kind === 'wall' ? 8 : kind === 'furniture' ? 4 : 0,
-    }
-    onMapItems([...mapItems, newW])
-    setSelectedId(newW.id)
-    setSelectedType('wall')
-    setActiveLayer('walls')
+  // Copy, Paste, Duplicate & Delete Handlers
+  const toggleLayerVisibility = (layerKey: string) => {
+    setLayers((prev) => ({
+      ...prev,
+      [layerKey]: { ...prev[layerKey], visible: !prev[layerKey]?.visible },
+    }))
   }
+
+  const toggleLayerLock = (layerKey: string) => {
+    setLayers((prev) => ({
+      ...prev,
+      [layerKey]: { ...prev[layerKey], locked: !prev[layerKey]?.locked },
+    }))
+  }
+
+  const handleCopy = () => {
+    if (!selectedId || !selectedType) return
+    if (selectedType === 'room') {
+      const room = rooms.find((r) => r.id === selectedId)
+      if (!room) return
+      const attached = anchors.filter((a) => a.roomId === room.id)
+      setClipboard({ type: 'room', item: { ...room }, attachedAnchors: attached.map((a) => ({ ...a })) })
+      setDeployStatus(`📋 Copied ${room.name} and ${attached.length} corner nodes to clipboard!`)
+    } else if (selectedType === 'anchor') {
+      const anchor = anchors.find((a) => a.id === selectedId)
+      if (!anchor) return
+      setClipboard({ type: 'anchor', item: { ...anchor } })
+      setDeployStatus(`📋 Copied node ${anchor.label} to clipboard!`)
+    } else if (selectedType === 'wall') {
+      const item = mapItems.find((w) => w.id === selectedId)
+      if (!item) return
+      setClipboard({ type: 'wall', item: { ...item } })
+      setDeployStatus(`📋 Copied element ${item.label} to clipboard!`)
+    }
+    setTimeout(() => setDeployStatus(null), 3000)
+  }
+
+  const handlePaste = () => {
+    if (!clipboard) return
+    const offset = 5 // 5% spatial offset
+    if (clipboard.type === 'room') {
+      const src = clipboard.item as SchematicRoom
+      const newId = `room_${Date.now().toString(36)}`
+      const nextLetter = String.fromCharCode(65 + (rooms.length % 26))
+      const newRoom: SchematicRoom = {
+        ...src,
+        id: newId,
+        name: `${src.name.split('(')[0].trim()} ${nextLetter} (Copy)`,
+        x: Math.min(60, src.x + offset),
+        y: Math.min(60, src.y + offset),
+      }
+      const newAnchors: SchematicAnchor[] = (clipboard.attachedAnchors || []).map((a, i) => ({
+        ...a,
+        id: `A_${newId.slice(0, 5)}_${a.corner || i}`,
+        x: Math.min(98, a.x + offset),
+        y: Math.min(98, a.y + offset),
+        roomId: newId,
+      }))
+
+      setRooms((prev) => [...prev, newRoom])
+      if (newAnchors.length > 0) {
+        setAnchors((prev) => [...prev, ...newAnchors])
+      }
+      setSelectedId(newId)
+      setSelectedType('room')
+      setDeployStatus(`📋 Pasted ${newRoom.name} with ${newAnchors.length} corner nodes!`)
+    } else if (clipboard.type === 'anchor') {
+      const src = clipboard.item as SchematicAnchor
+      const nextIdx = anchors.length + 1
+      const pad = nextIdx < 10 ? `0${nextIdx}` : `${nextIdx}`
+      const newAnchor: SchematicAnchor = {
+        ...src,
+        id: `ANCHOR_${pad}`,
+        label: `${src.label} Copy`,
+        x: Math.min(98, src.x + offset),
+        y: Math.min(98, src.y + offset),
+        host: false,
+      }
+      setAnchors((prev) => [...prev, newAnchor])
+      setSelectedId(newAnchor.id)
+      setSelectedType('anchor')
+      setDeployStatus(`📋 Pasted node ${newAnchor.label}!`)
+    } else if (clipboard.type === 'wall') {
+      const src = clipboard.item as MapItem
+      const newWall: MapItem = {
+        ...src,
+        id: `${src.kind}_${Date.now().toString(36)}`,
+        label: `${src.label} Copy`,
+        x: Math.min(90, src.x + offset),
+        y: Math.min(90, src.y + offset),
+      }
+      onMapItems([...mapItems, newWall])
+      setSelectedId(newWall.id)
+      setSelectedType('wall')
+      setDeployStatus(`📋 Pasted ${newWall.label}!`)
+    }
+    setTimeout(() => setDeployStatus(null), 3000)
+  }
+
+  const handleDuplicate = () => {
+    if (!selectedId || !selectedType) return
+    handleCopy()
+    setTimeout(() => handlePaste(), 50)
+  }
+
+  const handleDeleteSelected = () => {
+    if (!selectedId || !selectedType) return
+    if (selectedType === 'room') {
+      setRooms((prev) => prev.filter((r) => r.id !== selectedId))
+      setAnchors((prev) => prev.filter((a) => a.roomId !== selectedId))
+      setDeployStatus('Deleted room and attached corner nodes.')
+    } else if (selectedType === 'anchor') {
+      setAnchors((prev) => prev.filter((a) => a.id !== selectedId))
+      setDeployStatus('Deleted node.')
+    } else if (selectedType === 'wall') {
+      onMapItems(mapItems.filter((m) => m.id !== selectedId))
+      setDeployStatus('Deleted wall/obstacle.')
+    }
+    setSelectedId(null)
+    setSelectedType(null)
+    setTimeout(() => setDeployStatus(null), 2500)
+  }
+
+  // Keyboard Shortcuts Listener
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement
+      const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')
+      if (isInput) return
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault()
+        handleCopy()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault()
+        handlePaste()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        handleDuplicate()
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        handleDeleteSelected()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedId, selectedType, rooms, anchors, mapItems, clipboard])
 
   // Dimension helpers for Rooms in Meters
   const getRoomMeters = (r: SchematicRoom) => ({
@@ -613,6 +748,43 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
             <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])} />
             <input type="file" ref={jsonInputRef} accept=".json,.schematic" className="hidden" onChange={(e) => e.target.files?.[0] && handleJsonImport(e.target.files[0])} />
 
+            {/* Quick Copy, Paste & Duplicate Actions */}
+            <div className="flex items-center gap-1 bg-panel border border-border/40 rounded-lg p-0.5">
+              <button
+                onClick={handleCopy}
+                disabled={!selectedId}
+                title="Copy selected room/node (Ctrl+C)"
+                className="rounded px-2 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-40 flex items-center gap-1 transition-colors"
+              >
+                📋 Copy
+              </button>
+              <button
+                onClick={handlePaste}
+                disabled={!clipboard}
+                title="Paste from clipboard (Ctrl+V)"
+                className="rounded px-2 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-40 flex items-center gap-1 transition-colors"
+              >
+                📋 Paste
+              </button>
+              <button
+                onClick={handleDuplicate}
+                disabled={!selectedId}
+                title="Duplicate selected element (Ctrl+D)"
+                className="rounded px-2 py-1 text-xs font-semibold hover:bg-muted disabled:opacity-40 flex items-center gap-1 transition-colors"
+              >
+                ✨ Duplicate
+              </button>
+              {selectedId && (
+                <button
+                  onClick={handleDeleteSelected}
+                  title="Delete selected item (Delete key)"
+                  className="rounded px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-500/10 transition-colors"
+                >
+                  🗑️ Delete
+                </button>
+              )}
+            </div>
+
             {/* Quick Auto-Layout Buttons */}
             <button
               onClick={() => autoLayoutAllRooms(4)}
@@ -673,27 +845,65 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
         )}
       </div>
 
-      {/* Layer Tabs */}
-      <div className="flex gap-1 border-b border-border text-xs">
-        {[
-          { id: 'rooms', label: `🏢 Rooms & Dimensions (${rooms.length})` },
-          { id: 'anchors', label: `📍 Corner Nodes (${anchors.length})` },
-          { id: 'walls', label: `🧱 RF Walls & Doors (${mapItems.length})` },
-          { id: 'blueprint', label: `🖼️ Blueprint Image ${blueprintImg ? '✓' : ''}` },
-          { id: 'settings', label: `📐 Building Dimensions` },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveLayer(tab.id as ActiveLayer)}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus-visible:outline-2 focus-visible:outline-accent ${
-              activeLayer === tab.id
-                ? 'border-accent text-accent font-bold'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Photoshop-Style Photoshop Layer Bar */}
+      <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+        <div className="flex items-center justify-between text-xs border-b border-border/40 pb-2">
+          <div className="flex items-center gap-2 font-bold text-foreground">
+            <span>🎨 Photoshop Layers & Stack Controls</span>
+            <span className="rounded bg-accent/10 px-2 py-0.5 text-[10px] text-accent font-mono">
+              [SHORTCUTS: Ctrl+C Copy · Ctrl+V Paste · Ctrl+D Duplicate]
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground font-mono">
+            {clipboard ? `Clipboard: ${clipboard.type.toUpperCase()} ready` : 'Clipboard empty'}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { key: 'rooms', label: '🏢 Rooms & Geofences', count: rooms.length },
+              { key: 'anchors', label: '📍 Corner Nodes', count: anchors.length },
+              { key: 'walls', label: '🧱 RF Walls & Furniture', count: mapItems.length },
+              { key: 'blueprint', label: '🖼️ Blueprint Image', count: blueprintImg ? 1 : 0 },
+            ].map((lyr) => {
+              const cfg = layers[lyr.key] || { visible: true, locked: false }
+              const isActive = activeLayer === lyr.key
+              return (
+                <div
+                  key={lyr.key}
+                  className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 transition-all ${
+                    isActive ? 'border-accent bg-accent/10 text-foreground font-bold' : 'border-border/40 bg-panel text-muted-foreground'
+                  }`}
+                >
+                  <button
+                    onClick={() => toggleLayerVisibility(lyr.key)}
+                    title={cfg.visible ? 'Hide layer' : 'Show layer'}
+                    className="hover:scale-110 transition-transform px-0.5"
+                  >
+                    {cfg.visible ? '👁️' : '🙈'}
+                  </button>
+                  <button
+                    onClick={() => toggleLayerLock(lyr.key)}
+                    title={cfg.locked ? 'Unlock layer' : 'Lock layer (prevents canvas selection)'}
+                    className="hover:scale-110 transition-transform px-0.5"
+                  >
+                    {cfg.locked ? '🔒' : '🔓'}
+                  </button>
+                  <button
+                    onClick={() => setActiveLayer(lyr.key as ActiveLayer)}
+                    className="flex items-center gap-1.5 hover:text-foreground"
+                  >
+                    <span>{lyr.label}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.2 font-mono text-[10px]">
+                      {lyr.count}
+                    </span>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Main Studio Workspace */}
@@ -756,7 +966,7 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
               <rect x="0" y="0" width="100" height="100" fill="url(#grid_major)" />
 
               {/* Blueprint Image Overlay */}
-              {blueprintImg && showBlueprint && (
+              {blueprintImg && showBlueprint && layers.blueprint?.visible && (
                 <image
                   href={blueprintImg}
                   x="0"
@@ -765,21 +975,25 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
                   height="100"
                   preserveAspectRatio="none"
                   opacity={blueprintOpacity}
+                  style={{ pointerEvents: 'none' }}
                 />
               )}
 
               {/* Layer 1: Rooms / Geofences */}
-              {rooms.map((r) => {
-                const isSel = selectedId === r.id && selectedType === 'room'
-                const rM = getRoomMeters(r)
-                const roomAnchors = anchors.filter((a) => a.roomId === r.id)
+              {layers.rooms?.visible &&
+                rooms.map((r) => {
+                  const isSel = selectedId === r.id && selectedType === 'room'
+                  const rM = getRoomMeters(r)
+                  const roomAnchors = anchors.filter((a) => a.roomId === r.id)
+                  const isLocked = layers.rooms?.locked
 
-                return (
-                  <g
-                    key={r.id}
-                    onPointerDown={(e) => handlePointerDown(e, r.id, 'room', r.x, r.y)}
-                    className="cursor-move"
-                  >
+                  return (
+                    <g
+                      key={r.id}
+                      onPointerDown={(e) => !isLocked && handlePointerDown(e, r.id, 'room', r.x, r.y)}
+                      className={isLocked ? 'cursor-not-allowed opacity-75' : 'cursor-move'}
+                      style={{ pointerEvents: isLocked ? 'none' : 'auto' }}
+                    >
                     <rect
                       x={r.x}
                       y={r.y}
@@ -869,14 +1083,17 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
               })}
 
               {/* Layer 2: Walls & Obstacles */}
-              {mapItems.map((m) => {
-                const isSel = selectedId === m.id && selectedType === 'wall'
-                return (
-                  <g
-                    key={m.id}
-                    onPointerDown={(e) => handlePointerDown(e, m.id, 'wall', m.x, m.y)}
-                    className="cursor-move"
-                  >
+              {layers.walls?.visible &&
+                mapItems.map((m) => {
+                  const isSel = selectedId === m.id && selectedType === 'wall'
+                  const isLocked = layers.walls?.locked
+                  return (
+                    <g
+                      key={m.id}
+                      onPointerDown={(e) => !isLocked && handlePointerDown(e, m.id, 'wall', m.x, m.y)}
+                      className={isLocked ? 'cursor-not-allowed opacity-75' : 'cursor-move'}
+                      style={{ pointerEvents: isLocked ? 'none' : 'auto' }}
+                    >
                     <rect
                       x={m.x}
                       y={m.y}
@@ -907,16 +1124,19 @@ export function FloorEditor({ mapItems, onMapItems }: Props) {
               })}
 
               {/* Layer 3: ESP32 Corner Anchor Nodes */}
-              {anchors.map((a) => {
-                const isSel = selectedId === a.id && selectedType === 'anchor'
-                const isHost = a.host
+              {layers.anchors?.visible &&
+                anchors.map((a) => {
+                  const isSel = selectedId === a.id && selectedType === 'anchor'
+                  const isHost = a.host
+                  const isLocked = layers.anchors?.locked
 
-                return (
-                  <g
-                    key={a.id}
-                    onPointerDown={(e) => handlePointerDown(e, a.id, 'anchor', a.x, a.y)}
-                    className="cursor-pointer"
-                  >
+                  return (
+                    <g
+                      key={a.id}
+                      onPointerDown={(e) => !isLocked && handlePointerDown(e, a.id, 'anchor', a.x, a.y)}
+                      className={isLocked ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'}
+                      style={{ pointerEvents: isLocked ? 'none' : 'auto' }}
+                    >
                     {/* Outer Glow / Halo */}
                     <circle
                       cx={a.x}

@@ -11,11 +11,12 @@ interface Props {
   onSelect: (id: string | null) => void
   focus: string | null
   onFocus: (id: string | null) => void
+  gridSpacing?: number
 }
 
 const M2U = 1 / 0.28
 
-export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus }: Props) {
+export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus, gridSpacing = 4 }: Props) {
   const [hover, setHover] = useState<string | null>(null)
   const [zoom, setZoom] = useState<number>(1)
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -61,8 +62,8 @@ export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus }: P
     <div className="relative overflow-hidden rounded-xl border border-border/40 bg-panel shadow-xs">
       <svg viewBox={actualVb} className="block w-full touch-manipulation" onClick={() => onSelect(null)}>
         <defs>
-          <pattern id="grid" width="4" height="4" patternUnits="userSpaceOnUse">
-            <path d="M4 0H0V4" fill="none" stroke="var(--border)" strokeWidth="0.1" />
+          <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
+            <circle cx={gridSpacing / 2} cy={gridSpacing / 2} r="0.22" fill="var(--muted-foreground)" opacity="0.45" />
           </pattern>
           <pattern id="restricted" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="2.4" stroke="var(--status-lost)" strokeWidth="0.35" opacity="0.35" />

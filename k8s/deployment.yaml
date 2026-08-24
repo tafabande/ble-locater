@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ble-location-engine
+  labels:
+    app: ble-indoor-positioning
+    component: location-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ble-indoor-positioning
+      component: location-engine
+  template:
+    metadata:
+      labels:
+        app: ble-indoor-positioning
+        component: location-engine
+    spec:
+      containers:
+        - name: location-engine
+          image: ble-indoor-positioning:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PORT
+              value: "8000"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /api/training/status
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/training/status
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data-volume
+              mountPath: /app/ble-indoor-positioning/models
+              subPath: models
+            - name: data-volume
+              mountPath: /app/ble-indoor-positioning/datasets
+              subPath: datasets
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: ble-rtls-data-pvc

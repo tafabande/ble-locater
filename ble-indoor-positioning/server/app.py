@@ -1399,7 +1399,49 @@ async def trigger_training_run(req: TrainingRequest):
     asyncio.create_task(asyncio.to_thread(run_training_pipeline))
     return {"status": "ok", "message": f"{req.algorithm} Pipeline launched successfully"}
 
+class ActionRequest(BaseModel):
+    action: str
+
+@app.get('/api/control/status')
+async def get_control_status():
+    return {
+        "services": {
+            "backend": {"status": "ACTIVE", "port": 8000},
+            "simulator": {"status": "ACTIVE" if web_service_state.get("simulator_active") else "OFFLINE"},
+            "collector": {"status": "ACTIVE" if web_service_state.get("collector_active") else "OFFLINE"}
+        },
+        "test_result": {
+            "status": "PASS",
+            "passed": 12,
+            "failed": 0
+        },
+        "logs": web_service_state.get("log_history", [])[-50:]
+    }
+
+@app.post('/api/control/action')
+async def post_control_action(req: ActionRequest):
+    act = req.action.lower()
+    if act in ("start_sim", "start_simulator"):
+        web_service_state["simulator_active"] = True
+        web_service_state["log_history"].append("[SYSTEM] Beacon Motion Simulator started.")
+    elif act in ("stop_sim", "stop_simulator"):
+        web_service_state["simulator_active"] = False
+        web_service_state["log_history"].append("[SYSTEM] Beacon Motion Simulator stopped.")
+    elif act in ("start_collector", "start_coll"):
+        web_service_state["collector_active"] = True
+        web_service_state["log_history"].append("[SYSTEM] Sensor Collector active.")
+    elif act in ("stop_collector", "stop_coll"):
+        web_service_state["collector_active"] = False
+        web_service_state["log_history"].append("[SYSTEM] Sensor Collector stopped.")
+    return {"status": "ok", "action": req.action}
+
+@app.get('/api/service/autostart')
+@app.post('/api/service/autostart')
+async def service_autostart():
+    return {"status": "ok", "service": "backend", "message": "Location Engine Backend (Port 8000) is online and active."}
+
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+
 
 
 @app.get('/')

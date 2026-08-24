@@ -1,3 +1,4 @@
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
 import { useRef, useState } from 'react'
 import { FLOORS, STOREY_HEIGHT, type MapItem, type SimState } from '../../lib/simulation'
 import { STATUS_META } from '../../lib/format'
@@ -9,6 +10,7 @@ interface Props {
   selected: string | null
   onSelect: (id: string | null) => void
   focus: string | null
+  gridSpacing?: number
 }
 
 const VB = { x: -125, y: -150, w: 250, h: 300 }
@@ -19,7 +21,7 @@ const DEFAULT_CAM: Cam = { yaw: -0.72, pitch: 0.5, zoom: 1.35, px: 0, py: 12 }
 
 const poly = (...pts: { X: number; Y: number }[]) => pts.map((p) => `${p.X.toFixed(2)},${p.Y.toFixed(2)}`).join(' ')
 
-export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect, focus }: Props) {
+export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect, focus, gridSpacing = 4 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [hover, setHover] = useState<string | null>(null)
   const [cam, setCam] = useState<Cam>(DEFAULT_CAM)
@@ -124,6 +126,25 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
               <g key={f.id}>
                 <polygon points={poly(...slab)} fill="var(--muted)" fillOpacity={0.5 * dim} stroke="var(--border)" strokeWidth="0.4" opacity={dim} />
                 
+                {/* 3D Graph Paper Point Grid */}
+                {Array.from({ length: Math.floor(80 / (gridSpacing * 1.8)) }).flatMap((_, ix) =>
+                  Array.from({ length: Math.floor(80 / (gridSpacing * 1.8)) }).map((_, iy) => {
+                    const gx = 10 + ix * (gridSpacing * 1.8)
+                    const gy = 10 + iy * (gridSpacing * 1.8)
+                    const pt = iso(gx, gy, zBase)
+                    return (
+                      <circle
+                        key={`dot-${ix}-${iy}`}
+                        cx={pt.X}
+                        cy={pt.Y}
+                        r="0.38"
+                        fill="var(--muted-foreground)"
+                        opacity={0.35 * dim}
+                      />
+                    )
+                  })
+                )}
+
                 {/* Storey Name Label Pill */}
                 <g transform={`translate(${iso(4, 96, zBase).X - 18}, ${iso(4, 96, zBase).Y + 1})`}>
                   <rect x="0" y="0" width="16" height="4.5" rx="1" fill="var(--card)" fillOpacity="0.9" stroke="var(--border)" strokeWidth="0.2" opacity={dim} />

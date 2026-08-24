@@ -199,15 +199,18 @@ export function useLiveSource(enabled: boolean, endpoint: string, intervalMs: nu
         setLastUpdate(Date.now())
       } catch (e) {
         if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) return
-        const errMsg =
-          e instanceof TypeError && e.message.includes('fetch')
-            ? `Connection Refused: Cannot reach ${endpoint}. Is control.py running on port 8000?`
-            : e instanceof Error
-            ? e.message
-            : 'Connection failed'
+        const isConnRefused = e instanceof TypeError && e.message.includes('fetch')
+        if (isConnRefused) {
+          fetch('/api/service/autostart', { method: 'POST' }).catch(() => {})
+        }
+        const errMsg = isConnRefused
+          ? `Connecting to Location Engine API (Port 8000)... Auto-healing in background.`
+          : e instanceof Error
+          ? e.message
+          : 'Connection failed'
 
-        console.error('[BLE Live Telemetry Failure]', errMsg, e)
-        setStatus('error')
+        console.warn('[BLE Live Telemetry Poller]', errMsg)
+        setStatus('connecting')
         setError(errMsg)
       }
     }

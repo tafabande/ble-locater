@@ -19,6 +19,7 @@ type Dim = '2d' | '3d'
 export function SpatialView({ sim, mapItems, selected, onSelect, focus, onFocus }: Props) {
   const [dim, setDim] = useState<Dim>('2d')
   const [floor, setFloor] = useState(0)
+  const [gridSpacing, setGridSpacing] = useState<number>(4)
 
   const focusedTag = sim.tags.find((t) => t.id === focus)
 
@@ -52,6 +53,22 @@ export function SpatialView({ sim, mapItems, selected, onSelect, focus, onFocus 
         {/* Toolbar Controls */}
         <div className="flex flex-wrap items-center gap-2">
           <Legend />
+
+          {/* Graph Paper Dot Grid Spacing Control */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-panel p-0.5 shrink-0">
+            <span className="px-2 font-mono text-[10px] font-bold text-muted-foreground">DOT GRID</span>
+            {[2, 4, 8, 12].map((spacing) => (
+              <button
+                key={spacing}
+                onClick={() => setGridSpacing(spacing)}
+                className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-bold transition-colors ${
+                  gridSpacing === spacing ? 'bg-accent text-primary-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {spacing}m
+              </button>
+            ))}
+          </div>
 
           {/* Scrollable Mobile Floor Picker */}
           <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-panel p-0.5 max-w-full overflow-x-auto">
@@ -88,9 +105,9 @@ export function SpatialView({ sim, mapItems, selected, onSelect, focus, onFocus 
       </div>
 
       {dim === '2d' ? (
-        <FloorPlan sim={sim} mapItems={mapItems} floor={activeFloor} selected={selected} onSelect={onSelect} focus={focus} onFocus={onFocus} />
+        <FloorPlan sim={sim} mapItems={mapItems} floor={activeFloor} selected={selected} onSelect={onSelect} focus={focus} onFocus={onFocus} gridSpacing={gridSpacing} />
       ) : (
-        <BuildingView3D sim={sim} mapItems={mapItems} activeFloor={activeFloor} selected={selected} onSelect={onSelect} focus={focus} />
+        <BuildingView3D sim={sim} mapItems={mapItems} activeFloor={activeFloor} selected={selected} onSelect={onSelect} focus={focus} gridSpacing={gridSpacing} />
       )}
 
       {focusedTag && (

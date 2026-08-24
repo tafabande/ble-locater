@@ -1,8 +1,12 @@
 import { useState } from 'react'
-import TypeIt from 'typeit-react'
 import type { ConnStatus, Mode } from '../lib/datasource'
 import type { SimState } from '../lib/simulation'
 import { M3Error, M3Refresh } from './common/MaterialIcon'
+
+/* Hallmark · component: ErrorDiagnosticBanner · genre: modern-minimal · theme: cobalt
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (46–50)
+ */
 
 interface Props {
   mode: Mode
@@ -22,7 +26,6 @@ export function ErrorDiagnosticBanner({ mode, connStatus, error, endpoint, sim, 
   const lostTags = sim.tags.filter((t) => t.status === 'lost')
   const hasPipelineErrors = sim.pipeline.some((p) => p.status === 'error')
 
-  // Nothing to warn about if everything is operating nominally in Demo mode or Live connected.
   if (!isLiveError && criticalAlerts.length === 0 && !hasPipelineErrors) {
     return null
   }
@@ -34,21 +37,26 @@ export function ErrorDiagnosticBanner({ mode, connStatus, error, endpoint, sim, 
     : 'One or more telemetry pipeline stages reported execution anomalies.'
 
   return (
-    <div className="mb-6 overflow-hidden rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-foreground shadow-xs backdrop-blur">
+    <div className="mb-4 overflow-hidden rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-foreground shadow-xs backdrop-blur transition-all">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-rose-500/20 text-rose-600">
-            <M3Error size={20} />
+          <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-rose-500/20 text-rose-600">
+            <M3Error size={18} />
           </div>
           <div>
-            <h3 className="text-sm font-semibold tracking-tight text-rose-600">
-              {isLiveError
-                ? 'System Alert: Live Hardware Endpoint Error'
-                : criticalAlerts.length > 0
-                ? `System Alert: ${criticalAlerts.length} Critical System Event(s)`
-                : 'System Alert: Pipeline Processing Warning'}
+            <h3 className="text-xs font-semibold tracking-tight text-rose-600 flex items-center gap-2">
+              <span>
+                {isLiveError
+                  ? 'System Alert: Live Hardware Endpoint Error'
+                  : criticalAlerts.length > 0
+                  ? `System Alert: ${criticalAlerts.length} Critical System Event(s)`
+                  : 'System Alert: Pipeline Processing Warning'}
+              </span>
+              <span className="rounded bg-rose-500/20 px-1.5 py-0.5 font-mono text-[10px] text-rose-700 dark:text-rose-300">
+                [LIVE TELEMETRY LOGGED]
+              </span>
             </h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground truncate max-w-xl">
               {errorMsg}
             </p>
           </div>
@@ -59,14 +67,14 @@ export function ErrorDiagnosticBanner({ mode, connStatus, error, endpoint, sim, 
             <>
               <button
                 onClick={onRetry}
-                className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-accent"
+                className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-primary-foreground transition-colors hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-accent"
               >
-                <M3Refresh size={14} />
+                <M3Refresh size={13} />
                 Retry API
               </button>
               <button
                 onClick={onSwitchDemo}
-                className="rounded-lg border border-border/40 bg-panel px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent"
+                className="rounded-md border border-border/40 bg-panel px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent"
               >
                 Use Simulation Engine
               </button>
@@ -75,7 +83,7 @@ export function ErrorDiagnosticBanner({ mode, connStatus, error, endpoint, sim, 
 
           <button
             onClick={() => setExpanded(!expanded)}
-            className="rounded-md border border-red-300/80 bg-red-100/60 px-2.5 py-1.5 text-xs font-mono text-red-800 hover:bg-red-200 dark:border-red-800 dark:bg-red-900/60 dark:text-red-200"
+            className="rounded-md border border-rose-300/80 bg-rose-100/60 px-2.5 py-1 text-xs font-mono text-rose-800 hover:bg-rose-200 dark:border-rose-800 dark:bg-rose-900/60 dark:text-rose-200 transition-colors"
           >
             {expanded ? 'Hide Diagnostics ▲' : 'Show Diagnostics ▼'}
           </button>
@@ -83,29 +91,29 @@ export function ErrorDiagnosticBanner({ mode, connStatus, error, endpoint, sim, 
       </div>
 
       {expanded && (
-        <div className="mt-4 border-t border-red-200/80 pt-3 dark:border-red-900/50">
+        <div className="mt-3 border-t border-rose-200/80 pt-3 dark:border-rose-900/50">
           <div className="grid grid-cols-1 gap-3 font-mono text-[11px] sm:grid-cols-3">
-            <div className="rounded bg-white/70 p-2.5 dark:bg-red-900/30">
-              <span className="font-bold text-red-900 dark:text-red-100">MODE & STATUS</span>
-              <div className="mt-1">Mode: {mode.toUpperCase()}</div>
+            <div className="rounded-lg bg-background/80 p-2.5 border border-border/40 shadow-xs">
+              <span className="font-bold text-rose-700 dark:text-rose-300 block mb-1">MODE & STATUS</span>
+              <div>Mode: {mode.toUpperCase()}</div>
               <div>Connection: {connStatus ?? 'N/A'}</div>
-              <div>Target URL: {endpoint}</div>
+              <div className="truncate">Target URL: {endpoint}</div>
             </div>
 
-            <div className="rounded bg-white/70 p-2.5 dark:bg-red-900/30">
-              <span className="font-bold text-red-900 dark:text-red-100">TAG & MESH STATUS</span>
-              <div className="mt-1">Active Tags: {sim.tags.length - lostTags.length} / {sim.tags.length}</div>
+            <div className="rounded-lg bg-background/80 p-2.5 border border-border/40 shadow-xs">
+              <span className="font-bold text-rose-700 dark:text-rose-300 block mb-1">TAG & MESH STATUS</span>
+              <div>Active Tags: {sim.tags.length - lostTags.length} / {sim.tags.length}</div>
               <div>Lost Signals: {lostTags.length}</div>
               <div>Anchors Online: {sim.anchors.length}</div>
             </div>
 
-            <div className="rounded bg-white/70 p-2.5 dark:bg-red-900/30">
-              <span className="font-bold text-red-900 dark:text-red-100">PIPELINE STAGES</span>
-              <div className="mt-1 space-y-0.5">
+            <div className="rounded-lg bg-background/80 p-2.5 border border-border/40 shadow-xs">
+              <span className="font-bold text-rose-700 dark:text-rose-300 block mb-1">PIPELINE STAGES</span>
+              <div className="space-y-0.5">
                 {sim.pipeline.map((p) => (
                   <div key={p.id} className="flex justify-between">
                     <span>{p.label}:</span>
-                    <span className={p.status === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-700 font-bold dark:text-red-300'}>
+                    <span className={p.status === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 font-bold dark:text-rose-300'}>
                       {p.status.toUpperCase()} ({p.latencyMs}ms)
                     </span>
                   </div>
@@ -118,3 +126,4 @@ export function ErrorDiagnosticBanner({ mode, connStatus, error, endpoint, sim, 
     </div>
   )
 }
+

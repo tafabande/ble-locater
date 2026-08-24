@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Indoor Positioning Location Engine & Web Dashboard
+  location-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ble_location_engine
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8000
+    volumes:
+      - model-data:/app/ble-indoor-positioning/models
+      - dataset-data:/app/ble-indoor-positioning/datasets
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/training/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Beacon Motion Simulator Worker
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ble_simulator_worker
+    restart: unless-stopped
+    command: ["python", "simulate_demo.py"]
+    depends_on:
+      location-engine:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+      - API_URL=http://location-engine:8000
+
+volumes:
+  model-data:
+    driver: local
+  dataset-data:
+    driver: local

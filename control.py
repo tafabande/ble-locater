@@ -164,6 +164,7 @@ class OperationsConsole:
         self.service_rows: dict[str, dict] = {}
         self.shutting_down = False
         self.user_stopped: set[str] = set()
+        self.auto_heal = True
         self.error_count = 0
 
         self._styles()
@@ -171,11 +172,12 @@ class OperationsConsole:
         self._refresh_state()
         self._select_service("backend")
         self._log(
-            "Console ready. Start the system stack or select individual services from the sidebar.",
+            "Console ready. Auto-healing active — core microservices managed automatically.",
             "System",
         )
         self.root.after(150, self._drain_logs)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
+        threading.Thread(target=self._watchdog_loop, daemon=True).start()
 
         if "--autostart" in sys.argv or "-a" in sys.argv:
             self._log(
@@ -1282,6 +1284,20 @@ class OperationsConsole:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _watchdog_loop(self) -> None:
+        """Background watchdog to auto-heal core microservices if they drop."""
+        time.sleep(2)
+        while not self.shutting_down:
+            try:
+                if self.auto_heal:
+                    # Auto-heal backend if not user-stopped
+                    if not self._running("backend") and "backend" not in self.user_stopped:
+                        self._log("⚡ Auto-Healing Watchdog: Location Engine (Port 8000) offline. Auto-starting service...", "System")
+                        self.start_service("backend")
+            except Exception:
+                pass
+            time.sleep(3)
+
     def stop_service(self, key: str) -> None:
         self.user_stopped.add(key)
         service = next(s for s in self.services if s.key == key)
@@ -1292,10 +1308,15 @@ class OperationsConsole:
             return
         self._log(f"Stopping {service.name}\u2026", "System")
         try:
-            proc.send_signal(
-                signal.CTRL_BREAK_EVENT if os.name == "nt"
-                else signal.SIGTERM,
-            )
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                proc.send_signal(signal.SIGTERM)
+
             threading.Thread(
                 target=self._wait_for_stop,
                 args=(proc, service.name), daemon=True,
@@ -1307,12 +1328,12 @@ class OperationsConsole:
         self, proc: subprocess.Popen[str], name: str,
     ) -> None:
         try:
-            proc.wait(timeout=4)
+            proc.wait(timeout=3)
         except subprocess.TimeoutExpired:
             proc.kill()
             self._log(
-                f"{name} did not exit gracefully and was terminated.",
-                "Error",
+                f"{name} process tree terminated.",
+                "System",
             )
 
     def _open_browser_when_ready(
