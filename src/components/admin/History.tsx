@@ -45,14 +45,14 @@ export function History({ events, alerts }: Props) {
   )
 
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card">
-      <div className="flex items-center gap-1 border-b border-border p-3">
+    <div className="rounded-2xl bg-card p-5 shadow-sm space-y-4">
+      <div className="flex items-center gap-1.5 rounded-xl bg-muted/40 p-1">
         {(['events', 'alerts'] as const).map((s) => (
           <button
             key={s}
             onClick={() => setSource(s)}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              source === s ? 'bg-accent-soft text-accent' : 'text-muted-foreground hover:text-foreground'
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+              source === s ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             {s === 'events' ? 'Movement events' : `Alert log (${alerts.length})`}
@@ -64,29 +64,29 @@ export function History({ events, alerts }: Props) {
         <div className="max-h-[520px] overflow-y-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 bg-card">
-              <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                <th className="px-4 py-2.5 font-medium">Time</th>
-                <th className="px-4 py-2.5 font-medium">Severity</th>
-                <th className="px-4 py-2.5 font-medium">Source</th>
-                <th className="px-4 py-2.5 font-medium">Message</th>
-                <th className="px-4 py-2.5 font-medium">State</th>
+              <tr className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                <th className="px-4 py-2.5">Time</th>
+                <th className="px-4 py-2.5">Severity</th>
+                <th className="px-4 py-2.5">Source</th>
+                <th className="px-4 py-2.5">Message</th>
+                <th className="px-4 py-2.5">State</th>
               </tr>
             </thead>
             <tbody>
               {alerts.map((a) => (
-                <tr key={a.id} className="border-b border-border last:border-0 hover:bg-muted">
+                <tr key={a.id} className="hover:bg-muted/40 transition-colors">
                   <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground">
                     {clockTime(a.ts)}
                     <span className="ml-1.5 text-[10px] opacity-70">{relativeTime(a.ts)}</span>
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: SEV_COLOR[a.severity] }}>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: SEV_COLOR[a.severity] }}>
                       <span className="size-1.5 rounded-full" style={{ background: SEV_COLOR[a.severity] }} />
                       {a.severity}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-xs">{a.tag}</td>
-                  <td className="px-4 py-2.5 text-xs text-foreground">{a.message}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs font-medium">{a.tag}</td>
+                  <td className="px-4 py-2.5 text-xs text-foreground font-medium">{a.message}</td>
                   <td className="px-4 py-2.5 text-xs text-muted-foreground">{a.acknowledged ? 'Acknowledged' : 'Open'}</td>
                 </tr>
               ))}
@@ -102,14 +102,14 @@ export function History({ events, alerts }: Props) {
         </div>
       ) : (
       <>
-      <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1">
+      <div className="flex flex-col gap-3 p-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-1.5">
           {FILTERS.map((f) => (
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                filter === f.id ? 'border-accent bg-accent-soft text-accent' : 'border-border text-muted-foreground hover:text-foreground'
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                filter === f.id ? 'bg-accent text-primary-foreground shadow-xs' : 'bg-muted/40 text-muted-foreground hover:text-foreground'
               }`}
             >
               {f.label}
@@ -120,19 +120,19 @@ export function History({ events, alerts }: Props) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search tag or zone…"
-          className="w-full rounded-md border border-border bg-panel px-3 py-1.5 font-mono text-xs outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring sm:w-56"
+          className="w-full rounded-xl bg-muted/40 px-3.5 py-1.5 font-mono text-xs outline-none focus:bg-card focus:ring-2 focus:ring-accent text-foreground placeholder:text-muted-foreground sm:w-56"
         />
       </div>
 
       <div className="max-h-[520px] overflow-y-auto">
         <table className="w-full text-left text-sm">
           <thead className="sticky top-0 bg-card">
-            <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              <th className="px-4 py-2.5 font-medium">Time</th>
-              <th className="px-4 py-2.5 font-medium">Event</th>
-              <th className="px-4 py-2.5 font-medium">Tag</th>
-              <th className="px-4 py-2.5 font-medium">Zone</th>
-              <th className="px-4 py-2.5 font-medium">Detail</th>
+            <tr className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              <th className="px-4 py-2.5">Time</th>
+              <th className="px-4 py-2.5">Event</th>
+              <th className="px-4 py-2.5">Tag</th>
+              <th className="px-4 py-2.5">Zone</th>
+              <th className="px-4 py-2.5">Detail</th>
             </tr>
           </thead>
           <tbody>

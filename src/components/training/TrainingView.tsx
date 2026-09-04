@@ -1,5 +1,19 @@
 import { useEffect, useState } from 'react'
 import { canAccess, type UserRole } from '../../lib/rbac'
+import {
+  M3Sparkles,
+  M3Refresh,
+  M3Stop,
+  M3Bolt,
+  M3Check,
+  M3Close,
+  M3Clipboard,
+  M3BarChart,
+  M3Ruler,
+  M3Building,
+  M3Trophy,
+  M3Settings,
+} from '../common/MaterialIcon'
 
 interface ModelMetrics {
   exists: boolean
@@ -256,11 +270,11 @@ export function TrainingView({ role }: { role: UserRole }) {
   return (
     <div className="space-y-6 animate-pop-in">
       {/* Header Banner */}
-      <div className="rounded-xl border border-border bg-panel p-5 shadow-xs">
+      <div className="rounded-2xl bg-card p-6 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-              👑 AI Studio — SuperLearner & End-to-End ML Pipeline
+            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+              <M3Sparkles size={20} className="text-accent" /> AI Studio — SuperLearner & End-to-End ML Pipeline
             </h2>
             <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
               Engineers 60 temporal & RSSI features, evaluates base model tournaments (CatBoost, XGBoost, LightGBM, RandomForest), and trains the Stacking SuperLearner Ensemble for sub-meter positioning accuracy.
@@ -279,9 +293,9 @@ export function TrainingView({ role }: { role: UserRole }) {
               onClick={reloadModels}
               disabled={reloading || !canTrain}
               title="Hot-reload the latest models saved on disk directly into the active positioning engine"
-              className="rounded-lg bg-accent-soft hover:bg-accent/20 px-3 py-1.5 text-xs font-semibold text-accent transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded-xl bg-accent/15 hover:bg-accent/25 px-3 py-1.5 text-xs font-semibold text-accent transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
             >
-              <span className={reloading ? 'animate-spin' : ''}>🔄</span>
+              <M3Refresh size={14} className={reloading ? 'animate-spin' : ''} />
               {reloading ? 'Reloading...' : 'Reload Active Models'}
             </button>
 
@@ -290,35 +304,36 @@ export function TrainingView({ role }: { role: UserRole }) {
                 onClick={cancelRun}
                 disabled={cancelling}
                 title="Cancel the active training pipeline run"
-                className="rounded-lg bg-panel border border-border hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1 shadow-xs disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
+                className="rounded-xl bg-muted/50 hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
               >
-                {cancelling ? 'Cancelling...' : '⛔ Cancel Run'}
+                <M3Stop size={14} className="text-rose-400" />
+                {cancelling ? 'Cancelling...' : 'Cancel Run'}
               </button>
             )}
 
             {jobStatus === 'TRAINING' && (
-              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-accent animate-pulse flex items-center gap-1.5 gpu-accelerated">
-                <span className="size-2 rounded-full bg-accent animate-ping-ring" />
-                ⚡ EXECUTING PIPELINE ({data?.job?.progress ?? 0}%)
+              <span className="rounded-full bg-muted/60 px-3.5 py-1 text-xs font-semibold text-accent animate-pulse flex items-center gap-1.5 shadow-xs gpu-accelerated">
+                <M3Bolt size={14} />
+                EXECUTING PIPELINE ({data?.job?.progress ?? 0}%)
               </span>
             )}
             {jobStatus === 'COMPLETED' && (
-              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-foreground flex items-center gap-1.5">
-                ✅ PIPELINE COMPLETED
+              <span className="rounded-full bg-muted/60 px-3.5 py-1 text-xs font-semibold text-foreground flex items-center gap-1.5 shadow-xs">
+                <M3Check size={14} className="text-accent" /> PIPELINE COMPLETED
               </span>
             )}
             {jobStatus === 'CANCELLED' && (
-              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                🚫 PIPELINE CANCELLED
+              <span className="rounded-full bg-muted/60 px-3.5 py-1 text-xs font-semibold text-muted-foreground flex items-center gap-1.5 shadow-xs">
+                <M3Close size={14} /> PIPELINE CANCELLED
               </span>
             )}
             {jobStatus === 'ERROR' && (
-              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-foreground flex items-center gap-1.5">
-                ❌ PIPELINE ERROR
+              <span className="rounded-full bg-muted/60 px-3.5 py-1 text-xs font-semibold text-foreground flex items-center gap-1.5 shadow-xs">
+                <M3Close size={14} className="text-rose-400" /> PIPELINE ERROR
               </span>
             )}
             {jobStatus === 'IDLE' && (
-              <span className="rounded-full border border-border bg-panel px-3 py-1 text-xs font-semibold text-muted-foreground">
+              <span className="rounded-full bg-muted/60 px-3.5 py-1 text-xs font-semibold text-muted-foreground shadow-xs">
                 READY TO LAUNCH
               </span>
             )}
@@ -328,16 +343,17 @@ export function TrainingView({ role }: { role: UserRole }) {
 
       {/* Last Execution Result Card */}
       {data?.last_result && (
-        <div className="rounded-xl border border-border bg-panel p-4 space-y-3 shadow-xs animate-pop-in">
+        <div className="rounded-2xl bg-card p-5 space-y-4 shadow-sm animate-pop-in">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold text-foreground flex items-center gap-2">
-              <span>📋 Last Execution Result</span>
-              <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <M3Clipboard size={16} className="text-accent" />
+              <span>Last Execution Result</span>
+              <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                 data.last_result.status === 'COMPLETED'
-                  ? 'bg-accent-soft text-accent border border-accent/20'
+                  ? 'bg-accent/15 text-accent'
                   : data.last_result.status === 'CANCELLED'
-                  ? 'bg-muted text-muted-foreground border border-border'
-                  : 'bg-muted text-foreground border border-border'
+                  ? 'bg-muted text-muted-foreground'
+                  : 'bg-muted text-foreground'
               }`}>
                 {data.last_result.status}
               </span>
@@ -350,31 +366,31 @@ export function TrainingView({ role }: { role: UserRole }) {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <div className="rounded-lg bg-panel p-2.5 space-y-0.5">
-              <span className="text-[10px] text-muted-foreground block">Champion Model</span>
-              <span className="font-semibold text-foreground truncate block">{data.last_result.algorithm || 'N/A'}</span>
+            <div className="rounded-xl bg-muted/40 p-3 space-y-1">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">Champion Model</span>
+              <span className="font-bold text-foreground truncate block text-sm">{data.last_result.algorithm || 'N/A'}</span>
             </div>
-            <div className="rounded-lg bg-panel p-2.5 space-y-0.5">
-              <span className="text-[10px] text-muted-foreground block">Execution Duration</span>
-              <span className="font-semibold text-purple-300 font-mono block">{data.last_result.duration || 'N/A'}</span>
+            <div className="rounded-xl bg-muted/40 p-3 space-y-1">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">Execution Duration</span>
+              <span className="font-bold text-accent font-mono block text-sm">{data.last_result.duration || 'N/A'}</span>
             </div>
-            <div className="rounded-lg bg-panel p-2.5 space-y-0.5">
-              <span className="text-[10px] text-muted-foreground block">Distance Error (MAE)</span>
-              <span className="font-semibold text-emerald-400 font-mono block">
+            <div className="rounded-xl bg-muted/40 p-3 space-y-1">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">Distance Error (MAE)</span>
+              <span className="font-bold text-emerald-400 font-mono block text-sm">
                 {data.last_result.mae_meters !== undefined ? `${data.last_result.mae_meters} m` : 'N/A'}
               </span>
             </div>
-            <div className="rounded-lg bg-panel p-2.5 space-y-0.5">
-              <span className="text-[10px] text-muted-foreground block">Zone Precision</span>
-              <span className="font-semibold text-sky-400 font-mono block">
+            <div className="rounded-xl bg-muted/40 p-3 space-y-1">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">Zone Precision</span>
+              <span className="font-bold text-teal-400 font-mono block text-sm">
                 {data.last_result.zone_accuracy !== undefined ? `${data.last_result.zone_accuracy}%` : 'N/A'}
               </span>
             </div>
           </div>
 
           {data.last_result.message && (
-            <div className="text-xs text-muted-foreground font-mono bg-panel/50 p-2 rounded-lg border border-border/40">
-              <span className="text-purple-300 font-semibold">Outcome: </span>
+            <div className="text-xs text-muted-foreground font-mono bg-muted/40 p-3 rounded-xl">
+              <span className="text-accent font-semibold">Outcome: </span>
               {data.last_result.message}
             </div>
           )}
@@ -383,9 +399,9 @@ export function TrainingView({ role }: { role: UserRole }) {
 
       {/* Success Notification Banner */}
       {successMessage && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center justify-between gap-3 text-xs text-emerald-300">
+        <div className="rounded-2xl bg-emerald-500/10 p-4 flex items-center justify-between gap-3 text-xs text-emerald-300 shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="text-lg">🎉</span>
+            <M3Sparkles size={20} className="text-emerald-400 shrink-0" />
             <div>
               <strong className="font-semibold block text-emerald-200">Operation Successful</strong>
               <span>{successMessage}</span>
@@ -393,7 +409,7 @@ export function TrainingView({ role }: { role: UserRole }) {
           </div>
           <button
             onClick={() => setSuccessMessage(null)}
-            className="rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 px-2.5 py-1 font-semibold text-emerald-300 transition-colors"
+            className="rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 px-3 py-1.5 font-semibold text-emerald-300 transition-colors"
           >
             Dismiss
           </button>
@@ -402,25 +418,25 @@ export function TrainingView({ role }: { role: UserRole }) {
 
       {/* Backend Auto-Healing Background Banner */}
       {isBackendOffline && (
-        <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4 flex items-center justify-between gap-3 text-xs text-sky-200">
+        <div className="rounded-2xl bg-teal-500/10 p-4 flex items-center justify-between gap-3 text-xs text-teal-200 shadow-sm">
           <div className="flex items-center gap-3">
             <span className="relative flex size-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
-              <span className="relative inline-flex rounded-full size-2.5 bg-sky-500" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+              <span className="relative inline-flex rounded-full size-2.5 bg-teal-500" />
             </span>
             <div>
-              <strong className="font-semibold text-sky-100 block flex items-center gap-1.5">
-                ⚡ Location Engine Auto-Healing Active
+              <strong className="font-semibold text-teal-100 block flex items-center gap-1.5">
+                <M3Bolt size={14} className="text-teal-400" /> Location Engine Auto-Healing Active
               </strong>
-              <span className="text-sky-300/90">Starting backend engine automatically in background (Port 8000). Connecting...</span>
+              <span className="text-teal-300/90">Starting backend engine automatically in background (Port 8000). Connecting...</span>
             </div>
           </div>
           <button
             onClick={handleRetryConnection}
             disabled={isRetrying}
-            className="rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 font-semibold px-3 py-1.5 text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+            className="rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 font-semibold px-3 py-1.5 text-xs transition-colors flex items-center gap-1.5 shadow-xs"
           >
-            <span className={isRetrying ? 'animate-spin' : ''}>🔄</span>
+            <M3Refresh size={14} className={isRetrying ? 'animate-spin' : ''} />
             {isRetrying ? 'Checking...' : 'Check Connection'}
           </button>
         </div>
@@ -428,17 +444,17 @@ export function TrainingView({ role }: { role: UserRole }) {
 
       {/* Error Notification Banner */}
       {errorMessage && (
-        <div className="rounded-xl border border-border bg-panel p-4 flex items-center justify-between gap-3 text-xs text-foreground">
+        <div className="rounded-2xl bg-rose-500/10 p-4 flex items-center justify-between gap-3 text-xs text-rose-300 shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="text-lg">❌</span>
+            <span className="text-lg">⚠️</span>
             <div>
-              <strong className="font-semibold block text-foreground">Pipeline Execution Status</strong>
+              <strong className="font-semibold block text-rose-200">Pipeline Execution Status</strong>
               <span>{errorMessage}</span>
             </div>
           </div>
           <button
             onClick={() => setErrorMessage(null)}
-            className="rounded-md bg-muted hover:bg-muted/80 px-2.5 py-1 font-semibold text-foreground transition-colors"
+            className="rounded-xl bg-rose-500/20 hover:bg-rose-500/30 px-3 py-1.5 font-semibold text-rose-200 transition-colors"
           >
             Clear Message
           </button>
@@ -448,34 +464,41 @@ export function TrainingView({ role }: { role: UserRole }) {
       {/* Main Grid: Controls vs Evaluation & Metrics */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column: Model Training Configuration */}
-        <div className="space-y-4 lg:col-span-6">
-          <div className="rounded-xl bg-card p-5 space-y-4 shadow-xs">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <span>⚙️ Pipeline & Ensemble Settings</span>
+        <div className="space-y-5 lg:col-span-6">
+          <div className="rounded-2xl bg-card p-6 space-y-5 shadow-sm">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <M3Settings size={16} className="text-accent" />
+              <span>Pipeline & Ensemble Settings</span>
             </h3>
 
             {!canTrain && (
-              <div className="rounded-lg border border-border bg-panel p-3 text-xs font-medium text-muted-foreground">
+              <div className="rounded-xl bg-muted/40 p-3 text-xs font-medium text-muted-foreground">
                 Operator can review training state and logs. Admin role is required to start training or reload models.
               </div>
             )}
 
             {/* Algorithm Selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Architecture / Stacking Ensemble</label>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground">Architecture / Stacking Ensemble</label>
               <div className="grid grid-cols-2 gap-2">
                 {['SuperLearner', 'CatBoost', 'XGBoost', 'LightGBM', 'RandomForest'].map((algo) => (
                   <button
                     key={algo}
                     disabled={isTraining || !canTrain}
                     onClick={() => setAlgorithm(algo)}
-                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent ${
+                    className={`rounded-xl px-3.5 py-2.5 text-xs font-medium transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent cursor-pointer shadow-xs ${
                       algorithm === algo
-                        ? 'border-accent bg-accent-soft text-accent font-bold shadow-sm'
-                        : 'border-border bg-panel text-muted-foreground hover:text-foreground'
+                        ? 'bg-accent text-primary-foreground font-bold shadow-xs'
+                        : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70'
                     }`}
                   >
-                    {algo === 'SuperLearner' ? '👑 SuperLearner (Stacking)' : algo}
+                    {algo === 'SuperLearner' ? (
+                      <span className="flex items-center gap-1.5">
+                        <M3Sparkles size={14} /> SuperLearner (Stacking)
+                      </span>
+                    ) : (
+                      algo
+                    )}
                   </button>
                 ))}
               </div>
@@ -483,12 +506,12 @@ export function TrainingView({ role }: { role: UserRole }) {
 
             {/* Dataset Selector */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Observation Dataset</label>
+              <label className="text-xs font-semibold text-foreground">Observation Dataset</label>
               <select
                 disabled={isTraining || !canTrain}
                 value={dataset}
                 onChange={(e) => setDataset(e.target.value)}
-                className="w-full rounded-lg border border-border bg-panel px-3 py-2 text-xs text-foreground focus:outline-2 focus:outline-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-xl bg-muted/40 px-3 py-2 text-xs text-foreground focus:bg-card focus:ring-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {(data?.datasets ?? []).map((ds) => (
                   <option key={ds.name} value={ds.name}>
@@ -510,7 +533,7 @@ export function TrainingView({ role }: { role: UserRole }) {
                   step="0.01"
                   value={lr}
                   onChange={(e) => setLr(parseFloat(e.target.value))}
-                  className="w-full accent-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full accent-accent disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 />
               </div>
 
@@ -524,7 +547,7 @@ export function TrainingView({ role }: { role: UserRole }) {
                   step="50"
                   value={trees}
                   onChange={(e) => setTrees(parseInt(e.target.value))}
-                  className="w-full accent-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full accent-accent disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 />
               </div>
             </div>
@@ -534,7 +557,7 @@ export function TrainingView({ role }: { role: UserRole }) {
               <button
                 disabled={isTraining || !canTrain}
                 onClick={startTournament}
-                className="w-full rounded-lg bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 text-xs font-semibold text-primary-foreground transition-colors flex items-center justify-center gap-2 shadow-sm focus-visible:outline-2 focus-visible:outline-accent"
+                className="w-full rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 text-xs font-bold text-primary-foreground transition-all flex items-center justify-center gap-2 shadow-sm focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
               >
                 {submitting ? (
                   <>
@@ -547,16 +570,18 @@ export function TrainingView({ role }: { role: UserRole }) {
                     Executing SuperLearner Pipeline ({data?.job?.progress ?? 0}%)...
                   </>
                 ) : (
-                  '👑 Launch Complete SuperLearner Pipeline & Tournament'
+                  <span className="flex items-center gap-2">
+                    <M3Sparkles size={16} /> Launch Complete SuperLearner Pipeline & Tournament
+                  </span>
                 )}
               </button>
             </div>
 
             {/* Live Progress Bar */}
             {isTraining && (
-              <div className="space-y-2 pt-2 rounded-lg border border-border bg-panel p-3">
+              <div className="space-y-2 pt-2 rounded-xl bg-muted/40 p-3.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-foreground font-medium">{data?.job?.message || 'Processing...'}</span>
+                  <span className="text-foreground font-semibold">{data?.job?.message || 'Processing...'}</span>
                   <span className="text-accent font-bold">{data?.job?.progress ?? 0}%</span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
@@ -567,16 +592,17 @@ export function TrainingView({ role }: { role: UserRole }) {
                 </div>
               </div>
             )}
-            <div className="rounded-lg border border-border bg-slate-950 p-3">
-              <div className="mb-2 flex items-center justify-between">
+
+            <div className="rounded-xl bg-slate-950 p-4 shadow-inner">
+              <div className="mb-2.5 flex items-center justify-between">
                 <h4 className="text-xs font-semibold text-slate-200">Training Log</h4>
-                <span className="text-[11px] text-slate-500">{data?.logs?.length ?? 0} recent entries</span>
+                <span className="text-[11px] font-mono text-slate-500">{data?.logs?.length ?? 0} recent entries</span>
               </div>
               <div className="max-h-40 space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-300">
                 {(data?.logs ?? ['Waiting for backend status...']).map((line, i) => (
                   <div
                     key={`${line}-${i}`}
-                    className={line.includes('[ERROR]') ? 'text-rose-400' : line.includes('[TRAINING]') ? 'text-purple-300' : 'text-slate-300'}
+                    className={line.includes('[ERROR]') ? 'text-rose-400' : line.includes('[TRAINING]') ? 'text-teal-300' : 'text-slate-300'}
                   >
                     {line}
                   </div>
@@ -587,39 +613,45 @@ export function TrainingView({ role }: { role: UserRole }) {
         </div>
 
         {/* Right Column: Model Metrics & Evaluation */}
-        <div className="space-y-4 lg:col-span-6">
-          <h3 className="text-sm font-semibold text-foreground">📊 Champion ML Model Performance</h3>
+        <div className="space-y-5 lg:col-span-6">
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <M3BarChart size={18} className="text-accent" />
+            <span>Champion ML Model Performance</span>
+          </h3>
 
           {/* Distance Estimator Card */}
-          <div className="rounded-xl bg-card p-4 space-y-3 shadow-xs">
+          <div className="rounded-2xl bg-card p-5 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium text-foreground">📏 Distance Estimator Model</h4>
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <M3Ruler size={16} className="text-accent" />
+                  <span>Distance Estimator Model</span>
+                </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Algorithm: <strong className="text-sky-300">{data?.available_models?.distance_estimator?.algorithm}</strong>
+                  Algorithm: <strong className="text-teal-400">{data?.available_models?.distance_estimator?.algorithm}</strong>
                 </p>
               </div>
-              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-400">
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
                 ACTIVE
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50 text-center">
-              <div className="rounded-lg bg-panel p-2">
-                <span className="text-[10px] text-muted-foreground block">Mean Error (MAE)</span>
-                <span className="text-sm font-bold text-emerald-400">
+            <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+              <div className="rounded-xl bg-muted/40 p-3">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">Mean Error (MAE)</span>
+                <span className="text-base font-bold text-emerald-400">
                   {data?.available_models?.distance_estimator?.mae_meters} m
                 </span>
               </div>
-              <div className="rounded-lg bg-panel p-2">
-                <span className="text-[10px] text-muted-foreground block">RMSE Error</span>
-                <span className="text-sm font-bold text-sky-400">
+              <div className="rounded-xl bg-muted/40 p-3">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">RMSE Error</span>
+                <span className="text-base font-bold text-teal-400">
                   {data?.available_models?.distance_estimator?.rmse} m
                 </span>
               </div>
-              <div className="rounded-lg bg-panel p-2">
-                <span className="text-[10px] text-muted-foreground block">R² Score</span>
-                <span className="text-sm font-bold text-purple-400">
+              <div className="rounded-xl bg-muted/40 p-3">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">R² Score</span>
+                <span className="text-base font-bold text-emerald-400">
                   {data?.available_models?.distance_estimator?.r2_score}
                 </span>
               </div>
@@ -627,29 +659,32 @@ export function TrainingView({ role }: { role: UserRole }) {
           </div>
 
           {/* Zone Classifier Card */}
-          <div className="rounded-xl bg-card p-4 space-y-3 shadow-xs">
+          <div className="rounded-2xl bg-card p-5 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium text-foreground">🏢 Room/Zone Classifier</h4>
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <M3Building size={16} className="text-accent" />
+                  <span>Room/Zone Classifier</span>
+                </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Algorithm: <strong className="text-purple-300">{data?.available_models?.zone_classifier?.algorithm}</strong>
+                  Algorithm: <strong className="text-teal-400">{data?.available_models?.zone_classifier?.algorithm}</strong>
                 </p>
               </div>
-              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-400">
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
                 ACTIVE
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/50 text-center">
-              <div className="rounded-lg bg-panel p-2">
-                <span className="text-[10px] text-muted-foreground block">Zone Precision</span>
-                <span className="text-sm font-bold text-emerald-400">
+            <div className="grid grid-cols-2 gap-2 pt-1 text-center">
+              <div className="rounded-xl bg-muted/40 p-3">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">Zone Precision</span>
+                <span className="text-base font-bold text-emerald-400">
                   {((data?.available_models?.zone_classifier?.accuracy ?? 0) * 100).toFixed(1)}%
                 </span>
               </div>
-              <div className="rounded-lg bg-panel p-2">
-                <span className="text-[10px] text-muted-foreground block">F1-Score</span>
-                <span className="text-sm font-bold text-purple-400">
+              <div className="rounded-xl bg-muted/40 p-3">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground block">F1-Score</span>
+                <span className="text-base font-bold text-teal-400">
                   {data?.available_models?.zone_classifier?.f1_score}
                 </span>
               </div>
@@ -658,19 +693,20 @@ export function TrainingView({ role }: { role: UserRole }) {
 
           {/* Tournament Top Leaderboard */}
           {data?.tournament_leaderboard && data.tournament_leaderboard.length > 0 && (
-            <div className="rounded-xl bg-card p-4 space-y-2.5 shadow-xs">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                🏆 Top SuperLearner Tournament Models
+            <div className="rounded-2xl bg-card p-5 space-y-3 shadow-sm">
+              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <M3Trophy size={16} className="text-accent" />
+                <span>Top SuperLearner Tournament Models</span>
               </h4>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto text-xs">
+              <div className="space-y-2 max-h-40 overflow-y-auto text-xs">
                 {data.tournament_leaderboard.slice(0, 4).map((m, idx) => (
-                  <div key={m.name} className="flex items-center justify-between p-1.5 rounded-lg bg-panel">
-                    <span className="font-medium text-foreground flex items-center gap-1.5">
-                      <span className="text-purple-400 font-bold">#{idx + 1}</span> {m.name}
+                  <div key={m.name} className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40">
+                    <span className="font-semibold text-foreground flex items-center gap-2">
+                      <span className="text-accent font-bold font-mono">#{idx + 1}</span> {m.name}
                     </span>
                     <div className="flex items-center gap-3 text-muted-foreground font-mono text-[11px]">
-                      <span>MAE: <strong className="text-emerald-400">{m.mae.toFixed(3)}m</strong></span>
-                      <span>R²: <strong className="text-purple-300">{m.r2.toFixed(2)}</strong></span>
+                      <span>MAE: <strong className="text-emerald-400 font-bold">{m.mae.toFixed(3)}m</strong></span>
+                      <span>R²: <strong className="text-teal-400 font-bold">{m.r2.toFixed(2)}</strong></span>
                     </div>
                   </div>
                 ))}

@@ -6,7 +6,9 @@ metadata:
     app: ble-indoor-positioning
     component: location-engine
 spec:
-  replicas: 2
+  replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: ble-indoor-positioning
@@ -38,13 +40,13 @@ spec:
               cpu: "1000m"
           livenessProbe:
             httpGet:
-              path: /api/training/status
+              path: /healthz
               port: 8000
             initialDelaySeconds: 15
             periodSeconds: 20
           readinessProbe:
             httpGet:
-              path: /api/training/status
+              path: /healthz
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 10

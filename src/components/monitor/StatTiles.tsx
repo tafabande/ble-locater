@@ -22,17 +22,22 @@ export function StatTiles({ sim }: Props) {
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       {tiles.map((t) => (
-        <div key={t.label} className="rounded-[var(--radius)] border border-border/40 bg-card p-4 shadow-xs hover:border-border/60 transition-colors">
-          <div className="text-xs font-medium text-muted-foreground">{t.label}</div>
-          <div
-            className="mt-2 text-3xl font-semibold tabular-nums"
-            style={{ color: t.danger ? 'var(--status-lost)' : t.accent ? 'var(--accent)' : 'var(--foreground)' }}
-          >
-            {t.value}
+        <div
+          key={t.label}
+          className="rounded-2xl bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
+        >
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t.label}</div>
+            <div
+              className="mt-2 text-3xl font-extrabold tabular-nums tracking-tight"
+              style={{ color: t.danger ? 'var(--status-lost)' : t.accent ? 'var(--accent)' : 'var(--foreground)' }}
+            >
+              {t.value}
+            </div>
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">{t.sub}</div>
+          <div className="mt-2 text-xs font-medium text-muted-foreground/80">{t.sub}</div>
         </div>
       ))}
     </div>

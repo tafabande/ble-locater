@@ -4,9 +4,9 @@ import { clockTime } from '../lib/format'
 import type { ConnStatus, Mode } from '../lib/datasource'
 import { ROLE_LABELS, canAccess, type UserRole } from '../lib/rbac'
 import { SearchBar, type SearchItem } from './SearchBar'
-import { M3Monitor, M3Operations, M3Training, M3Reports, M3Admin } from './common/MaterialIcon'
+import { M3Monitor, M3Operations, M3Training, M3Reports, M3Admin, M3Collector } from './common/MaterialIcon'
 
-export type View = 'monitor' | 'control' | 'training' | 'admin' | 'reports'
+export type View = 'monitor' | 'collector' | 'control' | 'training' | 'admin' | 'reports'
 
 interface Props {
   view: View
@@ -32,6 +32,12 @@ const NAV: { id: View; label: string; minRole: UserRole; icon: ReactNode }[] = [
     label: 'Live Monitor',
     minRole: 'viewer',
     icon: <M3Monitor size={18} />,
+  },
+  {
+    id: 'collector',
+    label: 'Data Collector',
+    minRole: 'operator',
+    icon: <M3Collector size={18} />,
   },
   {
     id: 'control',

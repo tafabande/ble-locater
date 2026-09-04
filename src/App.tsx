@@ -3,6 +3,7 @@ import { useSimulation, DEFAULT_MAP, type MapItem } from './lib/simulation'
 import { useLiveSource, EMPTY_STATE, type Mode } from './lib/datasource'
 import { AppShell, type View } from './components/AppShell'
 import { MonitorView } from './components/monitor/MonitorView'
+import { CollectorView } from './components/collector/CollectorView'
 import { ControlView } from './components/control/ControlView'
 import { TrainingView } from './components/training/TrainingView'
 import { AdminView } from './components/admin/AdminView'
@@ -11,8 +12,9 @@ import { ConnectionScreen } from './components/ConnectionScreen'
 import { AlertToasts } from './components/AlertToasts'
 import { ErrorDiagnosticBanner } from './components/ErrorDiagnosticBanner'
 import { canAccess, type UserRole } from './lib/rbac'
+import { TEMPLATES } from './components/admin/FloorEditor'
 
-const DEFAULT_ENDPOINT = 'http://localhost:8000/api/state'
+const DEFAULT_ENDPOINT = '/api/state'
 
 export default function App() {
   const [view, setView] = useState<View>('monitor')
@@ -22,11 +24,57 @@ export default function App() {
   const [interval, setIntervalMs] = useState(2500)
   const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT)
   const [role, setRole] = useState<UserRole>(() => (localStorage.getItem('fleetview-role') as UserRole) || 'operator')
-  const [mapItems, setMapItems] = useState<MapItem[]>(DEFAULT_MAP)
+  const [mapItems, setMapItems] = useState<MapItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('rtls_schematic_walls')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+  const [schematicRooms, setSchematicRooms] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('rtls_schematic_rooms')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+  const [schematicAnchors, setSchematicAnchors] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('rtls_schematic_anchors')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
   const [now, setNow] = useState(Date.now())
   const [adminOpens, setAdminOpens] = useState(0)
 
-  const demo = useSimulation(interval, mode === 'demo', mapItems)
+  // Keep schematic in sync with localStorage and backend when navigating
+  useEffect(() => {
+    try {
+      const r = localStorage.getItem('rtls_schematic_rooms')
+      const a = localStorage.getItem('rtls_schematic_anchors')
+      const w = localStorage.getItem('rtls_schematic_walls')
+      if (r) setSchematicRooms(JSON.parse(r))
+      if (a) setSchematicAnchors(JSON.parse(a))
+      if (w) setMapItems(JSON.parse(w))
+    } catch {}
+
+    fetch('/api/schematic')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.rooms) && data.rooms.length > 0) {
+          setSchematicRooms(data.rooms)
+          if (Array.isArray(data.anchors)) setSchematicAnchors(data.anchors)
+          if (Array.isArray(data.walls)) setMapItems(data.walls)
+        }
+      })
+      .catch(() => {})
+  }, [view])
+
+  const demo = useSimulation(interval, mode === 'demo', mapItems, schematicAnchors, schematicRooms)
   const live = useLiveSource(mode === 'live', endpoint, interval)
 
   useEffect(() => {
@@ -63,6 +111,15 @@ export default function App() {
   }
 
   const showConnection = mode === 'live' && view === 'monitor' && live.state === null
+
+  const handleLoadDemoPreset = () => {
+    localStorage.setItem('rtls_schematic_rooms', JSON.stringify(TEMPLATES.facility.rooms))
+    localStorage.setItem('rtls_schematic_anchors', JSON.stringify(TEMPLATES.facility.anchors))
+    localStorage.setItem('rtls_schematic_walls', JSON.stringify(TEMPLATES.facility.walls))
+    setSchematicRooms(TEMPLATES.facility.rooms)
+    setSchematicAnchors(TEMPLATES.facility.anchors)
+    setMapItems(TEMPLATES.facility.walls)
+  }
 
   return (
     <>
@@ -104,8 +161,27 @@ export default function App() {
             onDemo={() => setMode('demo')}
           />
         ) : (
-          <MonitorView sim={sim} mapItems={mapItems} selected={selected} onSelect={setSelected} focus={focus} onFocus={onFocus} role={role} />
+          <MonitorView
+            sim={sim}
+            mapItems={mapItems}
+            selected={selected}
+            onSelect={setSelected}
+            focus={focus}
+            onFocus={onFocus}
+            role={role}
+            onNavigateToSetup={() => setView('admin')}
+            onLoadDemoPreset={handleLoadDemoPreset}
+          />
         )
+      )}
+      {view === 'collector' && (
+        <CollectorView
+          buildingDims={{ width: 10, height: 10, unit: 'meters' }}
+          schematicRooms={schematicRooms}
+          schematicAnchors={schematicAnchors}
+          mapItems={mapItems}
+          role={role}
+        />
       )}
       {view === 'control' && <ControlView role={role} />}
       {view === 'training' && <TrainingView role={role} />}

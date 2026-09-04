@@ -26,7 +26,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
     if (this.state.hasError) {
       return (
         <div className="grid min-h-screen place-items-center bg-[#f4f6f6] p-6 text-[#121619]">
-          <div className="max-w-md rounded-xl border border-[#e3e7e6] bg-white p-8 shadow-sm text-center">
+          <div className="max-w-md rounded-3xl bg-white p-8 shadow-xl text-center">
             <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-[#fdecec] text-[#d03b3b] font-mono text-xl font-bold">
               !
             </div>

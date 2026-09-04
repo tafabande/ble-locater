@@ -306,7 +306,31 @@ interface Internal extends Seed {
   violating: string | null
 }
 
-export function useSimulation(intervalMs = 1500, enabled = true, mapItems: MapItem[] = DEFAULT_MAP) {
+export function useSimulation(
+  intervalMs = 1500,
+  enabled = true,
+  mapItems: MapItem[] = [],
+  customAnchors?: Anchor[],
+  customGeofences?: Geofence[]
+) {
+  const effectiveAnchors: Anchor[] = customAnchors !== undefined ? customAnchors : (() => {
+    try {
+      const saved = localStorage.getItem('rtls_schematic_anchors')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })()
+
+  const effectiveGeofences: Geofence[] = customGeofences !== undefined ? customGeofences : (() => {
+    try {
+      const saved = localStorage.getItem('rtls_schematic_rooms')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })()
+
   // All refs first, then useState — the state initializer calls build(), which
   // reads mapRef/trails/startedAt, so those refs must exist beforehand.
   const internal = useRef<Internal[]>(
@@ -324,12 +348,27 @@ export function useSimulation(intervalMs = 1500, enabled = true, mapItems: MapIt
 
   function build(items: Internal[], events: EventRow[], alerts: Alert[], series: SimState['seenSeries']): SimState {
     const map = mapRef.current
+    if (effectiveAnchors.length === 0) {
+      return {
+        anchors: [],
+        tags: [],
+        geofences: effectiveGeofences,
+        events: [],
+        alerts: [],
+        pipeline: buildPipeline([], [], 0),
+        seenSeries: [],
+        packetsPerSec: 0,
+        startedAt: startedAt.current,
+      }
+    }
+
     const tags: Tag[] = items.map((it) => {
       // only same-floor anchors can hear the tag
-      const floorAnchors = ANCHORS.filter((a) => a.floor === it.floor)
-      const readings = floorAnchors.map((a) => readingFor(a, it, map)).sort((x, y) => y.rssi - x.rssi)
+      const floorAnchors = effectiveAnchors.filter((a) => (a.floor ?? 0) === it.floor)
+      const usableAnchors = floorAnchors.length > 0 ? floorAnchors : effectiveAnchors
+      const readings = usableAnchors.map((a) => readingFor(a, it, map)).sort((x, y) => y.rssi - x.rssi)
       readings.forEach((r, i) => (r.used = i < 3)) // strongest 3 feed the solver
-      const nearest = readings[0].anchorId
+      const nearest = readings[0]?.anchorId ?? usableAnchors[0]?.id ?? 'N1'
       return {
         id: it.id,
         label: it.label,
@@ -350,9 +389,9 @@ export function useSimulation(intervalMs = 1500, enabled = true, mapItems: MapIt
     })
     const online = tags.filter((t) => t.status !== 'lost').length
     return {
-      anchors: ANCHORS,
+      anchors: effectiveAnchors,
       tags,
-      geofences: GEOFENCES,
+      geofences: effectiveGeofences,
       events,
       alerts,
       pipeline: buildPipeline(tags, alerts, online),
@@ -363,7 +402,10 @@ export function useSimulation(intervalMs = 1500, enabled = true, mapItems: MapIt
   }
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || effectiveAnchors.length === 0) {
+      setState(build([], [], [], []))
+      return
+    }
     const now = Date.now()
     const seedSeries = Array.from({ length: 16 }, (_, i) => {
       const t = new Date(now - (15 - i) * 60000)
@@ -409,7 +451,7 @@ export function useSimulation(intervalMs = 1500, enabled = true, mapItems: MapIt
           it.vx = Math.max(-0.9, Math.min(0.9, it.vx))
           it.vy = Math.max(-0.9, Math.min(0.9, it.vy))
 
-          const fence = geofenceAt(it.x, it.y)
+          const fence = effectiveGeofences.find((g) => pointInRect(it.x, it.y, g))
           const newZone = fence?.name ?? 'Transit'
           if (newZone !== it.zone) {
             newEvents.push(mkEvent(it, 'exit', `Left ${it.zone}`))
@@ -440,11 +482,13 @@ export function useSimulation(intervalMs = 1500, enabled = true, mapItems: MapIt
           it.violating = null
         }
 
-        const best = ANCHORS.map((a) => readingFor(a, it, mapRef.current)).sort((x, y) => y.rssi - x.rssi)[0]
-        const hist = rssiHist.current[it.id] ?? []
-        hist.push(best.rssi)
-        if (hist.length > 20) hist.shift()
-        rssiHist.current[it.id] = hist
+        const best = effectiveAnchors.map((a) => readingFor(a, it, mapRef.current)).sort((x, y) => y.rssi - x.rssi)[0]
+        if (best) {
+          const hist = rssiHist.current[it.id] ?? []
+          hist.push(best.rssi)
+          if (hist.length > 20) hist.shift()
+          rssiHist.current[it.id] = hist
+        }
       }
 
       if (newEvents.length) events = [...newEvents, ...events].slice(0, 60)

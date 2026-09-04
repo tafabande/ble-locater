@@ -27,9 +27,9 @@ export interface LiveSource {
 }
 
 export const EMPTY_STATE: SimState = {
-  anchors: ANCHORS,
+  anchors: [],
   tags: [],
-  geofences: GEOFENCES,
+  geofences: [],
   events: [],
   alerts: [],
   pipeline: buildPipeline([], [], 0),
@@ -59,7 +59,7 @@ interface RawPayload {
 }
 
 function mapPayload(raw: RawPayload | any, prev: SimState | null): SimState {
-  const anchors = Array.isArray(raw?.anchors) && raw.anchors.length ? raw.anchors : ANCHORS
+  const anchors = Array.isArray(raw?.anchors) ? raw.anchors : []
   const prevTrails = new Map(prev?.tags.map((t) => [t.id, t.trail]))
   const prevHist = new Map(prev?.tags.map((t) => [t.id, t.rssiHistory]))
 
@@ -141,7 +141,7 @@ function mapPayload(raw: RawPayload | any, prev: SimState | null): SimState {
   return {
     anchors,
     tags,
-    geofences: GEOFENCES,
+    geofences: Array.isArray(raw?.rooms) ? raw.rooms : Array.isArray(raw?.geofences) ? raw.geofences : [],
     events: raw?.events ?? prev?.events ?? [],
     alerts,
     pipeline: buildPipeline(tags, alerts, online),

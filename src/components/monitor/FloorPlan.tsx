@@ -59,7 +59,7 @@ export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus, gri
   const actualVb = zoom === 1 ? '0 0 100 100' : `${vbX} ${vbY} ${viewBoxSize} ${viewBoxSize}`
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border/40 bg-panel shadow-xs">
+    <div className="relative overflow-hidden rounded-2xl bg-panel shadow-sm">
       <svg viewBox={actualVb} className="block w-full touch-manipulation" onClick={() => onSelect(null)}>
         <defs>
           <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
@@ -246,7 +246,7 @@ export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus, gri
         <button
           onClick={handleZoomIn}
           title="Zoom In"
-          className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 font-bold text-foreground shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+          className="grid size-8 place-items-center rounded-xl bg-card/95 font-bold text-foreground shadow-md backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-all cursor-pointer"
         >
           +
         </button>
@@ -254,7 +254,7 @@ export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus, gri
           onClick={handleZoomOut}
           disabled={zoom <= 1}
           title="Zoom Out"
-          className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 font-bold text-foreground shadow-sm backdrop-blur disabled:opacity-40 hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+          className="grid size-8 place-items-center rounded-xl bg-card/95 font-bold text-foreground shadow-md backdrop-blur disabled:opacity-40 hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-all cursor-pointer"
         >
           −
         </button>
@@ -262,7 +262,7 @@ export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus, gri
           <button
             onClick={handleResetZoom}
             title="Reset Zoom"
-            className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 text-xs font-bold text-accent shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+            className="grid size-8 place-items-center rounded-xl bg-card/95 text-xs font-bold text-accent shadow-md backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-all cursor-pointer"
           >
             ⟲
           </button>
@@ -270,19 +270,19 @@ export function FloorPlan({ sim, mapItems, floor, selected, onSelect, focus, gri
       </div>
 
       {activeTag && (
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded-xl border border-border/40 bg-card/95 p-2.5 font-mono text-[11px] shadow-md backdrop-blur max-w-[calc(100%-1rem)]">
-          <div className="font-semibold text-foreground flex items-center gap-1.5">
+        <div className="pointer-events-none absolute bottom-3 left-3 rounded-2xl bg-card/95 p-3.5 font-mono text-[11px] shadow-lg backdrop-blur max-w-[calc(100%-1.5rem)] space-y-1">
+          <div className="font-bold text-foreground flex items-center gap-1.5">
             <span className="size-2 rounded-full" style={{ background: STATUS_META[activeTag.status].color }} />
             <span>TAG-{activeTag.id}</span>
-            <span className="text-muted-foreground">• {activeTag.label}</span>
+            <span className="text-muted-foreground font-normal">• {activeTag.label}</span>
           </div>
-          <div className="text-muted-foreground text-[10px] mt-0.5">
+          <div className="text-muted-foreground text-[10px]">
             x {activeTag.x.toFixed(1)} · y {activeTag.y.toFixed(1)} · {activeTag.zone}
           </div>
           <div className="text-muted-foreground text-[10px]">
             nearest {activeTag.nearest} · {activeTag.readings[0].rssi} dBm · σ {activeTag.uncertainty}m
           </div>
-          {activeTag.violating && <div className="text-rose-600 font-bold text-[10px] mt-0.5">⚠ Geofence breach</div>}
+          {activeTag.violating && <div className="text-rose-600 font-bold text-[10px]">⚠ Geofence breach</div>}
         </div>
       )}
     </div>

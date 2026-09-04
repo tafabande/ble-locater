@@ -9,26 +9,23 @@ interface Props {
   trigger: number
 }
 
-const SEV_META: Record<Severity, { label: string; icon: typeof M3Error; badgeClass: string; borderClass: string; textClass: string }> = {
+const SEV_META: Record<Severity, { label: string; icon: typeof M3Error; badgeClass: string; textClass: string }> = {
   critical: {
     label: 'Critical',
     icon: M3Error,
     badgeClass: 'bg-rose-500/10 text-rose-600',
-    borderClass: 'border-l-4 border-l-rose-600',
     textClass: 'text-rose-600 font-bold',
   },
   warning: {
     label: 'Warning',
     icon: M3Warning,
     badgeClass: 'bg-amber-500/10 text-amber-600',
-    borderClass: 'border-l-4 border-l-amber-600',
     textClass: 'text-amber-600 font-bold',
   },
   info: {
     label: 'Info',
     icon: M3Info,
     badgeClass: 'bg-teal-500/10 text-teal-600',
-    borderClass: 'border-l-4 border-l-teal-600',
     textClass: 'text-teal-600 font-bold',
   },
 }
@@ -59,7 +56,7 @@ export function AlertToasts({ alerts, trigger }: Props) {
         return (
           <div
             key={a.id}
-            className={`pointer-events-auto flex items-start gap-3 rounded-xl border border-border/40 bg-card/95 p-3.5 shadow-lg backdrop-blur transition-all ${meta.borderClass} animate-pop-in`}
+            className="pointer-events-auto flex items-start gap-3 rounded-2xl bg-card/95 p-4 shadow-xl backdrop-blur transition-all animate-pop-in"
           >
             <div className={`grid size-7 shrink-0 place-items-center rounded-lg ${meta.badgeClass}`}>
               <Icon size={16} />

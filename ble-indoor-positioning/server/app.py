@@ -155,19 +155,20 @@ class PositionHistoryDB:
 
     def log_position(self, tag_id: str, position: dict):
         max_retries = 3
-        pos_record = PositionHistory(
-            timestamp_ms=int(time.time() * 1000),
-            tag_id=tag_id,
-            x=position.get('x', 0.0),
-            y=position.get('y', 0.0),
-            uncertainty=position.get('uncertainty', 0.0),
-            gdop=position.get('gdop', 0.0),
-            zone=position.get('zone', 'Unknown'),
-            room=position.get('room', 'Unknown')
-        )
+        now_ms = int(time.time() * 1000)
         for attempt in range(max_retries):
             try:
                 with Session(self.engine) as session:
+                    pos_record = PositionHistory(
+                        timestamp_ms=now_ms,
+                        tag_id=tag_id,
+                        x=position.get('x', 0.0),
+                        y=position.get('y', 0.0),
+                        uncertainty=position.get('uncertainty', 0.0),
+                        gdop=position.get('gdop', 0.0),
+                        zone=position.get('zone', 'Unknown'),
+                        room=position.get('room', 'Unknown')
+                    )
                     session.add(pos_record)
                     session.commit()
                 return
@@ -680,14 +681,20 @@ def get_asset(asset_id: str):
 
 @app.post('/api/assets')
 def create_asset(asset: AssetCreate):
-    created = shared['asset_registry'].create(asset.dict())
+    asset_data = asset.model_dump() if hasattr(asset, 'model_dump') else asset.dict()
+    created = shared['asset_registry'].create(asset_data)
     if not created:
         raise HTTPException(status_code=400, detail='Failed to create asset. ID or MAC may already exist.')
     return {'status': 'success', 'asset': created}
 
 @app.put('/api/assets/{asset_id}')
 def update_asset(asset_id: str, updates: AssetUpdate):
-    updated = shared['asset_registry'].update(asset_id, updates.dict(exclude_unset=True))
+    update_data = (
+        updates.model_dump(exclude_unset=True)
+        if hasattr(updates, 'model_dump')
+        else updates.dict(exclude_unset=True)
+    )
+    updated = shared['asset_registry'].update(asset_id, update_data)
     if not updated:
         raise HTTPException(status_code=404, detail=f'Asset {asset_id} not found or update failed.')
     return {'status': 'success', 'asset': updated}
@@ -838,20 +845,20 @@ class ControlAction(BaseModel):
 
 @app.post('/api/control/action')
 async def handle_control_action(body: ControlAction):
-    act = body.action
-    if act == 'start_sim':
+    act = body.action.lower()
+    if act in ('start_sim', 'start_simulator'):
         web_service_state["simulator_active"] = True
         web_service_state["log_history"].append("[SIMULATOR] Virtual demo item movement generator started.")
         return {"status": "ok", "message": "Simulator turned ON"}
-    elif act == 'stop_sim':
+    elif act in ('stop_sim', 'stop_simulator'):
         web_service_state["simulator_active"] = False
         web_service_state["log_history"].append("[SIMULATOR] Virtual demo item movement generator stopped.")
         return {"status": "ok", "message": "Simulator turned OFF"}
-    elif act == 'start_collector':
+    elif act in ('start_collector', 'start_coll'):
         web_service_state["collector_active"] = True
         web_service_state["log_history"].append("[COLLECTOR] Physical BLE sensor collector interface active.")
         return {"status": "ok", "message": "Collector turned ON"}
-    elif act == 'stop_collector':
+    elif act in ('stop_collector', 'stop_coll'):
         web_service_state["collector_active"] = False
         web_service_state["log_history"].append("[COLLECTOR] Physical BLE sensor collector interface stopped.")
         return {"status": "ok", "message": "Collector turned OFF"}
@@ -960,6 +967,31 @@ def _is_pipeline_running() -> bool:
             pass
     return False
 
+_dataset_row_cache = {}
+
+def _get_csv_row_count(fpath: str) -> int:
+    try:
+        st = os.stat(fpath)
+        mtime, size = st.st_mtime, st.st_size
+        cached = _dataset_row_cache.get(fpath)
+        if cached and cached[0] == mtime and cached[1] == size:
+            return cached[2]
+        if size > 2 * 1024 * 1024:
+            with open(fpath, 'rb') as f:
+                sample = f.read(65536)
+            lines_in_sample = sample.count(b'\n')
+            if lines_in_sample > 0:
+                avg_line_len = len(sample) / lines_in_sample
+                approx_rows = max(0, int(size / avg_line_len) - 1)
+                _dataset_row_cache[fpath] = (mtime, size, approx_rows)
+                return approx_rows
+        with open(fpath, 'rb') as f:
+            rows = max(0, sum(chunk.count(b'\n') for chunk in iter(lambda: f.read(65536), b'')) - 1)
+        _dataset_row_cache[fpath] = (mtime, size, rows)
+        return rows
+    except Exception:
+        return 0
+
 @app.get('/api/training/status')
 async def get_training_status():
     try:
@@ -1012,16 +1044,12 @@ async def get_training_status():
             for fname in sorted(os.listdir(ds_dir)):
                 if fname.endswith(".csv"):
                     fpath = os.path.join(ds_dir, fname)
-                    try:
-                        with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
-                            rows = sum(1 for _ in f) - 1
-                        dataset_list.append({
-                            "name": fname,
-                            "rows": max(0, rows),
-                            "type": "Real Experimental Data" if "obs" in fname else "Observation Stream"
-                        })
-                    except Exception:
-                        pass
+                    rows = _get_csv_row_count(fpath)
+                    dataset_list.append({
+                        "name": fname,
+                        "rows": rows,
+                        "type": "Real Experimental Data" if "obs" in fname else "Observation Stream"
+                    })
         if not dataset_list:
             dataset_list = [
                 {"name": "observations.csv", "rows": 45120, "type": "Real Experimental Data"},
@@ -1169,49 +1197,20 @@ async def get_schematic():
             logger.warning(f"Could not read schematic file: {e}")
     
     return {
-        "name": "Multi-Zone Positioning Facility (Default)",
-        "facility_type": "warehouse",
+        "name": "New Facility",
+        "facility_type": "custom",
         "dimensions": {"width": 10.0, "height": 10.0, "depth": 3.2, "unit": "meters"},
-        "anchors": [
-            {"id": "ANCHOR_01", "label": "Anchor 01", "x": 0.2, "y": 5.2, "txPower": -77.8, "channel": 37, "host": True},
-            {"id": "ANCHOR_02", "label": "Anchor 02", "x": 4.8, "y": 5.2, "txPower": -77.8, "channel": 38, "host": False},
-            {"id": "ANCHOR_03", "label": "Anchor 03", "x": 2.5, "y": 9.8, "txPower": -77.8, "channel": 39, "host": False},
-            {"id": "ANCHOR_04", "label": "Anchor 04", "x": 5.2, "y": 5.2, "txPower": -77.8, "channel": 37, "host": False},
-            {"id": "ANCHOR_05", "label": "Anchor 05", "x": 9.8, "y": 5.2, "txPower": -77.8, "channel": 38, "host": False},
-            {"id": "ANCHOR_06", "label": "Anchor 06", "x": 7.5, "y": 9.8, "txPower": -77.8, "channel": 39, "host": False},
-            {"id": "ANCHOR_07", "label": "Anchor 07", "x": 0.2, "y": 0.2, "txPower": -77.8, "channel": 37, "host": False},
-            {"id": "ANCHOR_08", "label": "Anchor 08", "x": 4.8, "y": 0.2, "txPower": -77.8, "channel": 38, "host": False},
-            {"id": "ANCHOR_09", "label": "Anchor 09", "x": 2.5, "y": 4.8, "txPower": -77.8, "channel": 39, "host": False},
-            {"id": "ANCHOR_10", "label": "Anchor 10", "x": 5.2, "y": 0.2, "txPower": -77.8, "channel": 37, "host": False},
-            {"id": "ANCHOR_11", "label": "Anchor 11", "x": 9.8, "y": 0.2, "txPower": -77.8, "channel": 38, "host": False},
-            {"id": "ANCHOR_12", "label": "Anchor 12", "x": 7.5, "y": 4.8, "txPower": -77.8, "channel": 39, "host": False},
-        ],
-        "tags": [
-            {"id": "TAG_01", "label": "Tag 01 (Asset Alpha)", "x": 2.0, "y": 7.0, "z": 0.8},
-            {"id": "TAG_02", "label": "Tag 02 (Mobile Scanner)", "x": 6.5, "y": 2.5, "z": 0.9}
-        ],
-        "furniture": [
-            {"id": "rack_1", "type": "pallet_rack", "label": "Heavy Storage Rack A", "x": 1.5, "y": 6.5, "w": 2.5, "h": 1.2, "rotation": 0},
-            {"id": "desk_1", "type": "workstation", "label": "Operations Station", "x": 6.5, "y": 6.5, "w": 2.0, "h": 1.2, "rotation": 0},
-            {"id": "cart_1", "type": "forklift_bay", "label": "Loading Dock #1", "x": 1.5, "y": 1.5, "w": 1.5, "h": 1.0, "rotation": 0},
-            {"id": "cab_1", "type": "storage_cabinet", "label": "Inventory Cabinet", "x": 6.0, "y": 1.5, "w": 2.0, "h": 1.0, "rotation": 0}
-        ],
-        "rooms": [
-            {"id": "room_a", "name": "Zone A (North Processing)", "x": 0.0, "y": 5.0, "w": 5.0, "h": 5.0, "restricted": False},
-            {"id": "room_b", "name": "Zone B (East Storage)", "x": 5.0, "y": 5.0, "w": 5.0, "h": 5.0, "restricted": False},
-            {"id": "room_c", "name": "Zone C (Central Dispatch)", "x": 0.0, "y": 0.0, "w": 5.0, "h": 5.0, "restricted": False},
-            {"id": "room_d", "name": "Zone D (Secure Holding)", "x": 5.0, "y": 0.0, "w": 5.0, "h": 5.0, "restricted": True},
-        ],
-        "walls": [
-            {"id": "w1", "kind": "wall", "label": "Central Partition", "x": 4.9, "y": 0.0, "w": 0.2, "h": 10.0, "attenuation": 8.0},
-            {"id": "w2", "kind": "wall", "label": "Horizontal Divider", "x": 0.0, "y": 4.9, "w": 10.0, "h": 0.2, "attenuation": 8.0},
-        ],
+        "anchors": [],
+        "tags": [],
+        "furniture": [],
+        "rooms": [],
+        "walls": [],
         "blueprint": None
     }
 
 @app.post('/api/schematic')
 async def save_schematic(payload: SchematicPayload):
-    data = payload.dict()
+    data = payload.model_dump() if hasattr(payload, 'model_dump') else payload.dict()
     try:
         os.makedirs(os.path.dirname(SCHEMATIC_FILE), exist_ok=True)
         with open(SCHEMATIC_FILE, 'w', encoding='utf-8') as f:
@@ -1399,50 +1398,23 @@ async def trigger_training_run(req: TrainingRequest):
     asyncio.create_task(asyncio.to_thread(run_training_pipeline))
     return {"status": "ok", "message": f"{req.algorithm} Pipeline launched successfully"}
 
-class ActionRequest(BaseModel):
-    action: str
-
-@app.get('/api/control/status')
-async def get_control_status():
-    return {
-        "services": {
-            "backend": {"status": "ACTIVE", "port": 8000},
-            "simulator": {"status": "ACTIVE" if web_service_state.get("simulator_active") else "OFFLINE"},
-            "collector": {"status": "ACTIVE" if web_service_state.get("collector_active") else "OFFLINE"}
-        },
-        "test_result": {
-            "status": "PASS",
-            "passed": 12,
-            "failed": 0
-        },
-        "logs": web_service_state.get("log_history", [])[-50:]
-    }
-
-@app.post('/api/control/action')
-async def post_control_action(req: ActionRequest):
-    act = req.action.lower()
-    if act in ("start_sim", "start_simulator"):
-        web_service_state["simulator_active"] = True
-        web_service_state["log_history"].append("[SYSTEM] Beacon Motion Simulator started.")
-    elif act in ("stop_sim", "stop_simulator"):
-        web_service_state["simulator_active"] = False
-        web_service_state["log_history"].append("[SYSTEM] Beacon Motion Simulator stopped.")
-    elif act in ("start_collector", "start_coll"):
-        web_service_state["collector_active"] = True
-        web_service_state["log_history"].append("[SYSTEM] Sensor Collector active.")
-    elif act in ("stop_collector", "stop_coll"):
-        web_service_state["collector_active"] = False
-        web_service_state["log_history"].append("[SYSTEM] Sensor Collector stopped.")
-    return {"status": "ok", "action": req.action}
-
 @app.get('/api/service/autostart')
 @app.post('/api/service/autostart')
 async def service_autostart():
     return {"status": "ok", "service": "backend", "message": "Location Engine Backend (Port 8000) is online and active."}
 
+@app.get('/healthz')
+@app.get('/api/health')
+async def health_check():
+    return {"status": "healthy", "service": "ble-location-engine"}
+
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
-
+if os.path.exists(STATIC_DIR):
+    assets_dir = os.path.join(STATIC_DIR, 'assets')
+    if os.path.exists(assets_dir):
+        app.mount('/assets', StaticFiles(directory=assets_dir), name='assets')
+    app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
 
 @app.get('/')
 async def serve_index():
@@ -1450,8 +1422,7 @@ async def serve_index():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {'message': 'BLE Indoor Positioning Server v2.0 — Multi-Tag Architecture', 'api_docs': '/docs'}
-if os.path.exists(STATIC_DIR):
-    app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
+
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run('app:app', host='0.0.0.0', port=8000, reload=False)

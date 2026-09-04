@@ -26,8 +26,11 @@ from typing import Optional
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR / "ble-indoor-positioning"
-VENV = PROJECT_ROOT / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-PYTHON = str(VENV if VENV.exists() else Path(sys.executable))
+VENV_CANDIDATES = [
+    PROJECT_ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"),
+    PROJECT_ROOT / ("Scripts/python.exe" if os.name == "nt" else "bin/python"),
+]
+PYTHON = str(next((p for p in VENV_CANDIDATES if p.exists()), Path(sys.executable)))
 NODE_BIN = shutil.which("node") or "node"
 VITE_JS = BASE_DIR / "node_modules" / "vite" / "bin" / "vite.js"
 VITE_CMD = (

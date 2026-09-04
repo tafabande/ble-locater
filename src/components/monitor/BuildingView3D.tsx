@@ -97,7 +97,7 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border/40 bg-panel shadow-xs">
+    <div className="relative overflow-hidden rounded-2xl bg-panel shadow-sm">
       <svg
         ref={svgRef}
         viewBox={`${VB.x} ${VB.y} ${VB.w} ${VB.h}`}
@@ -237,39 +237,39 @@ export function BuildingView3D({ sim, mapItems, activeFloor, selected, onSelect,
         <button
           onClick={handleZoomIn}
           title="Zoom In"
-          className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 font-bold text-foreground shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+          className="grid size-8 place-items-center rounded-xl bg-card/95 font-bold text-foreground shadow-md backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-all cursor-pointer"
         >
           +
         </button>
         <button
           onClick={handleZoomOut}
           title="Zoom Out"
-          className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 font-bold text-foreground shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+          className="grid size-8 place-items-center rounded-xl bg-card/95 font-bold text-foreground shadow-md backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-all cursor-pointer"
         >
           −
         </button>
         <button
           onClick={() => setCam(DEFAULT_CAM)}
           title="Reset Orbit View"
-          className="grid size-8 place-items-center rounded-lg border border-border/50 bg-card/90 text-xs font-bold text-accent shadow-sm backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-transform"
+          className="grid size-8 place-items-center rounded-xl bg-card/95 text-xs font-bold text-accent shadow-md backdrop-blur hover:bg-muted focus-visible:outline-2 focus-visible:outline-accent active:scale-95 transition-all cursor-pointer"
         >
           ⟲
         </button>
       </div>
 
       {activeTag && (
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded-xl border border-border/40 bg-card/95 p-2.5 font-mono text-[11px] shadow-md backdrop-blur max-w-[calc(100%-1rem)]">
-          <div className="font-semibold text-foreground flex items-center gap-1.5">
+        <div className="pointer-events-none absolute bottom-3 left-3 rounded-2xl bg-card/95 p-3.5 font-mono text-[11px] shadow-lg backdrop-blur max-w-[calc(100%-1.5rem)] space-y-1">
+          <div className="font-bold text-foreground flex items-center gap-1.5">
             <span className="size-2 rounded-full" style={{ background: STATUS_META[activeTag.status].color }} />
             TAG-{activeTag.id} · {activeTag.label}
           </div>
-          <div className="text-muted-foreground text-[10px] mt-0.5">x {activeTag.x.toFixed(1)} · y {activeTag.y.toFixed(1)} · fl {activeTag.floor + 1}</div>
+          <div className="text-muted-foreground text-[10px]">x {activeTag.x.toFixed(1)} · y {activeTag.y.toFixed(1)} · fl {activeTag.floor + 1}</div>
           <div className="text-muted-foreground text-[10px]">σ {activeTag.uncertainty} m · {activeTag.zone}</div>
-          {activeTag.violating && <div className="text-rose-600 font-bold text-[10px] mt-0.5">⚠ Geofence breach</div>}
+          {activeTag.violating && <div className="text-rose-600 font-bold text-[10px]">⚠ Geofence breach</div>}
         </div>
       )}
 
-      <div className="pointer-events-none absolute left-2 top-2 hidden sm:block rounded-md border border-border/40 bg-card/85 px-2.5 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur">
+      <div className="pointer-events-none absolute left-3 top-3 hidden sm:block rounded-xl bg-card/85 px-3 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur shadow-xs">
         drag orbit · scroll zoom · shift-drag pan
       </div>
     </div>

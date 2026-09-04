@@ -31,13 +31,13 @@ export function SpatialView({ sim, mapItems, selected, onSelect, focus, onFocus 
   const floorName = FLOORS.find((f) => f.id === activeFloor)?.name ?? 'Ground'
 
   return (
-    <div className="rounded-xl border border-border/40 bg-card p-4 sm:p-5 shadow-xs space-y-4">
+    <div className="rounded-2xl bg-card p-5 sm:p-6 shadow-sm space-y-4">
       {/* Mobile-First Header Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-foreground">Facility 1 · {floorName}</h2>
-            <span className="rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[10px] font-bold text-accent">
+            <h2 className="text-base font-bold text-foreground tracking-tight">Facility 1 · {floorName}</h2>
+            <span className="rounded-full bg-accent-soft px-2.5 py-0.5 font-mono text-[10px] font-bold text-accent">
               {dim.toUpperCase()} Mode
             </span>
           </div>
@@ -55,14 +55,14 @@ export function SpatialView({ sim, mapItems, selected, onSelect, focus, onFocus 
           <Legend />
 
           {/* Graph Paper Dot Grid Spacing Control */}
-          <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-panel p-0.5 shrink-0">
-            <span className="px-2 font-mono text-[10px] font-bold text-muted-foreground">DOT GRID</span>
+          <div className="flex items-center gap-0.5 rounded-xl bg-muted/40 p-1 shrink-0">
+            <span className="px-2 font-mono text-[10px] font-bold text-muted-foreground">GRID</span>
             {[2, 4, 8, 12].map((spacing) => (
               <button
                 key={spacing}
                 onClick={() => setGridSpacing(spacing)}
-                className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-bold transition-colors ${
-                  gridSpacing === spacing ? 'bg-accent text-primary-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                className={`rounded-lg px-2 py-0.5 font-mono text-[10px] font-bold transition-colors ${
+                  gridSpacing === spacing ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {spacing}m
@@ -71,13 +71,13 @@ export function SpatialView({ sim, mapItems, selected, onSelect, focus, onFocus 
           </div>
 
           {/* Scrollable Mobile Floor Picker */}
-          <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-panel p-0.5 max-w-full overflow-x-auto">
+          <div className="flex items-center gap-0.5 rounded-xl bg-muted/40 p-1 max-w-full overflow-x-auto">
             {FLOORS.map((f) => (
               <button
                 key={f.id}
                 onClick={() => setFloor(f.id)}
                 disabled={focusFloor !== undefined}
-                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors shrink-0 whitespace-nowrap disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent ${
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors shrink-0 whitespace-nowrap disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent ${
                   activeFloor === f.id ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -87,13 +87,13 @@ export function SpatialView({ sim, mapItems, selected, onSelect, focus, onFocus 
           </div>
 
           {/* 2D / 3D Mode Toggle */}
-          <div className="flex items-center gap-0.5 rounded-lg border border-border/40 bg-panel p-0.5 shrink-0">
+          <div className="flex items-center gap-0.5 rounded-xl bg-muted/40 p-1 shrink-0">
             {(['2d', '3d'] as const).map((d) => (
               <button
                 key={d}
                 onClick={() => setDim(d)}
-                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors whitespace-nowrap focus-visible:outline-2 focus-visible:outline-accent ${
-                  dim === d ? 'bg-accent text-primary-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors whitespace-nowrap focus-visible:outline-2 focus-visible:outline-accent ${
+                  dim === d ? 'bg-card text-foreground shadow-xs font-bold' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {d === '2d' ? <M3Grid size={13} /> : <M3Layers size={13} />}
@@ -134,7 +134,7 @@ function Legend() {
         Wall
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="size-2 rounded-[2px] border border-muted-foreground bg-muted" />
+        <span className="size-2 rounded-[2px] bg-muted-foreground/40" />
         Furniture
       </span>
     </div>

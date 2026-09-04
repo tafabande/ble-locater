@@ -25,37 +25,37 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
       {/* Anchor nodes */}
-      <div className="rounded-[var(--radius)] border border-border bg-card">
-        <div className="border-b border-border px-4 py-3">
-          <h3 className="text-sm font-semibold">Anchor Nodes</h3>
+      <div className="rounded-2xl bg-card p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-foreground tracking-tight">Anchor Nodes</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">ESP32 mesh serving the positioning web server</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                <th className="px-4 py-2.5 font-medium">Node</th>
-                <th className="px-4 py-2.5 font-medium">SSID</th>
-                <th className="px-4 py-2.5 font-medium">Ch</th>
-                <th className="px-4 py-2.5 font-medium">TX @1m</th>
-                <th className="px-4 py-2.5 font-medium">Role</th>
+              <tr className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                <th className="px-3 py-2.5">Node</th>
+                <th className="px-3 py-2.5">SSID</th>
+                <th className="px-3 py-2.5">Ch</th>
+                <th className="px-3 py-2.5">TX @1m</th>
+                <th className="px-3 py-2.5">Role</th>
               </tr>
             </thead>
             <tbody>
               {anchors.map((a) => (
-                <tr key={a.id} className="border-b border-border last:border-0 hover:bg-muted">
-                  <td className="px-4 py-3 font-mono text-xs font-medium">{a.label}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.ssid}</td>
-                  <td className="px-4 py-3 font-mono text-xs tabular-nums">{a.channel}</td>
-                  <td className="px-4 py-3 font-mono text-xs tabular-nums">{a.txPower} dBm</td>
-                  <td className="px-4 py-3">
+                <tr key={a.id} className="hover:bg-muted/40 transition-colors rounded-xl">
+                  <td className="px-3 py-3 font-mono text-xs font-semibold text-foreground">{a.label}</td>
+                  <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{a.ssid}</td>
+                  <td className="px-3 py-3 font-mono text-xs tabular-nums">{a.channel}</td>
+                  <td className="px-3 py-3 font-mono text-xs tabular-nums">{a.txPower} dBm</td>
+                  <td className="px-3 py-3">
                     {a.host ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent">
                         <span className="size-1.5 rounded-full bg-accent" />
                         Web host
                       </span>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground">Beacon</span>
+                      <span className="text-[11px] text-muted-foreground font-medium">Beacon</span>
                     )}
                   </td>
                 </tr>
@@ -67,13 +67,13 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
 
       {/* Settings */}
       <div className="space-y-6">
-        <div className="rounded-[var(--radius)] border border-border bg-card p-4">
-          <h3 className="mb-4 text-sm font-semibold">Positioning</h3>
+        <div className="rounded-2xl bg-card p-6 shadow-sm space-y-4">
+          <h3 className="text-sm font-bold text-foreground tracking-tight">Positioning</h3>
           <Field label="Refresh interval" hint="How often anchors publish positions">
             <select
               value={interval}
               onChange={(e) => onInterval(Number(e.target.value))}
-              className="w-full rounded-md border border-border bg-panel px-3 py-2 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-xl bg-muted/40 px-3.5 py-2 font-mono text-xs outline-none focus:bg-card focus:ring-2 focus:ring-accent text-foreground"
             >
               <option value={800}>0.8 s · high</option>
               <option value={1500}>1.5 s · balanced</option>
@@ -86,20 +86,20 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
                 type="number"
                 value={retention}
                 onChange={(e) => setRetention(e.target.value)}
-                className="w-24 rounded-md border border-border bg-panel px-3 py-2 font-mono text-xs tabular-nums outline-none focus:ring-2 focus:ring-ring"
+                className="w-28 rounded-xl bg-muted/40 px-3.5 py-2 font-mono text-xs tabular-nums outline-none focus:bg-card focus:ring-2 focus:ring-accent text-foreground"
               />
-              <span className="font-mono text-xs text-muted-foreground">days</span>
+              <span className="font-mono text-xs text-muted-foreground font-medium">days</span>
             </div>
           </Field>
           <Toggle label="Kalman smoothing" hint="Filter jitter from RSSI trilateration" on={smoothing} onToggle={() => setSmoothing((v) => !v)} />
           <Toggle label="Geofence alerts" hint="Notify on unauthorized zone entry" on={geofence} onToggle={() => setGeofence((v) => !v)} />
         </div>
 
-        <div className="rounded-[var(--radius)] border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Live Data Source</h3>
+        <div className="rounded-2xl bg-card p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground tracking-tight">Live Data Source</h3>
             <span
-              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
               style={{
                 background: mode === 'live' ? 'var(--accent-soft)' : 'var(--muted)',
                 color: mode === 'live' ? 'var(--accent)' : 'var(--muted-foreground)',
@@ -114,7 +114,7 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
               value={endpoint}
               onChange={(e) => onEndpoint(e.target.value)}
               spellCheck={false}
-              className="w-full rounded-md border border-border bg-panel px-3 py-2 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-xl bg-muted/40 px-3.5 py-2 font-mono text-xs outline-none focus:bg-card focus:ring-2 focus:ring-accent text-foreground"
             />
           </Field>
           <dl className="space-y-2 font-mono text-xs">
@@ -122,15 +122,15 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
             <Row k="Firmware" v="v2.4.1-rtls" />
             <Row k="Mode" v={mode === 'live' ? 'Live · polling' : 'Demo · simulated'} />
           </dl>
-          <p className="mt-3 rounded-md bg-panel p-2.5 font-mono text-[10px] leading-relaxed text-muted-foreground">
-            Switch to <span className="text-foreground">Live</span> in the sidebar to poll this endpoint. Demo mode runs a
+          <p className="rounded-xl bg-muted/30 p-3 font-mono text-[10px] leading-relaxed text-muted-foreground">
+            Switch to <span className="text-foreground font-semibold">Live</span> in the sidebar to poll this endpoint. Demo mode runs a
             built-in simulation and needs no hardware.
           </p>
         </div>
 
         <button
           onClick={save}
-          className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus:ring-2 focus:ring-ring"
+          className="w-full rounded-xl bg-accent px-4 py-3 text-sm font-bold text-primary-foreground transition-all shadow-sm hover:shadow-md hover:opacity-90 focus:ring-2 focus:ring-accent cursor-pointer"
         >
           {saved ? 'Configuration saved ✓' : 'Save configuration'}
         </button>

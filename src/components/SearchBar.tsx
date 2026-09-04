@@ -74,7 +74,7 @@ export function SearchBar({ items, focus, onFocus }: Props) {
 
   return (
     <div ref={wrapRef} className="relative w-44 sm:w-64">
-      <div className="flex items-center gap-2 rounded-full border border-border/40 bg-card px-3.5 py-1.5 shadow-xs focus-within:ring-2 focus-within:ring-accent">
+      <div className="flex items-center gap-2.5 rounded-full bg-card px-4 py-2 shadow-sm focus-within:shadow-md focus-within:ring-2 focus-within:ring-accent transition-all">
         <M3Search size={16} className="shrink-0 text-muted-foreground" />
         <input
           value={q}

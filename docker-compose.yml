@@ -17,7 +17,7 @@ services:
       - model-data:/app/ble-indoor-positioning/models
       - dataset-data:/app/ble-indoor-positioning/datasets
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/training/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval: 15s
       timeout: 5s
       retries: 3

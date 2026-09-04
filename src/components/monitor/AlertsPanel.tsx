@@ -14,19 +14,19 @@ const SEV_META: Record<Severity, { label: string; icon: typeof M3Error; badgeCla
   critical: {
     label: 'Critical',
     icon: M3Error,
-    badgeClass: 'bg-rose-500/10 text-rose-600 border border-rose-500/20',
+    badgeClass: 'bg-rose-500/10 text-rose-600',
     textClass: 'text-rose-600 font-semibold',
   },
   warning: {
     label: 'Warning',
     icon: M3Warning,
-    badgeClass: 'bg-amber-500/10 text-amber-600 border border-amber-500/20',
+    badgeClass: 'bg-amber-500/10 text-amber-600',
     textClass: 'text-amber-600 font-semibold',
   },
   info: {
     label: 'Info',
     icon: M3Info,
-    badgeClass: 'bg-teal-500/10 text-teal-600 border border-teal-500/20',
+    badgeClass: 'bg-teal-500/10 text-teal-600',
     textClass: 'text-teal-600 font-semibold',
   },
 }
@@ -63,18 +63,18 @@ export function AlertsPanel({ alerts, onAcknowledgeAll }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-border/40 bg-card p-4 space-y-3.5 shadow-xs">
+    <div className="rounded-2xl bg-card p-5 space-y-4 shadow-sm">
       {/* Header & Stats */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/30 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
         <div className="flex items-center gap-2.5">
-          <div className="grid size-8 place-items-center rounded-lg bg-accent-soft text-accent">
+          <div className="grid size-9 place-items-center rounded-xl bg-accent-soft text-accent">
             <M3Bell size={18} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-foreground">Real-Time Alerts</h2>
+              <h2 className="text-sm font-bold text-foreground tracking-tight">Real-Time Alerts</h2>
               {openCount > 0 && (
-                <span className="rounded-full bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-600">
+                <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-600">
                   {openCount} active
                 </span>
               )}
@@ -88,7 +88,7 @@ export function AlertsPanel({ alerts, onAcknowledgeAll }: Props) {
         {openCount > 0 && (
           <button
             onClick={handleAckAll}
-            className="flex items-center gap-1.5 rounded-lg bg-panel border border-border/50 hover:bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+            className="flex items-center gap-1.5 rounded-xl bg-muted/40 hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-all cursor-pointer shadow-xs"
           >
             <M3Check size={14} />
             Acknowledge All
@@ -97,7 +97,7 @@ export function AlertsPanel({ alerts, onAcknowledgeAll }: Props) {
       </div>
 
       {/* Material 3 Filter Chips */}
-      <div className="flex gap-1 overflow-x-auto pb-1 text-xs">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 text-xs">
         {[
           { id: 'all', label: `All (${alerts.length})` },
           { id: 'unack', label: `Unacknowledged (${openCount})` },
@@ -107,10 +107,10 @@ export function AlertsPanel({ alerts, onAcknowledgeAll }: Props) {
           <button
             key={chip.id}
             onClick={() => setFilter(chip.id as FilterSeverity)}
-            className={`rounded-lg px-2.5 py-1 font-medium transition-colors border text-[11px] shrink-0 focus-visible:outline-2 focus-visible:outline-accent ${
+            className={`rounded-xl px-3 py-1 font-semibold transition-all text-[11px] shrink-0 focus-visible:outline-2 focus-visible:outline-accent cursor-pointer ${
               filter === chip.id
-                ? 'border-accent bg-accent-soft text-accent font-bold shadow-xs'
-                : 'border-border/40 bg-panel text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                ? 'bg-accent text-primary-foreground shadow-xs'
+                : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60'
             }`}
           >
             {chip.label}
@@ -121,7 +121,7 @@ export function AlertsPanel({ alerts, onAcknowledgeAll }: Props) {
       {/* Alerts Stream */}
       <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
         {filteredAlerts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-6 text-center rounded-lg bg-panel border border-dashed border-border/40">
+          <div className="flex flex-col items-center justify-center p-6 text-center rounded-2xl bg-muted/30">
             <M3CheckCircle size={28} className="text-emerald-500 mb-1.5" />
             <p className="text-xs font-semibold text-foreground">No alerts match filter</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">System monitoring operating within normal parameters.</p>
@@ -135,10 +135,10 @@ export function AlertsPanel({ alerts, onAcknowledgeAll }: Props) {
             return (
               <div
                 key={a.id}
-                className={`group flex items-start gap-3 rounded-lg border p-3 transition-colors ${
+                className={`group flex items-start gap-3 rounded-xl p-3 transition-all ${
                   acked
-                    ? 'border-border/20 bg-panel/50 opacity-60'
-                    : 'border-border/40 bg-card hover:bg-panel/80 shadow-xs'
+                    ? 'bg-muted/30 opacity-60'
+                    : 'bg-muted/40 hover:bg-muted/60 shadow-xs'
                 }`}
               >
                 <div className={`grid size-7 shrink-0 place-items-center rounded-md ${meta.badgeClass}`}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { canAccess, type UserRole } from '../../lib/rbac'
+import { M3Settings } from '../common/MaterialIcon'
 
 interface TestResult {
   status: string
@@ -76,7 +77,7 @@ export function ControlView({ role }: { role: UserRole }) {
       name: 'Location Engine API',
       desc: 'Calculates room coordinates (Room A, B, C, D) and powers asset search.',
       status: data?.services?.backend?.status ?? 'ACTIVE',
-      badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      badgeColor: 'bg-emerald-500/10 text-emerald-500',
       actionStart: null,
       actionStop: null,
     },
@@ -85,7 +86,7 @@ export function ControlView({ role }: { role: UserRole }) {
       name: 'Demo Motion Generator',
       desc: 'Simulates tag motion across indoor facility rooms without hardware.',
       status: data?.services?.simulator?.status ?? 'OFFLINE',
-      badgeColor: data?.services?.simulator?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+      badgeColor: data?.services?.simulator?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500',
       actionStart: 'start_sim',
       actionStop: 'stop_sim',
     },
@@ -94,7 +95,7 @@ export function ControlView({ role }: { role: UserRole }) {
       name: 'Physical Sensor Collector',
       desc: 'Reads real Bluetooth signals from USB hardware mounted on room walls.',
       status: data?.services?.collector?.status ?? 'OFFLINE',
-      badgeColor: data?.services?.collector?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+      badgeColor: data?.services?.collector?.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500',
       actionStart: 'start_collector',
       actionStop: 'stop_collector',
     },
@@ -112,43 +113,46 @@ export function ControlView({ role }: { role: UserRole }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column: Service Cards & Health Check */}
         <div className="space-y-4 lg:col-span-6">
-          <h3 className="text-sm font-semibold text-foreground flex items-center justify-between">
-            <span>⚙️ Active System Services</span>
-            <span className="text-xs text-muted-foreground font-normal">Real-time status</span>
-          </h3>
+          <div className="flex items-center justify-between pb-1">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2 tracking-tight">
+              <M3Settings size={18} className="text-accent" />
+              <span>Active System Services</span>
+            </h3>
+            <span className="text-xs text-muted-foreground font-medium">Real-time status</span>
+          </div>
 
           {!canOperate && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-medium text-amber-200">
+            <div className="rounded-2xl bg-amber-500/10 p-4 text-xs font-semibold text-amber-300">
               Viewer role can inspect service state and logs. Operator or Admin role is required to start and stop services.
             </div>
           )}
 
           <div className="space-y-3">
             {services.map((s) => (
-              <div key={s.id} className="rounded-xl border border-border/40 bg-card p-4 space-y-3 shadow-xs">
+              <div key={s.id} className="rounded-2xl bg-card p-5 space-y-3.5 shadow-sm hover:shadow-md transition-all duration-200">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h4 className="text-sm font-medium text-foreground">{s.name}</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">{s.desc}</p>
+                    <h4 className="text-sm font-bold text-foreground tracking-tight">{s.name}</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{s.desc}</p>
                   </div>
-                  <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${s.badgeColor}`}>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${s.badgeColor}`}>
                     {s.status}
                   </span>
                 </div>
 
                 {s.actionStart && (
-                  <div className="flex gap-2 pt-1 border-t border-border/30">
+                  <div className="flex gap-2 pt-2">
                     <button
                       disabled={!canOperate || s.status === 'ACTIVE' || loadingAction !== null}
                       onClick={() => triggerAction(s.actionStart!)}
-                      className="rounded-md bg-accent hover:bg-accent/90 disabled:opacity-40 px-3 py-1 text-xs font-medium text-primary-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+                      className="rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-40 px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-all focus-visible:outline-2 focus-visible:outline-accent cursor-pointer shadow-xs"
                     >
                       Start
                     </button>
                     <button
                       disabled={!canOperate || s.status !== 'ACTIVE' || loadingAction !== null}
                       onClick={() => triggerAction(s.actionStop!)}
-                      className="rounded-md bg-panel border border-border hover:bg-muted disabled:opacity-40 px-3 py-1 text-xs font-medium text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+                      className="rounded-xl bg-muted/40 hover:bg-muted disabled:opacity-40 px-3.5 py-1.5 text-xs font-semibold text-foreground transition-all focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
                     >
                       Stop
                     </button>
@@ -159,33 +163,33 @@ export function ControlView({ role }: { role: UserRole }) {
           </div>
 
           {/* Self-Test Runner Card */}
-          <div className="rounded-xl border border-border/40 bg-card p-4 space-y-3 shadow-xs">
+          <div className="rounded-2xl bg-card p-5 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                <h4 className="text-sm font-bold text-foreground tracking-tight">
                   System Health Check
                 </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Runs a short backend self-test and reports pass/fail counts.
                 </p>
               </div>
-              <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                 data?.test_result?.status === 'ALL PASSED'
-                  ? 'bg-accent-soft text-accent border-accent/20'
-                  : 'bg-panel text-muted-foreground border-border'
+                  ? 'bg-emerald-500/10 text-emerald-500'
+                  : 'bg-muted text-muted-foreground'
               }`}>
                 {data?.test_result?.status ?? 'READY'}
               </span>
             </div>
 
             <div className="flex items-center justify-between text-xs pt-1">
-              <span className="text-muted-foreground">
-                Passed: <strong className="text-accent">{data?.test_result?.passed ?? 0}</strong> | Failed: <strong className="text-foreground">{data?.test_result?.failed ?? 0}</strong>
+              <span className="text-muted-foreground font-medium">
+                Passed: <strong className="text-accent font-bold">{data?.test_result?.passed ?? 0}</strong> | Failed: <strong className="text-foreground font-bold">{data?.test_result?.failed ?? 0}</strong>
               </span>
               <button
                 disabled={!canOperate || loadingAction !== null}
                 onClick={() => triggerAction('run_tests')}
-                className="rounded-md bg-accent hover:bg-accent/90 px-3 py-1 text-xs font-medium text-primary-foreground transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+                className="rounded-xl bg-accent hover:bg-accent/90 px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-all focus-visible:outline-2 focus-visible:outline-accent cursor-pointer shadow-xs"
               >
                 Run Health Check
               </button>
@@ -195,17 +199,17 @@ export function ControlView({ role }: { role: UserRole }) {
 
         {/* Right Column: Activity Console */}
         <div className="space-y-4 lg:col-span-6">
-          <h3 className="text-sm font-semibold text-foreground">Activity Log</h3>
+          <h3 className="text-sm font-bold text-foreground tracking-tight pb-1">Activity Log</h3>
 
           {/* Activity Console */}
-          <div className="rounded-xl border border-border/40 bg-card p-4 space-y-3 shadow-xs">
+          <div className="rounded-2xl bg-card p-5 space-y-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-xs font-semibold text-foreground">Activity Stream</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Activity Stream</h4>
               <div className="flex items-center gap-2">
                 <select
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  className="rounded-md border border-border bg-panel px-2 py-0.5 text-[11px] text-foreground focus:outline-none"
+                  className="rounded-xl bg-muted/40 px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   <option value="ALL">All Categories</option>
                   <option value="SYSTEM">SYSTEM</option>
@@ -218,12 +222,12 @@ export function ControlView({ role }: { role: UserRole }) {
                   placeholder="Search logs..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="rounded-md border border-border bg-panel px-2 py-0.5 text-[11px] text-foreground placeholder:text-muted-foreground w-28 focus:outline-none"
+                  className="rounded-xl bg-muted/40 px-3 py-1 text-xs text-foreground placeholder:text-muted-foreground w-32 focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
             </div>
 
-            <div className="h-80 overflow-y-auto rounded-lg border border-border bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-300 space-y-1">
+            <div className="h-80 overflow-y-auto rounded-2xl bg-slate-950 p-4 font-mono text-[11px] leading-relaxed text-slate-300 space-y-1 shadow-inner">
               {filteredLogs.length === 0 ? (
                 <span className="text-slate-500 italic">No log entries matching filter.</span>
               ) : (
@@ -236,7 +240,7 @@ export function ControlView({ role }: { role: UserRole }) {
                         : log.includes('[SIMULATOR]')
                         ? 'text-emerald-400'
                         : log.includes('[TESTS]')
-                        ? 'text-sky-400'
+                        ? 'text-teal-400'
                         : 'text-slate-300'
                     }
                   >

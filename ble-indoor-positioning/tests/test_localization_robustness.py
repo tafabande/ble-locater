@@ -132,3 +132,68 @@ def test_online_learner_adaptation(tmp_path):
     assert abs(updated_calib - 5.0) < abs(initial_calib - 5.0)
     assert summary['samples_learned'] >= 20
     assert summary['active'] is True
+
+def test_ground_truth_analytic_multilateration_pipeline():
+    """
+    Ground-Truth Analytical Benchmark Test:
+    Known Room: 10m x 10m
+    Anchor A = (0, 0)
+    Anchor B = (10, 0)
+    Anchor C = (0, 10)
+    Known Tag = (3, 4)
+    Distances:
+      A -> T = 5m
+      B -> T = sqrt(65) ≈ 8.062m
+      C -> T = sqrt(45) ≈ 6.708m
+    """
+    anchors = {
+        'A': (0.0, 0.0),
+        'B': (10.0, 0.0),
+        'C': (0.0, 10.0)
+    }
+    engine = TrilaterationEngine(anchors)
+    distances = {
+        'A': 5.0,
+        'B': math.sqrt(65),
+        'C': math.sqrt(45)
+    }
+    pos, unc, gdop = engine.estimate_position(distances)
+    assert pytest.approx(pos[0], abs=1e-3) == 3.0
+    assert pytest.approx(pos[1], abs=1e-3) == 4.0
+    assert gdop < 5.0
+
+def test_trilateration_noise_perturbation_sensitivity():
+    """
+    Evaluates solver stability under increasing distance measurement errors:
+    Delta in [0.05, 0.10, 0.25, 0.50, 1.00] meters.
+    Confirms bounded error amplification (position error remains within GDOP bounds).
+    """
+    anchors = {
+        'A': (0.0, 0.0),
+        'B': (10.0, 0.0),
+        'C': (0.0, 10.0)
+    }
+    engine = TrilaterationEngine(anchors)
+    true_x, true_y = 3.0, 4.0
+    d_A_true = 5.0
+    d_B_true = math.sqrt(65)
+    d_C_true = math.sqrt(45)
+
+    error_levels = [0.05, 0.10, 0.25, 0.50, 1.00]
+    prev_pos_err = 0.0
+
+    for err in error_levels:
+        noisy_dists = {
+            'A': d_A_true + err,
+            'B': d_B_true - err,
+            'C': d_C_true + err
+        }
+        pos, unc, gdop = engine.estimate_position(noisy_dists)
+        pos_err = math.hypot(pos[0] - true_x, pos[1] - true_y)
+
+        # Monotonic bounded growth
+        assert pos_err > prev_pos_err
+        assert pos_err < 3.0 * err + 0.1
+        prev_pos_err = pos_err
+
+

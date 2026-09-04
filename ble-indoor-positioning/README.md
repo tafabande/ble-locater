@@ -39,12 +39,15 @@ Unlike traditional RSSI-only localization, this project utilizes **60 physical, 
 
 ## 📈 Experiment Performance & Model Evolution
 
-| Milestone / Phase | Total Windows | Features | Champion Model | Test MAE (m) | Test R² | Zone Acc (%) | vs Physics Baseline |
+| Milestone / Phase | Total Windows | Features | Champion Model | Test MAE (m) | Test R² | Evaluation Paradigm | vs Physics Baseline |
 | :--- | :---: | :---: | :--- | :---: | :---: | :---: | :---: |
-| **Phase 1: Initial Baseline** | 5,420 | 30 | `RandomForest` | `0.6724m` | `0.3710` | -- | +73.1% |
-| **Phase 2: Temporal Expansion** | 14,200 | 38 | `XGBoost (Tuned)` | `0.2643m` | `0.8688` | `88.5%` | +89.4% |
-| **Phase 3: 60 Domain Features** | 24,555 | 60 | `CatBoost` | `0.2315m` | `0.9102` | `94.2%` | +90.6% |
-| **Phase 4: Zero-Leakage Pipeline CV** | 24,555 | 60 | `CatBoost / ExtraTrees` | **`0.2184m`** | **`0.9215`** | **`96.5%`** | **+91.1%** |
+| **Phase 1: Initial Baseline** | 5,420 | 30 | `RandomForest` | `0.6724m` | `0.3710` | Random Split | +73.1% |
+| **Phase 2: Temporal Expansion** | 14,200 | 38 | `XGBoost (Tuned)` | `0.2643m` | `0.8688` | Random Split | +89.4% |
+| **Phase 3: 60 Domain Features** | 24,555 | 60 | `CatBoost` | `0.2315m` | `0.9102` | Stratified Split | +90.6% |
+| **Phase 4: Zero-Leakage Session CV** | 32,728 | 59 | `Bagging Ensemble` | **`0.8751m`** | **`0.5834`** | **Session GroupKFold (Unseen Runs)** | **+64.3%** |
+
+> *Note for Dissertation Defense*: The shift in reported Test MAE between Phase 3 ($0.2315\text{m}$) and Phase 4 ($0.8751\text{m}$) directly reflects the transition from random window splitting (which exhibits temporal autocorrelation between adjacent packets in the same experiment) to strict, zero-leakage session-level holdout (`StratifiedGroupKFold` across 52 independent physical recording sessions). On genuinely unseen sessions, close-range accuracy remains high ($0.0436\text{m}$ at $0.7\text{m}$, $0.2416\text{m}$ at $2.0\text{m}$), and the ensemble outperforms the uncalibrated physics baseline by **+64.3%**.
+
 
 ---
 
@@ -68,28 +71,39 @@ python ble-indoor-positioning/pipeline.py
 python ble-indoor-positioning/training_gui.py
 ```
 
+### 4. Launch Real-Time FastAPI Positioning Engine & WebSocket Server
+```bash
+uvicorn server.app:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### 5. Run Python Test Suite (37 tests)
+```bash
+pytest
+```
+
 ---
 
 ## 🛠 Project Structure
 
 ```
-final year/
-├── ble tracker/
-│   └── collector/
-│       ├── collector.py           # Multi-manager ESP32 serial data collector GUI & HTTP streamer
-│       └── data/raw/              # 34 Raw BLE recording CSV datasets
-├── ble-indoor-positioning/
-│   ├── datasets/
-│   │   └── observations.csv       # Engineered 60-feature ML observation windows dataset
-│   ├── feature_engineering/
-│   │   └── engineer.py            # 60-feature extraction engine & Dataset Audit module
-│   ├── training/
-│   │   └── train.py               # Ultra-Robust Super Learner Tournament & Experiment Logger
-│   ├── models/                    # Trained model artifacts (.joblib) & metadata (.json)
-│   ├── reports/
-│   │   ├── experiment_evolution_log.md  # Chronological experiment evolution log
-│   │   ├── experiment_evolution_log.json# Machine-readable run history
-│   │   └── model_diagnostics.png  # V2 8-panel diagnostic plot grid
-│   ├── pipeline.py                # Pipeline entry point with real-time JSON progress event stream
-│   └── training_gui.py            # Interactive Model Studio GUI & Live Tournament Leaderboard
+ble-indoor-positioning/
+├── server/
+│   └── app.py                 # FastAPI REST and WebSocket positioning engine (/api, /ws)
+├── localization/
+│   └── trilateration.py       # Levenberg-Marquardt Least-Squares solver & KalmanFilter2D
+├── feature_engineering/
+│   └── engineer.py            # 60-feature extraction engine & Dataset Audit module
+├── training/
+│   └── train.py               # Super Learner Tournament & Experiment Logger
+├── models/                    # Trained model artifacts (.joblib) & metadata (.json)
+├── collector/
+│   └── collector.py           # Multi-manager ESP32 serial data collector GUI & HTTP streamer
+├── tests/                     # 37 pytest tests (endpoints, trilateration, features, firmware)
+├── reports/
+│   ├── experiment_evolution_log.md  # Chronological experiment evolution log
+│   ├── experiment_evolution_log.json# Machine-readable run history
+│   └── model_diagnostics.png  # V2 8-panel diagnostic plot grid
+├── pipeline.py                # Pipeline entry point with real-time JSON progress event stream
+└── training_gui.py            # Interactive Model Studio GUI & Live Tournament Leaderboard
 ```
+

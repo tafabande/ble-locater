@@ -19,7 +19,7 @@ interface Props {
 const INK = '#121619'
 const MUTED = '#6b7472'
 const GRID = '#e3e7e6'
-const BLUE = '#2a78d6'
+const EMERALD = '#059669'
 const TEAL = '#0d9488'
 
 const axis = { stroke: MUTED, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }
@@ -85,7 +85,7 @@ export function Analytics({ sim }: Props) {
               <XAxis dataKey="t" tick={axis} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={24} />
               <YAxis tick={axis} tickLine={false} axisLine={false} />
               <Tooltip {...tt} />
-              <Bar dataKey="packets" fill={BLUE} radius={[3, 3, 0, 0]} name="Packets" />
+              <Bar dataKey="packets" fill={EMERALD} radius={[3, 3, 0, 0]} name="Packets" />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -111,7 +111,7 @@ export function Analytics({ sim }: Props) {
               <Tooltip {...tt} />
               <Bar dataKey="count" radius={[3, 3, 0, 0]} name="Links">
                 {rssiDist.map((_, i) => (
-                  <Cell key={i} fill={i < 2 ? TEAL : i < 4 ? BLUE : MUTED} />
+                  <Cell key={i} fill={i < 2 ? TEAL : i < 4 ? EMERALD : MUTED} />
                 ))}
               </Bar>
             </BarChart>
@@ -124,9 +124,9 @@ export function Analytics({ sim }: Props) {
 
 function Card({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card p-4 sm:p-5">
+    <div className="rounded-2xl bg-card p-5 sm:p-6 shadow-sm">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold">{title}</h3>
+        <h3 className="text-sm font-bold tracking-tight text-foreground">{title}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>
       </div>
       {children}
@@ -136,9 +136,9 @@ function Card({ title, sub, children }: { title: string; sub: string; children: 
 
 function Kpi({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card p-4">
-      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
-      <div className={`mt-2 text-2xl font-semibold tabular-nums ${accent ? 'text-accent' : ''}`}>{value}</div>
+    <div className="rounded-2xl bg-card p-5 shadow-sm">
+      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
+      <div className={`mt-2 text-2xl font-bold tabular-nums tracking-tight ${accent ? 'text-accent' : 'text-foreground'}`}>{value}</div>
     </div>
   )
 }

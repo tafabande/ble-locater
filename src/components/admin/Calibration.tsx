@@ -25,7 +25,7 @@ const INK = '#121619'
 const MUTED = '#6b7472'
 const GRID = '#e3e7e6'
 const TEAL = '#0d9488'
-const BLUE = '#2a78d6'
+const EMERALD = '#059669'
 const AMBER = '#eda100'
 
 const axis = { stroke: MUTED, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }
@@ -54,9 +54,9 @@ export function Calibration({ anchors }: Props) {
   return (
     <div className="space-y-6">
       {/* per-anchor ML parameter table */}
-      <div className="rounded-[var(--radius)] border border-border bg-card">
-        <div className="border-b border-border px-4 py-3">
-          <h3 className="text-sm font-semibold">ML Calibration Parameters</h3>
+      <div className="rounded-2xl bg-card shadow-sm overflow-hidden">
+        <div className="px-6 py-4">
+          <h3 className="text-sm font-bold text-foreground">ML Calibration Parameters</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">Per-anchor log-distance path-loss model fitted from RSSI samples</p>
         </div>
         <div className="overflow-x-auto">
@@ -113,7 +113,7 @@ export function Calibration({ anchors }: Props) {
               <YAxis type="number" dataKey="rssi" name="RSSI" unit="dBm" tick={axis} tickLine={false} axisLine={false} domain={['dataMin - 4', 'dataMax + 4']} />
               <ZAxis range={[40, 40]} />
               <Tooltip {...ttStyle} cursor={{ stroke: GRID }} />
-              <Scatter data={samples} fill={BLUE} fillOpacity={0.55} />
+              <Scatter data={samples} fill={EMERALD} fillOpacity={0.55} />
               <Line type="monotone" dataKey="model" data={fitLine} stroke={TEAL} strokeWidth={2} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -141,9 +141,9 @@ export function Calibration({ anchors }: Props) {
 
 function Card({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[var(--radius)] border border-border bg-card p-4 sm:p-5">
+    <div className="rounded-2xl bg-card p-5 sm:p-6 shadow-sm">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold">{title}</h3>
+        <h3 className="text-sm font-bold tracking-tight text-foreground">{title}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>
       </div>
       {children}

@@ -1,3 +1,4 @@
+import os
 import time
 import math
 import random
@@ -5,8 +6,9 @@ import requests
 import argparse
 import sys
 
-URL_SINGLE = 'http://127.0.0.1:8000/api/observation'
-URL_BATCH = 'http://127.0.0.1:8000/api/observation/batch'
+API_BASE = os.environ.get('API_URL', 'http://127.0.0.1:8000').rstrip('/')
+URL_SINGLE = f'{API_BASE}/api/observation'
+URL_BATCH = f'{API_BASE}/api/observation/batch'
 
 # 12 Anchors across 4 Rooms (Room A: Executive Suite, Room B: Meeting Room, Room C: Operations Hub, Room D: Main Entrance)
 ANCHORS = {
@@ -80,7 +82,7 @@ def main():
                 except requests.exceptions.RequestException:
                     now_ts = time.time()
                     if not hasattr(main, '_last_wait_log') or (now_ts - main._last_wait_log > 5.0):
-                        print('[SIMULATOR] Waiting for backend server at http://127.0.0.1:8000 ...', flush=True)
+                        print(f'[SIMULATOR] Waiting for backend server at {API_BASE} ...', flush=True)
                         main._last_wait_log = now_ts
 
             time.sleep(0.2)

@@ -21,6 +21,7 @@ FROM python:3.11-slim AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -49,6 +50,6 @@ EXPOSE 8000
 
 # Healthcheck to verify Location Engine API readiness
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:8000/api/training/status || exit 1
+  CMD curl -f http://localhost:8000/healthz || exit 1
 
 CMD ["python", "server/app.py"]

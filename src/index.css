@@ -33,12 +33,12 @@
 :root {
   --background: #f4f6f6;
   --foreground: #121619;
-  --card: #fcfefe;
+  --card: #ffffff;
   --card-foreground: #121619;
-  --panel: #fafbfb;
+  --panel: #f8fafa;
   --primary: #0f766e;
   --primary-foreground: #ffffff;
-  --muted: #eef1f1;
+  --muted: #edf0f0;
   --muted-foreground: #6b7472;
   --accent: #0d9488;
   --accent-soft: rgba(13, 148, 136, 0.12);

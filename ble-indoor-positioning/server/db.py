@@ -61,6 +61,7 @@ def create_db_engine(db_path_or_url: str):
     connect_args = {}
     if db_url.startswith("sqlite"):
         connect_args["timeout"] = 30.0
+        connect_args["check_same_thread"] = False
 
     engine = create_engine(db_url, connect_args=connect_args, echo=False)
 

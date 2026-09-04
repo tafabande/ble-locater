@@ -138,3 +138,45 @@ def test_sync_heatmap_and_config_endpoints():
 
     cfg_res = configure_anchor(ConfigUpdate(anchor_id="ANCHOR_01", x=0.5, y=5.5))
     assert cfg_res["status"] == "success"
+
+@pytest.mark.anyio
+async def test_schematic_zero_defaults_and_roundtrip(tmp_path, monkeypatch):
+    import server.app as app_mod
+    fake_file = str(tmp_path / "schematic.json")
+    monkeypatch.setattr(app_mod, "SCHEMATIC_FILE", fake_file)
+
+    # 1. Verify fresh / unconfigured environment returns empty schema
+    empty = await get_schematic()
+    assert empty["anchors"] == []
+    assert empty["rooms"] == []
+    assert empty["walls"] == []
+    assert empty["tags"] == []
+
+    # 2. Deploy custom room with 4 corner anchors
+    custom_payload = SchematicPayload(
+        name="Engineering Lab",
+        facility_type="custom",
+        dimensions={"width": 10.0, "height": 10.0, "depth": 3.2, "unit": "meters"},
+        anchors=[
+            {"id": "A_TL", "label": "Top-Left", "x": 1.0, "y": 9.0},
+            {"id": "A_TR", "label": "Top-Right", "x": 9.0, "y": 9.0},
+            {"id": "A_BL", "label": "Bottom-Left", "x": 1.0, "y": 1.0},
+            {"id": "A_BR", "label": "Bottom-Right", "x": 9.0, "y": 1.0},
+        ],
+        rooms=[{"id": "room_1", "name": "Lab 1", "x": 10, "y": 10, "w": 80, "h": 80}],
+        walls=[],
+        tags=[],
+        furniture=[],
+        blueprint=None,
+    )
+
+    save_res = await save_schematic(custom_payload)
+    assert save_res["status"] == "ok"
+
+    # 3. Reload from storage - verify exact roundtrip without defaults
+    reloaded = await get_schematic()
+    assert reloaded["name"] == "Engineering Lab"
+    assert len(reloaded["rooms"]) == 1
+    assert len(reloaded["anchors"]) == 4
+    assert {a["id"] for a in reloaded["anchors"]} == {"A_TL", "A_TR", "A_BL", "A_BR"}
+
