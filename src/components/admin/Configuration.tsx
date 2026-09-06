@@ -9,9 +9,11 @@ interface Props {
   onInterval: (n: number) => void
   endpoint: string
   onEndpoint: (v: string) => void
+  simulationEnabled?: boolean
+  onToggleSimulation?: (val: boolean) => void
 }
 
-export function Configuration({ anchors, mode, interval, onInterval, endpoint, onEndpoint }: Props) {
+export function Configuration({ anchors, mode, interval, onInterval, endpoint, onEndpoint, simulationEnabled = true, onToggleSimulation }: Props) {
   const [retention, setRetention] = useState('30')
   const [geofence, setGeofence] = useState(true)
   const [smoothing, setSmoothing] = useState(true)
@@ -28,7 +30,7 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
       <div className="rounded-2xl bg-card p-6 shadow-sm space-y-4">
         <div>
           <h3 className="text-sm font-bold text-foreground tracking-tight">Anchor Nodes</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">ESP32 mesh serving the positioning web server</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">ESP32 mesh serving the live positioning web server</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -68,7 +70,7 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
       {/* Settings */}
       <div className="space-y-6">
         <div className="rounded-2xl bg-card p-6 shadow-sm space-y-4">
-          <h3 className="text-sm font-bold text-foreground tracking-tight">Positioning</h3>
+          <h3 className="text-sm font-bold text-foreground tracking-tight">Live Positioning Configuration</h3>
           <Field label="Refresh interval" hint="How often anchors publish positions">
             <select
               value={interval}
@@ -97,19 +99,49 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
 
         <div className="rounded-2xl bg-card p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground tracking-tight">Live Data Source</h3>
+            <div>
+              <h3 className="text-sm font-bold text-foreground tracking-tight">Simulation Mode</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">Virtual demonstration tag for testing without hardware</p>
+            </div>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
+              style={{
+                background: simulationEnabled ? 'var(--accent-soft)' : 'var(--muted)',
+                color: simulationEnabled ? 'var(--accent)' : 'var(--muted-foreground)',
+              }}
+            >
+              <span className="size-1.5 rounded-full" style={{ background: simulationEnabled ? 'var(--status-stale)' : 'var(--muted-foreground)' }} />
+              {simulationEnabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+
+          <Toggle
+            label="Simulated Demonstration Tag"
+            hint="Display a virtual tag moving through rooms to demonstrate trilateration and geofencing"
+            on={simulationEnabled}
+            onToggle={() => onToggleSimulation?.(!simulationEnabled)}
+          />
+
+          <p className="rounded-xl bg-muted/30 p-3 font-mono text-[10px] leading-relaxed text-muted-foreground">
+            When disabled, all synthetic movement is shut down and the system runs exclusively on 100% real live hardware telemetry. Real analytics and database records are never mixed with simulation data.
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-card p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground tracking-tight">Live Hardware Data Source</h3>
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
               style={{
                 background: mode === 'live' ? 'var(--accent-soft)' : 'var(--muted)',
-                color: mode === 'live' ? 'var(--accent)' : 'var(--muted-foreground)',
+                color: mode === 'live' ? 'var(--status-online)' : 'var(--muted-foreground)',
               }}
             >
               <span className="size-1.5 rounded-full" style={{ background: mode === 'live' ? 'var(--status-online)' : 'var(--muted-foreground)' }} />
-              {mode === 'live' ? 'Active' : 'Standby'}
+              {mode === 'live' ? 'Live · Configurable' : 'Standby'}
             </span>
           </div>
-          <Field label="Positioning API endpoint" hint="URL the app polls in Live mode (GET → JSON)">
+          <Field label="Positioning API endpoint" hint="Active REST & WebSocket endpoint for real hardware telemetry">
             <input
               value={endpoint}
               onChange={(e) => onEndpoint(e.target.value)}
@@ -118,13 +150,13 @@ export function Configuration({ anchors, mode, interval, onInterval, endpoint, o
             />
           </Field>
           <dl className="space-y-2 font-mono text-xs">
-            <Row k="mDNS" v="fleetview.local" />
-            <Row k="Firmware" v="v2.4.1-rtls" />
-            <Row k="Mode" v={mode === 'live' ? 'Live · polling' : 'Demo · simulated'} />
+            <Row k="Host Target" v={endpoint} />
+            <Row k="Firmware" v="v2.4.1-rtls (ESP32 Mesh)" />
+            <Row k="System Mode" v={mode === 'live' ? 'Live System Active' : 'Simulation Mode'} />
+            <Row k="Simulation Demo" v={simulationEnabled ? 'Active (Demo tag visible)' : 'Disabled (Hardware only)'} />
           </dl>
           <p className="rounded-xl bg-muted/30 p-3 font-mono text-[10px] leading-relaxed text-muted-foreground">
-            Switch to <span className="text-foreground font-semibold">Live</span> in the sidebar to poll this endpoint. Demo mode runs a
-            built-in simulation and needs no hardware.
+            The Live system is the primary configurable deployment. Real BLE advertisements received by ESP32 anchors are processed through the log-distance trilateration engine and Kalman filtering.
           </p>
         </div>
 

@@ -361,8 +361,8 @@ The primary acceptance matrix for Chapter 4 of the dissertation:
 | **1** | **Frontend Production Build** | Vite 8 + React 19 compilation | `npm run build` (0 warnings) | ✅ Verified |
 | **2** | **Backend Server Engine** | FastAPI REST & WebSockets | `pytest test_server_endpoints.py` | ✅ Verified |
 | **3** | **TypeScript Type Safety** | Static type check | `npx tsc --noEmit` (0 errors) | ✅ Verified |
-| **4** | **Frontend Test Suite** | 39 unit & integration tests | `npm test -- --run` (39 passed) | ✅ Verified |
-| **5** | **Backend Test Suite** | 37 pytest unit tests | `pytest` (37 passed) | ✅ Verified |
+| **4** | **Frontend Test Suite** | 54 unit & integration tests | `npm test -- --run` (54 passed) | ✅ Verified |
+| **5** | **Backend Test Suite** | 39 pytest unit tests | `pytest` (39 passed) | ✅ Verified |
 | **6** | **Room-Anchor Invariant** | Full lifecycle: $4 \to 3 \to 1 \to 4 \to \text{del}$ | `pipeline.test.ts` (Bidirectional) | ✅ Verified |
 | **7** | **Persistent Storage** | Storage round-trip & no-default | `pipeline.test.ts` (localStorage) | ✅ Verified |
 | **8** | **Multi-Point Coordinates** | 6-point Cartesian-to-SVG grid | `pipeline.test.ts` (Forward/Inverse) | ✅ Verified |

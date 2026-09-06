@@ -144,16 +144,16 @@ npm run dev
 
 ## 🧪 Test Suites & Scientific Verification Protocol
 
-The platform includes a dedicated dissertation-grade flight check protocol documented in detail in [DISSERTATION_VALIDATION_PROTOCOL.md](file:///c:/Users/User/Desktop/Dissertation/DISSERTATION_VALIDATION_PROTOCOL.md), covering the complete 20-item validation matrix.
+The platform includes a dedicated dissertation-grade flight check protocol documented in detail in [DISSERTATION_VALIDATION_PROTOCOL.md](./DISSERTATION_VALIDATION_PROTOCOL.md), covering the complete 20-item validation matrix.
 
 ### Frontend Verification (Vitest)
-Executes 39 tests covering coordinate conversions, 6-point physical grid mapping, geometric conditioning, topological invariants, noise perturbation sensitivity, and multilateration solving:
+Executes 54 tests across 5 suites covering coordinate conversions, 6-point physical grid mapping, geometric conditioning, topological invariants, noise perturbation sensitivity, and multilateration solving:
 ```bash
 npm test -- --run
 ```
 
 ### Backend Verification (pytest)
-Executes 37 tests covering FastAPI REST endpoints, WebSocket broadcasts, ML inference, and analytical ground-truth trilateration:
+Executes 39 tests across 8 suites covering FastAPI REST endpoints, WebSocket broadcasts, ML inference, and analytical ground-truth trilateration:
 ```bash
 .\ble-indoor-positioning\.venv\Scripts\python.exe -m pytest
 ```
@@ -177,7 +177,7 @@ Dissertation/
 │   ├── feature_engineering/     # 60-feature extractor & dataset quality auditor
 │   ├── training/                # Super Learner Tournament & CV training pipeline
 │   ├── collector/               # Serial ESP32 BLE receiver packet collector
-│   ├── tests/                   # Python pytest suite (37 tests)
+│   ├── tests/                   # Python pytest suite (39 tests)
 │   └── pipeline.py              # ML pipeline entry point with streaming telemetry
 ├── src/                         # Frontend React 19 Application
 │   ├── components/

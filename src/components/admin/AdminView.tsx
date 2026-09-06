@@ -19,6 +19,8 @@ interface Props {
   mapItems: MapItem[]
   onMapItems: (items: MapItem[]) => void
   role: UserRole
+  simulationEnabled?: boolean
+  onToggleSimulation?: (val: boolean) => void
 }
 
 type Tab = 'floor' | 'calibration' | 'analytics' | 'history' | 'config'
@@ -31,7 +33,7 @@ const TABS: { id: Tab; label: string; minRole: UserRole; icon: typeof M3Grid }[]
   { id: 'config', label: 'Configuration', minRole: 'admin', icon: M3Admin },
 ]
 
-export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoint, mapItems, onMapItems, role }: Props) {
+export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoint, mapItems, onMapItems, role, simulationEnabled, onToggleSimulation }: Props) {
   const [tab, setTab] = useState<Tab>('floor')
   const visibleTabs = TABS.filter((t) => canAccess(role, t.minRole))
 
@@ -77,6 +79,8 @@ export function AdminView({ sim, mode, interval, onInterval, endpoint, onEndpoin
           onInterval={onInterval}
           endpoint={endpoint}
           onEndpoint={onEndpoint}
+          simulationEnabled={simulationEnabled}
+          onToggleSimulation={onToggleSimulation}
         />
       )}
     </div>

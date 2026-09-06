@@ -126,6 +126,10 @@ function mapPayload(raw: RawPayload | any, prev: SimState | null): SimState {
       trail,
       rssiHistory: hist,
       violating,
+      isSimulated: Boolean(
+        rt.id?.toLowerCase().includes('sim') ||
+        rt.label?.toLowerCase().includes('simulat')
+      ),
     }
   })
 

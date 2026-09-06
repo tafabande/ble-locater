@@ -5,9 +5,16 @@ import {
   computeAnchorDistances,
   calculatePathLength,
   formatCollectorExport,
+  calculateObstructionLineOfSight,
+  getNodesInInterferenceRange,
+  getFourEspAnchorPreset,
+  formatDataSheetCsv,
+  formatPlainTextLog,
   type CollectorAnchor,
+  type CollectorObstacle,
   type SurveyPoint,
   type SurveySessionPlan,
+  type RawDataRecord,
 } from '../lib/collectorGrid'
 import { type BuildingDimensions } from '../lib/geometry'
 
@@ -116,7 +123,18 @@ describe('Visual Data Collector & Grid Survey Studio Suite', () => {
           { id: 'SP_01', label: 'Center Point', x: 50, y: 50, targetSamples: 300, collectedSamples: 300, status: 'completed', heightMeters: 1.0, motion: 'stationary' },
         ],
         anchors: [
-          { id: 'A1', label: 'Anchor 1', x: 5, y: 95, txPower: -60, channel: 37, receptionRangeMeters: 8.0, status: 'online' },
+          {
+            id: 'A1',
+            label: 'Anchor 1',
+            systemName: 'ESP-01 (South-West)',
+            macAddress: '24:6F:28:1A:4C:01',
+            x: 5,
+            y: 95,
+            txPower: -60,
+            channel: 37,
+            receptionRangeMeters: 8.0,
+            status: 'online',
+          },
         ],
         waypoints: [],
         obstacles: [
@@ -134,7 +152,190 @@ describe('Visual Data Collector & Grid Survey Studio Suite', () => {
       expect(parsed.total_points).toBe(1)
       expect(parsed.survey_points[0].target_samples).toBe(300)
       expect(parsed.anchors[0].range_m).toBe(8.0)
+      expect(parsed.anchors[0].mac_address).toBe('24:6F:28:1A:4C:01')
+      expect(parsed.anchors[0].system_name).toBe('ESP-01 (South-West)')
       expect(parsed.obstacles[0].obstacleType).toBe('Concrete')
+    })
+  })
+
+  describe('5. Line-of-Sight Ray-Tracing & Obstacle Attenuation', () => {
+    it('detects when an obstacle intersects line-of-sight and calculates cumulative dB penalty', () => {
+      // In bottom-left coordinates:
+      // Node A at bottom-left: (x: 10%, y: 90%) -> (1m, 1m)
+      // Node B at bottom-right: (x: 90%, y: 90%) -> (9m, 1m)
+      // Obstacle directly in the middle: x: 45%, y: 85%, w: 10%, h: 10% (from 4.5m to 5.5m horizontally, 0.5m to 1.5m vertically)
+      const nodeA = { x: 10, y: 90 }
+      const nodeB = { x: 90, y: 90 }
+      const concretePillar: CollectorObstacle = {
+        id: 'OBS_PILLAR',
+        label: 'Concrete Pillar',
+        x: 45,
+        y: 85,
+        w: 10,
+        h: 10,
+        obstacleType: 'Concrete',
+        attenuationDb: 14.0,
+      }
+
+      const result = calculateObstructionLineOfSight(nodeA, nodeB, [concretePillar], dims)
+      expect(result.isObstructed).toBe(true)
+      expect(result.totalAttenuationDb).toBe(14.0)
+      expect(result.obstructingObstacles).toHaveLength(1)
+      expect(result.obstructingObstacles[0].id).toBe('OBS_PILLAR')
+    })
+
+    it('returns unobstructed when ray path is clear', () => {
+      const nodeA = { x: 10, y: 90 }
+      const nodeB = { x: 90, y: 90 }
+      // Obstacle far away at top (x: 10%, y: 10%)
+      const farObstacle: CollectorObstacle = {
+        id: 'OBS_FAR',
+        label: 'Drywall Partition',
+        x: 10,
+        y: 10,
+        w: 10,
+        h: 10,
+        obstacleType: 'Drywall',
+        attenuationDb: 3.5,
+      }
+
+      const result = calculateObstructionLineOfSight(nodeA, nodeB, [farObstacle], dims)
+      expect(result.isObstructed).toBe(false)
+      expect(result.totalAttenuationDb).toBe(0)
+      expect(result.obstructingObstacles).toHaveLength(0)
+    })
+  })
+
+  describe('6. Barrier Interference Range Detection', () => {
+    it('identifies nodes within the active RF interference radius of an obstacle', () => {
+      // Barrier centered at canvas (50%, 50%) -> metric (5m, 5m)
+      // w: 10%, h: 10% -> 1m x 1m. Interference radius = 3.0m
+      const noiseSource: CollectorObstacle = {
+        id: 'OBS_NOISE',
+        label: 'Industrial Microwave / RF Noise',
+        x: 45,
+        y: 45,
+        w: 10,
+        h: 10,
+        obstacleType: 'WiFi / RF Noise',
+        attenuationDb: 18.0,
+        interferenceRadiusMeters: 3.0,
+      }
+
+      const nodes = [
+        // Node 1 at (50%, 50%) -> metric (5m, 5m) -> dist 0m (In range)
+        { id: 'N1', label: 'Center Point', x: 50, y: 50, type: 'survey_point' as const },
+        // Node 2 at (65%, 50%) -> metric (6.5m, 5m) -> dist 1.5m (In range)
+        { id: 'N2', label: 'Near Point', x: 65, y: 50, type: 'survey_point' as const },
+        // Node 3 at (90%, 90%) -> metric (9m, 1m) -> dist ~ sqrt(16 + 16) = 5.65m (Out of range)
+        { id: 'N3', label: 'Far Anchor', x: 90, y: 90, type: 'anchor' as const },
+      ]
+
+      const impacted = getNodesInInterferenceRange(noiseSource, nodes, dims)
+      expect(impacted).toHaveLength(2)
+      expect(impacted[0].node.id).toBe('N1')
+      expect(impacted[0].distanceMeters).toBe(0)
+      expect(impacted[1].node.id).toBe('N2')
+      expect(impacted[1].distanceMeters).toBe(1.5)
+    })
+  })
+
+  describe('7. 4-ESP32 Corner Node Placement Preset', () => {
+    it('generates 4 corner anchors with assigned MACs and system names', () => {
+      const anchors = getFourEspAnchorPreset(dims, 10)
+      expect(anchors).toHaveLength(4)
+
+      // Ensure distinct IDs, MAC addresses, and system names
+      const ids = new Set(anchors.map((a) => a.id))
+      const macs = new Set(anchors.map((a) => a.macAddress))
+      const names = new Set(anchors.map((a) => a.systemName))
+
+      expect(ids.size).toBe(4)
+      expect(macs.size).toBe(4)
+      expect(names.size).toBe(4)
+
+      // Validate MAC address format
+      const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/
+      for (const a of anchors) {
+        expect(a.macAddress).toMatch(macRegex)
+        expect(a.systemName).toBeTruthy()
+        expect(a.status).toBe('online')
+      }
+
+      // Check corner coordinates (margin 10%)
+      expect(anchors[0].x).toBe(10) // SW: (10, 90)
+      expect(anchors[0].y).toBe(90)
+      expect(anchors[1].x).toBe(90) // SE: (90, 90)
+      expect(anchors[1].y).toBe(90)
+      expect(anchors[2].x).toBe(10) // NW: (10, 10)
+      expect(anchors[2].y).toBe(10)
+      expect(anchors[3].x).toBe(90) // NE: (90, 10)
+      expect(anchors[3].y).toBe(10)
+    })
+  })
+
+  describe('8. Zero-Transformation Data Sheet & Verbatim Plain Text Log', () => {
+    it('formats raw CSV data sheet preserving date, time, raw RSSI, and raw payload without cleaning', () => {
+      const sampleRecords: RawDataRecord[] = [
+        {
+          id: 'rec_1',
+          date: '2026-09-05',
+          time: '16:45:10.123',
+          timestamp: 1693800000,
+          anchorId: 'ESP32_01',
+          deviceMac: '52:06:26:03:01:DA',
+          rssi: -64,
+          rawPayload: '1693800000,ESP32_01,52:06:26:03:01:DA,-64,ESP_TAG',
+        },
+        {
+          id: 'rec_2',
+          date: '2026-09-05',
+          time: '16:45:11.456',
+          timestamp: 1693800001,
+          anchorId: 'ESP32_02',
+          deviceMac: '52:06:26:03:01:DA',
+          rssi: -72,
+          rawPayload: '{"type":"raw","timestamp":1693800001,"mac":"52:06:26:03:01:DA","rssi":-72}',
+        },
+      ]
+
+      const csvOut = formatDataSheetCsv(sampleRecords)
+      const lines = csvOut.split('\n')
+
+      // Header row
+      expect(lines[0]).toBe('date,time,timestamp,anchor_id,device_mac,rssi,raw_payload')
+      expect(lines).toHaveLength(3)
+
+      // Row 1
+      expect(lines[1]).toContain('2026-09-05')
+      expect(lines[1]).toContain('16:45:10.123')
+      expect(lines[1]).toContain('ESP32_01')
+      expect(lines[1]).toContain('52:06:26:03:01:DA')
+      expect(lines[1]).toContain('-64')
+
+      // Row 2
+      expect(lines[2]).toContain('2026-09-05')
+      expect(lines[2]).toContain('16:45:11.456')
+      expect(lines[2]).toContain('ESP32_02')
+      expect(lines[2]).toContain('-72')
+      expect(lines[2]).toContain('""type"":""raw""') // escaped JSON payload in CSV
+    })
+
+    it('formats verbatim plain text stream copying and passing node lines as-is', () => {
+      const rawLines = [
+        'timestamp,anchor,mac,rssi,name',
+        '1693800000,ESP32_01,52:06:26:03:01:DA,-64,ESP_TAG',
+        '{"type":"raw","timestamp":1693800001,"mac":"52:06:26:03:01:DA","rssi":-72}',
+        'DEBUG: Channel 37 scan cycle completed',
+      ]
+
+      const logText = formatPlainTextLog(rawLines)
+      expect(logText).toBe(rawLines.join('\n'))
+      // Verifies no line was skipped, altered, trimmed, or smoothed
+      const parsedLines = logText.split('\n')
+      expect(parsedLines).toHaveLength(4)
+      expect(parsedLines[0]).toBe('timestamp,anchor,mac,rssi,name')
+      expect(parsedLines[3]).toBe('DEBUG: Channel 37 scan cycle completed')
     })
   })
 })

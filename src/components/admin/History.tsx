@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Alert, EventRow, Severity } from '../../lib/simulation'
 import { clockTime, relativeTime } from '../../lib/format'
 
@@ -33,15 +33,57 @@ export function History({ events, alerts }: Props) {
   const [source, setSource] = useState<'events' | 'alerts'>('events')
   const [filter, setFilter] = useState<'all' | EventRow['type']>('all')
   const [q, setQ] = useState('')
+  const [liveEvents, setLiveEvents] = useState<EventRow[]>([])
+  const [liveAlerts, setLiveAlerts] = useState<Alert[]>([])
+
+  useEffect(() => {
+    fetch('/api/history?limit=200')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.history) && data.history.length > 0) {
+          const mapped: EventRow[] = data.history.map((h: any, i: number) => ({
+            id: `db-evt-${h.id ?? i}`,
+            ts: h.timestamp_ms ?? Date.now(),
+            tag: h.tag_id ?? 'TAG',
+            zone: h.room ?? h.zone ?? 'Transit',
+            type: 'enter' as const,
+            detail: `Position: (${typeof h.x === 'number' ? h.x.toFixed(1) : h.x}, ${typeof h.y === 'number' ? h.y.toFixed(1) : h.y})m · Zone: ${h.zone ?? 'N/A'}`,
+          }))
+          setLiveEvents(mapped)
+        }
+      })
+      .catch(() => {})
+
+    fetch('/api/alerts')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.alerts) && data.alerts.length > 0) {
+          const mappedAlerts: Alert[] = data.alerts.map((a: any, i: number) => ({
+            id: `db-alt-${i}`,
+            ts: a.timestamp_ms ?? Date.now(),
+            severity: a.severity ?? 'warning',
+            kind: 'geofence' as const,
+            tag: a.tag_id ?? 'TAG',
+            message: a.message ?? 'Geofence transition',
+            acknowledged: false,
+          }))
+          setLiveAlerts(mappedAlerts)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const activeEvents = liveEvents.length > 0 ? liveEvents : events.filter((e) => !e.tag?.toLowerCase().includes('sim'))
+  const activeAlerts = liveAlerts.length > 0 ? liveAlerts : alerts.filter((a) => !a.tag?.toLowerCase().includes('sim'))
 
   const rows = useMemo(
     () =>
-      events.filter(
+      activeEvents.filter(
         (e) =>
           (filter === 'all' || e.type === filter) &&
           (q === '' || e.tag.toLowerCase().includes(q.toLowerCase()) || e.zone.toLowerCase().includes(q.toLowerCase()))
       ),
-    [events, filter, q]
+    [activeEvents, filter, q]
   )
 
   return (
@@ -55,7 +97,7 @@ export function History({ events, alerts }: Props) {
               source === s ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {s === 'events' ? 'Movement events' : `Alert log (${alerts.length})`}
+            {s === 'events' ? 'Movement events' : `Alert log (${activeAlerts.length})`}
           </button>
         ))}
       </div>
@@ -73,7 +115,7 @@ export function History({ events, alerts }: Props) {
               </tr>
             </thead>
             <tbody>
-              {alerts.map((a) => (
+              {activeAlerts.map((a) => (
                 <tr key={a.id} className="hover:bg-muted/40 transition-colors">
                   <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs tabular-nums text-muted-foreground">
                     {clockTime(a.ts)}
@@ -90,7 +132,7 @@ export function History({ events, alerts }: Props) {
                   <td className="px-4 py-2.5 text-xs text-muted-foreground">{a.acknowledged ? 'Acknowledged' : 'Open'}</td>
                 </tr>
               ))}
-              {alerts.length === 0 && (
+              {activeAlerts.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     No alerts recorded.

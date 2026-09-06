@@ -7,10 +7,11 @@ import logging
 import asyncio
 import datetime
 import sqlite3
+import csv
 from contextlib import asynccontextmanager
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Union
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -246,8 +247,29 @@ class TagStateManager:
     @property
     def count(self) -> int:
         return len(self.tags)
+DEFAULT_ANCHORS_METADATA = {
+    'ANCHOR_01': {'mac': '24:6F:28:1A:4C:01', 'name': 'ESP32 Node 1 (SW)'},
+    'ANCHOR_02': {'mac': '24:6F:28:1A:4C:02', 'name': 'ESP32 Node 2 (SE)'},
+    'ANCHOR_03': {'mac': '24:6F:28:1A:4C:03', 'name': 'ESP32 Node 3 (NW)'},
+    'ANCHOR_04': {'mac': '24:6F:28:1A:4C:04', 'name': 'ESP32 Node 4 (NE)'},
+}
+
+def get_anchors_broadcast():
+    res = {}
+    metadata = shared.get('anchors_metadata', {})
+    for aid, coords in shared['anchors_config'].items():
+        meta = metadata.get(aid, {})
+        res[aid] = {
+            'id': aid,
+            'x': coords[0],
+            'y': coords[1],
+            'mac': meta.get('mac') or meta.get('mac_address') or '',
+            'name': meta.get('name') or meta.get('system_name') or aid
+        }
+    return res
+
 asset_registry_inst = AssetRegistry()
-shared = {'model': None, 'scaler': None, 'model_metadata': None, 'zone_model': None, 'zone_scaler': None, 'anchors_config': DEFAULT_ANCHORS_CONFIG.copy(), 'trilateration_engine': TrilaterationEngine(DEFAULT_ANCHORS_CONFIG), 'online_learner': OnlineDistanceLearner(), 'geofence_engine': GeofenceEngine(), 'tag_manager': TagStateManager(), 'position_db': PositionHistoryDB(), 'asset_registry': asset_registry_inst, 'search_engine': SearchEngine(asset_registry_inst), 'active_connections': []}
+shared = {'model': None, 'scaler': None, 'model_metadata': None, 'zone_model': None, 'zone_scaler': None, 'anchors_config': DEFAULT_ANCHORS_CONFIG.copy(), 'anchors_metadata': DEFAULT_ANCHORS_METADATA.copy(), 'trilateration_engine': TrilaterationEngine(DEFAULT_ANCHORS_CONFIG), 'online_learner': OnlineDistanceLearner(), 'geofence_engine': GeofenceEngine(), 'tag_manager': TagStateManager(), 'position_db': PositionHistoryDB(), 'asset_registry': asset_registry_inst, 'search_engine': SearchEngine(asset_registry_inst), 'active_connections': []}
 
 def load_ml_assets():
     model_path = os.path.join(PROJECT_ROOT, 'models', 'distance_estimator.joblib')
@@ -303,6 +325,8 @@ class ConfigUpdate(BaseModel):
     anchor_id: str
     x: float
     y: float
+    mac: Optional[str] = None
+    name: Optional[str] = None
 
 class TagLabelUpdate(BaseModel):
     tag_id: str
@@ -551,12 +575,13 @@ def get_position_state(tag_id: Optional[str]=Query(None, description='Filter by 
     elif not isinstance(tag_id, str):
         tag_id = None
     tag_manager = shared['tag_manager']
+    anchors_detail = get_anchors_broadcast()
     if tag_id:
         if tag_id not in tag_manager.tags:
             raise HTTPException(status_code=404, detail=f'Tag {tag_id} not found.')
         tag = tag_manager.tags[tag_id]
-        return {'tags': {tag_id: tag.to_summary()}, 'anchors': shared['anchors_config'], 'learning': shared['online_learner'].get_summary(), 'total_tags': tag_manager.count, 'position': tag.last_position, 'distances': tag.estimated_distances, 'history': tag.history[-100:], 'zone': tag.zone_prediction, 'alerts': tag.alerts[-10:], 'latest_alert': tag.latest_alert}
-    return {'tags': tag_manager.get_all_summaries(), 'anchors': shared['anchors_config'], 'learning': shared['online_learner'].get_summary(), 'total_tags': tag_manager.count}
+        return {'tags': {tag_id: tag.to_summary()}, 'anchors': shared['anchors_config'], 'anchors_detail': anchors_detail, 'learning': shared['online_learner'].get_summary(), 'total_tags': tag_manager.count, 'position': tag.last_position, 'distances': tag.estimated_distances, 'history': tag.history[-100:], 'zone': tag.zone_prediction, 'alerts': tag.alerts[-10:], 'latest_alert': tag.latest_alert}
+    return {'tags': tag_manager.get_all_summaries(), 'anchors': shared['anchors_config'], 'anchors_detail': anchors_detail, 'learning': shared['online_learner'].get_summary(), 'total_tags': tag_manager.count}
 
 @app.get('/api/tags')
 def list_tags():
@@ -746,9 +771,17 @@ def configure_anchor(config: ConfigUpdate):
         if not anchor_id:
             raise HTTPException(status_code=400, detail='Anchor ID cannot be empty.')
         shared['anchors_config'][anchor_id] = (float(config.x), float(config.y))
+        if 'anchors_metadata' not in shared:
+            shared['anchors_metadata'] = {}
+        shared['anchors_metadata'][anchor_id] = {
+            'mac': config.mac or shared['anchors_metadata'].get(anchor_id, {}).get('mac', ''),
+            'name': config.name or shared['anchors_metadata'].get(anchor_id, {}).get('name', anchor_id),
+            'x': float(config.x),
+            'y': float(config.y)
+        }
         shared['trilateration_engine'] = TrilaterationEngine(shared['anchors_config'])
-        logger.info(f'Updated config: {anchor_id} set to ({config.x}, {config.y})')
-        return {'status': 'success', 'anchors': shared['anchors_config']}
+        logger.info(f'Updated config: {anchor_id} set to ({config.x}, {config.y}), MAC: {config.mac}, Name: {config.name}')
+        return {'status': 'success', 'anchors': shared['anchors_config'], 'anchors_detail': get_anchors_broadcast()}
     except HTTPException:
         raise
     except Exception as e:
@@ -786,7 +819,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 tags_data[tid] = {'tag_id': tid, 'label': ts.label, 'position': ts.last_position, 'distances': ts.estimated_distances, 'zone': ts.zone_prediction, 'room': ts.current_room, 'history': ts.history[-50:], 'latest_alert': ts.latest_alert}
                 if ts.latest_alert:
                     all_alerts.append(ts.latest_alert)
-            current_data = {'event': 'position_update', 'data': {'tags': tags_data, 'total_tags': tag_manager.count, 'anchors': shared['anchors_config'], 'position': list(tags_data.values())[0]['position'] if len(tags_data) == 1 else None, 'distances': list(tags_data.values())[0]['distances'] if len(tags_data) == 1 else None, 'zone': list(tags_data.values())[0]['zone'] if len(tags_data) == 1 else None, 'room': list(tags_data.values())[0]['room'] if len(tags_data) == 1 else None, 'alert': all_alerts[-1] if all_alerts else None}}
+            current_data = {'event': 'position_update', 'data': {'tags': tags_data, 'total_tags': tag_manager.count, 'anchors': shared['anchors_config'], 'anchors_detail': get_anchors_broadcast(), 'position': list(tags_data.values())[0]['position'] if len(tags_data) == 1 else None, 'distances': list(tags_data.values())[0]['distances'] if len(tags_data) == 1 else None, 'zone': list(tags_data.values())[0]['zone'] if len(tags_data) == 1 else None, 'room': list(tags_data.values())[0]['room'] if len(tags_data) == 1 else None, 'alert': all_alerts[-1] if all_alerts else None}}
             await websocket.send_json(current_data)
             await asyncio.sleep(0.1)
     except WebSocketDisconnect:
@@ -885,6 +918,112 @@ async def handle_control_action(body: ControlAction):
         return {"status": "ok", "message": "Self-test started"}
     
     raise HTTPException(status_code=400, detail=f"Unknown action: {act}")
+
+# ──────────────────────────────────────────────────────────────────
+# ZERO-FILTER RAW DATA COLLECTOR & INGESTION LOGGING ENDPOINTS
+# ──────────────────────────────────────────────────────────────────
+
+collector_data_state = {
+    "records": [],  # High-fidelity records with date, time, raw RSSI, payload
+    "raw_lines": [],  # Verbatim incoming lines directly from BLE nodes
+    "max_buffer": 2000,
+    "total_received": 0,
+}
+
+class CollectorIngestPayload(BaseModel):
+    date: Optional[str] = None
+    time: Optional[str] = None
+    timestamp: Optional[Union[int, float, str]] = None
+    anchor_id: Optional[str] = None
+    device_mac: Optional[str] = None
+    rssi: Optional[Union[int, float, str]] = None
+    raw_payload: Optional[str] = None
+    line: Optional[str] = None
+
+@app.post('/api/collector/ingest')
+async def ingest_collector_packet(payload: CollectorIngestPayload):
+    now = datetime.datetime.now()
+    d_str = payload.date or now.strftime('%Y-%m-%d')
+    t_str = payload.time or now.strftime('%H:%M:%S.%f')[:-3]
+    ts = payload.timestamp if payload.timestamp is not None else int(now.timestamp() * 1000)
+    raw_line = payload.raw_payload or payload.line or ''
+    if not raw_line:
+        raw_line = f"{ts},{payload.anchor_id or 'Unknown'},{payload.device_mac or 'Unknown'},{payload.rssi or 'N/A'}"
+    
+    rec = {
+        "id": f"rec_{collector_data_state['total_received'] + 1}",
+        "date": d_str,
+        "time": t_str,
+        "timestamp": ts,
+        "anchor_id": payload.anchor_id or 'Unknown',
+        "device_mac": payload.device_mac or 'Unknown',
+        "rssi": payload.rssi if payload.rssi is not None else 'N/A',
+        "raw_payload": raw_line
+    }
+    
+    collector_data_state["records"].append(rec)
+    collector_data_state["raw_lines"].append(raw_line)
+    collector_data_state["total_received"] += 1
+    
+    if len(collector_data_state["records"]) > collector_data_state["max_buffer"]:
+        collector_data_state["records"].pop(0)
+    if len(collector_data_state["raw_lines"]) > collector_data_state["max_buffer"]:
+        collector_data_state["raw_lines"].pop(0)
+
+    try:
+        datasets_dir = os.path.join(PROJECT_ROOT, "datasets")
+        os.makedirs(datasets_dir, exist_ok=True)
+        ds_file = os.path.join(datasets_dir, "raw_datasheet.csv")
+        log_file = os.path.join(datasets_dir, "raw_stream.log")
+        
+        if not os.path.exists(ds_file):
+            with open(ds_file, 'w', newline='', encoding='utf-8') as f:
+                csv.writer(f).writerow(['date', 'time', 'timestamp', 'anchor_id', 'device_mac', 'rssi', 'raw_payload'])
+                
+        with open(ds_file, 'a', newline='', encoding='utf-8') as f:
+            csv.writer(f).writerow([d_str, t_str, ts, rec["anchor_id"], rec["device_mac"], rec["rssi"], raw_line])
+            
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(raw_line + '\n')
+    except Exception:
+        pass
+        
+    return {"status": "ok", "total_received": collector_data_state["total_received"]}
+
+@app.get('/api/collector/records')
+async def get_collector_records(limit: int = 200):
+    recs = collector_data_state["records"][-limit:]
+    lines = collector_data_state["raw_lines"][-limit:]
+    return {
+        "status": "ok",
+        "total_received": collector_data_state["total_received"],
+        "records": recs,
+        "raw_lines": lines
+    }
+
+@app.post('/api/collector/clear')
+async def clear_collector_records():
+    collector_data_state["records"].clear()
+    collector_data_state["raw_lines"].clear()
+    return {"status": "ok", "message": "Collector buffer cleared"}
+
+@app.get('/api/collector/download/datasheet')
+async def download_collector_datasheet():
+    ds_file = os.path.join(PROJECT_ROOT, "datasets", "raw_datasheet.csv")
+    if not os.path.exists(ds_file):
+        os.makedirs(os.path.dirname(ds_file), exist_ok=True)
+        with open(ds_file, 'w', newline='', encoding='utf-8') as f:
+            csv.writer(f).writerow(['date', 'time', 'timestamp', 'anchor_id', 'device_mac', 'rssi', 'raw_payload'])
+    return FileResponse(ds_file, media_type='text/csv', filename='raw_datasheet.csv')
+
+@app.get('/api/collector/download/log')
+async def download_collector_log():
+    log_file = os.path.join(PROJECT_ROOT, "datasets", "raw_stream.log")
+    if not os.path.exists(log_file):
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write('# Plain Text Raw Node Stream Log\n')
+    return FileResponse(log_file, media_type='text/plain', filename='raw_stream.log')
 
 _active_pipeline_proc = None
 
@@ -1218,14 +1357,22 @@ async def save_schematic(payload: SchematicPayload):
         
         if payload.anchors:
             new_anchors = {}
+            if 'anchors_metadata' not in shared:
+                shared['anchors_metadata'] = {}
             for a in payload.anchors:
                 aid = a.get("id") or a.get("label")
                 if aid and "x" in a and "y" in a:
                     new_anchors[aid] = (float(a["x"]), float(a["y"]))
+                    shared['anchors_metadata'][aid] = {
+                        'mac': a.get('mac') or a.get('mac_address') or a.get('macAddress') or '',
+                        'name': a.get('name') or a.get('system_name') or a.get('systemName') or a.get('label') or aid,
+                        'x': float(a['x']),
+                        'y': float(a['y'])
+                    }
             if new_anchors:
                 shared['anchors_config'].update(new_anchors)
                 shared['trilateration_engine'] = TrilaterationEngine(shared['anchors_config'])
-                logger.info(f"📍 Updated {len(new_anchors)} anchor coordinates in live positioning solver.")
+                logger.info(f"📍 Updated {len(new_anchors)} anchor coordinates and metadata in live positioning solver.")
         
         logger.info(f"💾 Schematic '{payload.name}' saved and deployed to live system.")
         return {"status": "ok", "message": f"Schematic '{payload.name}' deployed successfully"}

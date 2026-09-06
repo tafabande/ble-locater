@@ -19,6 +19,8 @@ export interface SurveyPoint {
 export interface CollectorAnchor {
   id: string
   label: string
+  macAddress?: string // Hardware BLE / WiFi MAC (e.g. 24:6F:28:1A:4C:01)
+  systemName?: string // Custom friendly system alias (e.g. ESP32-Anchor-Lobby)
   x: number // percent 0-100
   y: number // percent 0-100
   roomId?: string
@@ -46,8 +48,10 @@ export interface CollectorObstacle {
   y: number // percent 0-100
   w: number // percent 0-100
   h: number // percent 0-100
-  obstacleType: 'Drywall' | 'Wood' | 'Metal' | 'Concrete' | 'Human Body' | 'Furniture'
+  obstacleType: 'Drywall' | 'Wood' | 'Metal' | 'Concrete' | 'Human Body' | 'Furniture' | 'WiFi / RF Noise' | 'Machinery'
   attenuationDb: number
+  interferenceRadiusMeters?: number // Radius of active RF scattering or noise interference
+  description?: string
 }
 
 export interface ExclusionZone {
@@ -261,6 +265,8 @@ export function formatCollectorExport(plan: SurveySessionPlan): string {
       anchors: plan.anchors.map((a) => ({
         id: a.id,
         label: a.label,
+        mac_address: a.macAddress || '',
+        system_name: a.systemName || a.label,
         x_pct: a.x,
         y_pct: a.y,
         range_m: a.receptionRangeMeters,
@@ -278,9 +284,244 @@ export function formatCollectorExport(plan: SurveySessionPlan): string {
         motion: p.motion,
       })),
       waypoints: plan.waypoints,
-      obstacles: plan.obstacles,
+      obstacles: plan.obstacles.map((o) => ({
+        ...o,
+        interference_radius_m: o.interferenceRadiusMeters,
+      })),
     },
     null,
     2
   )
 }
+
+/**
+ * Checks if two line segments intersect in 2D space.
+ */
+function doSegmentsIntersect(
+  p1: Point2D,
+  p2: Point2D,
+  q1: Point2D,
+  q2: Point2D
+): boolean {
+  const ccw = (a: Point2D, b: Point2D, c: Point2D) =>
+    (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x)
+
+  return (
+    ccw(p1, q1, q2) !== ccw(p2, q1, q2) &&
+    ccw(p1, p2, q1) !== ccw(p1, p2, q2)
+  )
+}
+
+/**
+ * Checks if a point lies inside a rectangle.
+ */
+function isPointInRect(pt: Point2D, rx: number, ry: number, rw: number, rh: number): boolean {
+  return pt.x >= rx && pt.x <= rx + rw && pt.y >= ry && pt.y <= ry + rh
+}
+
+/**
+ * Tests whether the radio line-of-sight ray between two points is obstructed by obstacles,
+ * and calculates the total cumulative RF attenuation (dB) penalty.
+ */
+export function calculateObstructionLineOfSight(
+  nodeA: { x: number; y: number },
+  nodeB: { x: number; y: number },
+  obstacles: CollectorObstacle[],
+  dims: BuildingDimensions
+): {
+  isObstructed: boolean
+  totalAttenuationDb: number
+  obstructingObstacles: CollectorObstacle[]
+} {
+  const p1 = canvasPctToMeters(nodeA.x, nodeA.y, dims, 'bottom-left')
+  const p2 = canvasPctToMeters(nodeB.x, nodeB.y, dims, 'bottom-left')
+
+  const obstructingObstacles: CollectorObstacle[] = []
+  let totalAttenuationDb = 0
+
+  for (const obs of obstacles) {
+    // Convert obstacle bounding box to meters
+    const obsMin = canvasPctToMeters(obs.x, obs.y + obs.h, dims, 'bottom-left')
+    const obsMax = canvasPctToMeters(obs.x + obs.w, obs.y, dims, 'bottom-left')
+    const rx = Math.min(obsMin.x, obsMax.x)
+    const ry = Math.min(obsMin.y, obsMax.y)
+    const rw = Math.abs(obsMax.x - obsMin.x)
+    const rh = Math.abs(obsMax.y - obsMin.y)
+
+    // Check if either endpoint is inside the obstacle
+    const p1Inside = isPointInRect(p1, rx, ry, rw, rh)
+    const p2Inside = isPointInRect(p2, rx, ry, rw, rh)
+
+    // Check if segment intersects any of the 4 bounding box edges
+    const tl: Point2D = { x: rx, y: ry + rh }
+    const tr: Point2D = { x: rx + rw, y: ry + rh }
+    const bl: Point2D = { x: rx, y: ry }
+    const br: Point2D = { x: rx + rw, y: ry }
+
+    const intersects =
+      p1Inside ||
+      p2Inside ||
+      doSegmentsIntersect(p1, p2, tl, tr) ||
+      doSegmentsIntersect(p1, p2, tr, br) ||
+      doSegmentsIntersect(p1, p2, br, bl) ||
+      doSegmentsIntersect(p1, p2, bl, tl)
+
+    if (intersects) {
+      obstructingObstacles.push(obs)
+      totalAttenuationDb += obs.attenuationDb
+    }
+  }
+
+  return {
+    isObstructed: obstructingObstacles.length > 0,
+    totalAttenuationDb: Math.round(totalAttenuationDb * 10) / 10,
+    obstructingObstacles,
+  }
+}
+
+/**
+ * Finds all nodes (anchors and survey points) that fall within the RF interference or scattering
+ * radius of a given obstacle or barrier.
+ */
+export function getNodesInInterferenceRange(
+  obstacle: CollectorObstacle,
+  nodes: { id: string; label: string; x: number; y: number; type: CollectorElementType }[],
+  dims: BuildingDimensions
+): { node: (typeof nodes)[0]; distanceMeters: number }[] {
+  // Center of obstacle in meters
+  const obsCenterPctX = obstacle.x + obstacle.w / 2
+  const obsCenterPctY = obstacle.y + obstacle.h / 2
+  const obsCenterM = canvasPctToMeters(obsCenterPctX, obsCenterPctY, dims, 'bottom-left')
+
+  // Calculate default interference radius if not specified
+  const obsWidthM = (obstacle.w / 100) * dims.width
+  const obsHeightM = (obstacle.h / 100) * dims.height
+  const radiusMeters =
+    obstacle.interferenceRadiusMeters ?? Math.max(obsWidthM, obsHeightM, 1.5) * 1.5
+
+  const impacted: { node: (typeof nodes)[0]; distanceMeters: number }[] = []
+
+  for (const node of nodes) {
+    const nodeM = canvasPctToMeters(node.x, node.y, dims, 'bottom-left')
+    const dist = physicalDistance(obsCenterM, nodeM)
+    if (dist <= radiusMeters) {
+      impacted.push({
+        node,
+        distanceMeters: Math.round(dist * 100) / 100,
+      })
+    }
+  }
+
+  return impacted.sort((a, b) => a.distanceMeters - b.distanceMeters)
+}
+
+/**
+ * Generates a clean 4-ESP32 anchor setup with distinct MAC addresses and system names,
+ * placed near the 4 corners of the room or grid.
+ */
+export function getFourEspAnchorPreset(
+  dims: BuildingDimensions,
+  marginPct = 8
+): CollectorAnchor[] {
+  return [
+    {
+      id: 'ESP32_01',
+      label: 'ESP32 Node 1',
+      systemName: 'ESP-01 (South-West)',
+      macAddress: '24:6F:28:1A:4C:01',
+      x: marginPct,
+      y: 100 - marginPct,
+      txPower: -60.0,
+      channel: 37,
+      receptionRangeMeters: Math.max(dims.width, dims.height) * 0.85,
+      port: 'COM3',
+      status: 'online',
+    },
+    {
+      id: 'ESP32_02',
+      label: 'ESP32 Node 2',
+      systemName: 'ESP-02 (South-East)',
+      macAddress: '24:6F:28:1A:4C:02',
+      x: 100 - marginPct,
+      y: 100 - marginPct,
+      txPower: -60.0,
+      channel: 38,
+      receptionRangeMeters: Math.max(dims.width, dims.height) * 0.85,
+      port: 'COM4',
+      status: 'online',
+    },
+    {
+      id: 'ESP32_03',
+      label: 'ESP32 Node 3',
+      systemName: 'ESP-03 (North-West)',
+      macAddress: '24:6F:28:1A:4C:03',
+      x: marginPct,
+      y: marginPct,
+      txPower: -60.0,
+      channel: 39,
+      receptionRangeMeters: Math.max(dims.width, dims.height) * 0.85,
+      port: 'COM5',
+      status: 'online',
+    },
+    {
+      id: 'ESP32_04',
+      label: 'ESP32 Node 4',
+      systemName: 'ESP-04 (North-East)',
+      macAddress: '24:6F:28:1A:4C:04',
+      x: 100 - marginPct,
+      y: marginPct,
+      txPower: -60.0,
+      channel: 37,
+      receptionRangeMeters: Math.max(dims.width, dims.height) * 0.85,
+      port: 'COM6',
+      status: 'online',
+    },
+  ]
+}
+
+export interface RawDataRecord {
+  id: string
+  date: string // YYYY-MM-DD
+  time: string // HH:MM:SS.mmm
+  timestamp: number
+  anchorId: string
+  deviceMac: string
+  rssi: number | string
+  rawPayload: string
+}
+
+/**
+ * Serializes raw telemetry records to an uncleaned, zero-transformation CSV data sheet.
+ * Date is date, time is time, RSSI is raw RSSI.
+ */
+export function formatDataSheetCsv(records: RawDataRecord[]): string {
+  const headers = ['date', 'time', 'timestamp', 'anchor_id', 'device_mac', 'rssi', 'raw_payload']
+  const escapeCsvCell = (val: any) => {
+    const s = String(val ?? '')
+    if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+      return `"${s.replace(/"/g, '""')}"`
+    }
+    return s
+  }
+
+  const rows = records.map((r) => [
+    escapeCsvCell(r.date),
+    escapeCsvCell(r.time),
+    escapeCsvCell(r.timestamp),
+    escapeCsvCell(r.anchorId),
+    escapeCsvCell(r.deviceMac),
+    escapeCsvCell(r.rssi),
+    escapeCsvCell(r.rawPayload),
+  ])
+
+  return [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')
+}
+
+/**
+ * Formats verbatim plain text lines copying and passing incoming node lines untouched.
+ */
+export function formatPlainTextLog(lines: string[]): string {
+  return lines.join('\n')
+}
+
+

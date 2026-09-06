@@ -6,7 +6,7 @@ import { ROLE_LABELS, canAccess, type UserRole } from '../lib/rbac'
 import { SearchBar, type SearchItem } from './SearchBar'
 import { M3Monitor, M3Operations, M3Training, M3Reports, M3Admin, M3Collector } from './common/MaterialIcon'
 
-export type View = 'monitor' | 'collector' | 'control' | 'training' | 'admin' | 'reports'
+export type View = 'monitor' | 'collector' | 'reports' | 'admin'
 
 interface Props {
   view: View
@@ -23,6 +23,8 @@ interface Props {
   searchItems: SearchItem[]
   focus: string | null
   onFocus: (id: string | null) => void
+  simulationEnabled?: boolean
+  onToggleSimulation?: (enabled: boolean) => void
   children: ReactNode
 }
 
@@ -36,36 +38,24 @@ const NAV: { id: View; label: string; minRole: UserRole; icon: ReactNode }[] = [
   {
     id: 'collector',
     label: 'Data Collector',
-    minRole: 'operator',
+    minRole: 'viewer',
     icon: <M3Collector size={18} />,
   },
   {
-    id: 'control',
-    label: 'Operations',
-    minRole: 'operator',
-    icon: <M3Operations size={18} />,
-  },
-  {
-    id: 'training',
-    label: 'ML Training',
-    minRole: 'operator',
-    icon: <M3Training size={18} />,
-  },
-  {
     id: 'reports',
-    label: 'Reports & Debug',
+    label: 'Activity & History',
     minRole: 'viewer',
     icon: <M3Reports size={18} />,
   },
   {
     id: 'admin',
-    label: 'Admin',
+    label: 'Facility Setup',
     minRole: 'admin',
     icon: <M3Admin size={18} />,
   },
 ]
 
-export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus, now, hostSsid, online, total, searchItems, focus, onFocus, children }: Props) {
+export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus, now, hostSsid, online, total, searchItems, focus, onFocus, simulationEnabled = true, onToggleSimulation, children }: Props) {
   const visibleNav = NAV.filter((n) => canAccess(role, n.minRole))
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -73,7 +63,7 @@ export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus,
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border/40 bg-card shadow-xs lg:flex">
         <Brand />
         <div className="px-3 pt-4">
-          <ModeToggle mode={mode} onMode={onMode} />
+          <ModeToggle mode={mode} onMode={onMode} simulationEnabled={simulationEnabled} onToggleSimulation={onToggleSimulation} />
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
           {visibleNav.map((n) => (
@@ -103,7 +93,7 @@ export function AppShell({ view, onView, role, onRole, mode, onMode, connStatus,
       </div>
 
       <main className="lg:pl-60">
-        <TopBar now={now} view={view} role={role} mode={mode} onMode={onMode} connStatus={connStatus} searchItems={searchItems} focus={focus} onFocus={onFocus} />
+        <TopBar now={now} view={view} role={role} mode={mode} onMode={onMode} connStatus={connStatus} searchItems={searchItems} focus={focus} onFocus={onFocus} simulationEnabled={simulationEnabled} onToggleSimulation={onToggleSimulation} />
         <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>
     </div>
@@ -128,24 +118,52 @@ function RoleSwitcher({ role, onRole }: { role: UserRole; onRole: (r: UserRole) 
   )
 }
 
-function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void }) {
+function ModeToggle({
+  mode,
+  onMode,
+  simulationEnabled = true,
+  onToggleSimulation,
+}: {
+  mode: Mode
+  onMode: (m: Mode) => void
+  simulationEnabled?: boolean
+  onToggleSimulation?: (enabled: boolean) => void
+}) {
   return (
-    <div className="grid grid-cols-2 gap-0.5 rounded-lg bg-panel p-0.5 shadow-xs">
-      {(['demo', 'live'] as const).map((m) => (
-        <button
-          key={m}
-          onClick={() => onMode(m)}
-          className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
-            mode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <span
-            className="size-1.5 rounded-full"
-            style={{ background: m === 'demo' ? 'var(--accent)' : 'var(--status-online)' }}
-          />
-          {m === 'demo' ? 'Simulation' : 'Live'}
-        </button>
-      ))}
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-0.5 rounded-lg bg-panel p-0.5 shadow-xs">
+        {(['live', 'demo'] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => onMode(m)}
+            className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
+              mode === m ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span
+              className="size-1.5 rounded-full"
+              style={{ background: m === 'live' ? 'var(--status-online)' : 'var(--accent)' }}
+            />
+            {m === 'live' ? 'Live' : 'Simulation'}
+          </button>
+        ))}
+      </div>
+      {onToggleSimulation && (
+        <div className="flex items-center justify-between px-1 text-[10px]">
+          <span className="text-muted-foreground font-medium">Demo Tag</span>
+          <button
+            onClick={() => onToggleSimulation(!simulationEnabled)}
+            className={`rounded px-1.5 py-0.5 font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+              simulationEnabled
+                ? 'bg-accent-soft text-accent hover:opacity-90'
+                : 'bg-muted text-muted-foreground hover:text-foreground'
+            }`}
+            title="Toggle virtual demonstration tag in facility"
+          >
+            {simulationEnabled ? 'ON' : 'OFF'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -242,12 +260,18 @@ function HostStatus({ mode, connStatus, ssid, online, total }: { mode: Mode; con
   )
 }
 
-function TopBar({ now, view, role, mode, onMode, connStatus, searchItems, focus, onFocus }: { now: number; view: View; role: UserRole; mode: Mode; onMode: (m: Mode) => void; connStatus: ConnStatus | null; searchItems: SearchItem[]; focus: string | null; onFocus: (id: string | null) => void }) {
+function TopBar({ now, view, role, mode, onMode, connStatus, searchItems, focus, onFocus, simulationEnabled, onToggleSimulation }: { now: number; view: View; role: UserRole; mode: Mode; onMode: (m: Mode) => void; connStatus: ConnStatus | null; searchItems: SearchItem[]; focus: string | null; onFocus: (id: string | null) => void; simulationEnabled?: boolean; onToggleSimulation?: (val: boolean) => void }) {
   return (
     <header className="flex items-center justify-between gap-4 border-b border-border/40 bg-background/80 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
       <div className="min-w-0">
         <h1 className="truncate font-serif text-xl font-semibold tracking-tight sm:text-2xl">
-          {view === 'monitor' ? 'Indoor Positioning' : view === 'control' ? 'Operations' : view === 'training' ? 'ML Training' : view === 'reports' ? 'Reports' : 'Administration'}
+          {view === 'monitor'
+            ? 'Indoor Positioning'
+            : view === 'collector'
+              ? 'Data Collector'
+              : view === 'reports'
+                ? 'Reports'
+                : 'Administration'}
         </h1>
         <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
           {view === 'monitor' ? (
@@ -267,7 +291,7 @@ function TopBar({ now, view, role, mode, onMode, connStatus, searchItems, focus,
         <ConnBadge mode={mode} connStatus={connStatus} />
         {/* Mobile mode switch (sidebar toggle is hidden below lg) */}
         <div className="lg:hidden">
-          <ModeToggle mode={mode} onMode={onMode} />
+          <ModeToggle mode={mode} onMode={onMode} simulationEnabled={simulationEnabled} onToggleSimulation={onToggleSimulation} />
         </div>
         <div className="hidden text-right xl:block">
           <div className="font-mono text-lg font-medium tabular-nums">{clockTime(now)}</div>

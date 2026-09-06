@@ -110,6 +110,7 @@ export default defineConfig(({ mode }) => {
       minify: !emitSourcemaps,
       cssMinify: true,
       modulePreload: { polyfill: true },
+      emptyOutDir: false,
     },
     optimizeDeps: {
       include: ['react', 'react-dom', 'recharts'],

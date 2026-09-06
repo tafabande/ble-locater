@@ -51,6 +51,7 @@ export interface Tag {
   trail: { x: number; y: number }[]
   rssiHistory: number[]
   violating: string | null // geofence id currently violated
+  isSimulated?: boolean
 }
 
 export interface Geofence {
@@ -240,6 +241,7 @@ interface Seed {
 }
 
 const TAG_SEEDS: Seed[] = [
+  { id: 'SIM-01', label: 'Simulated Tag', battery: 88, x: 30, y: 40, vx: 0.5, vy: 0.3, floor: 0 },
   { id: '0x4F2A', label: 'Forklift 3', battery: 82, x: 22, y: 55, vx: 0.5, vy: 0.3, floor: 0 },
   { id: '0x18C7', label: 'Pallet Jack', battery: 46, x: 70, y: 60, vx: -0.4, vy: 0.4, floor: 0 },
   { id: '0x9B03', label: 'Asset Cart', battery: 91, x: 30, y: 20, vx: 0.3, vy: 0.5, floor: 0 },
@@ -385,6 +387,7 @@ export function useSimulation(
         trail: trails.current[it.id] ?? [],
         rssiHistory: rssiHist.current[it.id] ?? [],
         violating: it.violating,
+        isSimulated: true,
       }
     })
     const online = tags.filter((t) => t.status !== 'lost').length

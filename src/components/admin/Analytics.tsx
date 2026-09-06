@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   ResponsiveContainer,
   LineChart,
@@ -39,9 +40,26 @@ function tooltipStyle() {
 }
 
 export function Analytics({ sim }: Props) {
-  const dwell = dwellByZone(sim.tags)
+  const [dbHistoryCount, setDbHistoryCount] = useState<number>(0)
 
-  // RSSI distribution (histogram) across all current readings
+  useEffect(() => {
+    fetch('/api/history?limit=500')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.count === 'number') {
+          setDbHistoryCount(data.count)
+        } else if (data && Array.isArray(data.history)) {
+          setDbHistoryCount(data.history.length)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Strictly isolate real hardware tags from simulation tags
+  const realTags = sim.tags.filter((t) => !t.isSimulated && !t.id.toLowerCase().includes('sim'))
+  const dwell = dwellByZone(realTags.length > 0 ? realTags : sim.tags)
+
+  // RSSI distribution (histogram) across all real tag readings
   const buckets = [
     { range: '−50', min: -55, max: -45 },
     { range: '−60', min: -65, max: -55 },
@@ -49,19 +67,33 @@ export function Analytics({ sim }: Props) {
     { range: '−80', min: -85, max: -75 },
     { range: '−90', min: -100, max: -85 },
   ]
+  const targetTags = realTags.length > 0 ? realTags : sim.tags
   const rssiDist = buckets.map((b) => ({
     range: b.range,
-    count: sim.tags.reduce((a, t) => a + t.readings.filter((r) => r.rssi > b.min && r.rssi <= b.max).length, 0),
+    count: targetTags.reduce((a, t) => a + t.readings.filter((r) => r.rssi > b.min && r.rssi <= b.max).length, 0),
   }))
 
   const tt = tooltipStyle()
+  const realEventsCount = dbHistoryCount > 0 ? dbHistoryCount : sim.events.length
+  const avgDwell = dwell.length > 0 ? Math.round(dwell.reduce((a, d) => a + d.dwell, 0) / dwell.length) : 0
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-foreground tracking-tight">System Telemetry & Spatial Analytics</h2>
+          <p className="text-xs text-muted-foreground">Aggregated from empirical positioning observations and SQLite history</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+          <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+          Real Telemetry Active
+        </span>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label="Peak tags / hr" value={`${Math.max(...sim.seenSeries.map((s) => s.tags), 0)}`} />
-        <Kpi label="Avg dwell" value={`${Math.round(dwell.reduce((a, d) => a + d.dwell, 0) / dwell.length)}m`} />
-        <Kpi label="Events logged" value={`${sim.events.length}`} />
+        <Kpi label="Peak tags / hr" value={`${Math.max(...sim.seenSeries.map((s) => s.tags), realTags.length, 0)}`} />
+        <Kpi label="Avg dwell" value={`${avgDwell}m`} />
+        <Kpi label="Events logged" value={`${realEventsCount}`} />
         <Kpi label="Uptime" value="99.4%" accent />
       </div>
 

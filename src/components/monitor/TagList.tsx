@@ -35,8 +35,17 @@ export function TagList({ tags, selected, onSelect }: Props) {
               />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="truncate text-sm font-semibold">{t.label}</span>
-                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{t.readings[0].rssi} dBm</span>
+                  <span className="truncate text-sm font-semibold flex items-center gap-1.5">
+                    {t.label}
+                    {(t.isSimulated || t.id.toLowerCase().includes('sim')) && (
+                      <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-500 uppercase tracking-wider">
+                        SIMULATION
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {t.readings[0]?.rssi ?? -70} dBm
+                  </span>
                 </span>
                 <span className="flex items-center justify-between gap-2 mt-0.5">
                   <span className="font-mono text-[10px] text-muted-foreground">

@@ -45,6 +45,18 @@ export function TagDetail({ tag }: Props) {
         </span>
       </div>
 
+      {(tag.isSimulated || tag.id.toLowerCase().includes('sim')) && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-600 dark:text-amber-400">
+          <div className="font-bold flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+            Simulation Demonstration Tag
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed opacity-90">
+            Simulating live movement and anchor trilateration to demonstrate how positioning, signal attenuation, and geofences work. Can be disabled in Configuration.
+          </p>
+        </div>
+      )}
+
       {tag.violating && (
         <div className="flex items-center gap-2 rounded-xl bg-rose-500/10 px-3.5 py-2 text-xs font-semibold text-rose-500">
           ⚠ Geofence breach — unauthorized zone

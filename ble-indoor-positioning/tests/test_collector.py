@@ -107,3 +107,60 @@ def test_process_line_invalid():
             assert len(f.readlines()) == 1
         with open(raw_path, 'r') as f:
             assert len(f.readlines()) == 1
+
+def test_process_line_verbatim_log_and_datasheet():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        obs_path = os.path.join(tmpdir, 'obs.csv')
+        raw_path = os.path.join(tmpdir, 'raw.csv')
+        ds_path = os.path.join(tmpdir, 'datasheet.csv')
+        log_path = os.path.join(tmpdir, 'stream.log')
+
+        init_csv_file(obs_path, ['anchor_id'])
+        init_csv_file(raw_path, ['anchor_id', 'timestamp', 'host_timestamp', 'device_mac', 'rssi'])
+        init_csv_file(ds_path, ['date', 'time', 'timestamp', 'anchor_id', 'device_mac', 'rssi', 'raw_payload'])
+
+        with open(obs_path, 'a', newline='', encoding='utf-8') as obs_f, \
+             open(raw_path, 'a', newline='', encoding='utf-8') as raw_f, \
+             open(ds_path, 'a', newline='', encoding='utf-8') as ds_f, \
+             open(log_path, 'a', encoding='utf-8') as log_f:
+            obs_writer = csv.writer(obs_f)
+            raw_writer = csv.writer(raw_f)
+            ds_writer = csv.writer(ds_f)
+
+            # Test 1: Raw CSV node line from ESP32 firmware
+            esp_node_line = '1693800000,ESP32_01,52:06:26:03:01:DA,-68,ESP_TAG'
+            process_line(esp_node_line, obs_writer, obs_f, raw_writer, raw_f, None, ds_writer, ds_f, log_f)
+
+            # Test 2: Raw JSON packet
+            json_line = json.dumps({'type': 'raw', 'timestamp': 1693800001, 'mac': '52:06:26:03:01:DA', 'rssi': -71})
+            process_line(json_line, obs_writer, obs_f, raw_writer, raw_f, 'ESP32_02', ds_writer, ds_f, log_f)
+
+        # Verify Plain Text Log is 100% verbatim copy with zero transformations
+        with open(log_path, 'r', encoding='utf-8') as f:
+            log_lines = [l.strip() for l in f.readlines()]
+            assert len(log_lines) == 2
+            assert log_lines[0] == esp_node_line
+            assert log_lines[1] == json_line
+
+        # Verify Data Sheet preserves exact date, time, raw RSSI, and payload
+        with open(ds_path, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+            assert len(rows) == 3 # Header + 2 data rows
+            # Row 1 (ESP32 CSV)
+            row1 = rows[1]
+            assert len(row1[0].split('-')) == 3 # YYYY-MM-DD
+            assert ':' in row1[1] # HH:MM:SS.mmm
+            assert row1[2] == '1693800000'
+            assert row1[3] == 'ESP32_01'
+            assert row1[4] == '52:06:26:03:01:DA'
+            assert row1[5] == '-68'
+            assert row1[6] == esp_node_line
+
+            # Row 2 (JSON)
+            row2 = rows[2]
+            assert row2[3] == 'ESP32_02'
+            assert row2[4] == '52:06:26:03:01:DA'
+            assert row2[5] == '-71'
+            assert row2[6] == json_line
+

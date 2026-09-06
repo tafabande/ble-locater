@@ -4,6 +4,10 @@ import { FloorPlan } from '../components/monitor/FloorPlan'
 import { BuildingView3D } from '../components/monitor/BuildingView3D'
 import { ConnectionScreen } from '../components/ConnectionScreen'
 import { AlertToasts } from '../components/AlertToasts'
+import { Configuration } from '../components/admin/Configuration'
+import { TagList } from '../components/monitor/TagList'
+import { Analytics } from '../components/admin/Analytics'
+import { ReportsView } from '../components/reports/ReportsView'
 import App from '../App'
 import { ANCHORS, DEFAULT_MAP, GEOFENCES, type SimState, type Tag } from '../lib/simulation'
 
@@ -154,4 +158,83 @@ describe('Frontend Component Tests & Error Resilience', () => {
     expect(screen.getByText('Indoor Positioning')).toBeInTheDocument()
     expect(screen.getAllByText('FleetView')[0]).toBeInTheDocument()
   })
+
+  it('Configuration component provides Simulation Mode toggle and Live Hardware config', () => {
+    const onToggleSim = vi.fn()
+    const onInterval = vi.fn()
+    const onEndpoint = vi.fn()
+
+    render(
+      <Configuration
+        anchors={ANCHORS}
+        mode="live"
+        interval={1500}
+        onInterval={onInterval}
+        endpoint="/api/state"
+        onEndpoint={onEndpoint}
+        simulationEnabled={true}
+        onToggleSimulation={onToggleSim}
+      />
+    )
+
+    expect(screen.getByText('Live Positioning Configuration')).toBeInTheDocument()
+    expect(screen.getByText('Simulation Mode')).toBeInTheDocument()
+    expect(screen.getByText('Live Hardware Data Source')).toBeInTheDocument()
+
+    // Toggle button click
+    const toggleBtn = screen.getByText('Simulated Demonstration Tag').closest('label')
+    if (toggleBtn) {
+      fireEvent.click(toggleBtn)
+      expect(onToggleSim).toHaveBeenCalledWith(false)
+    }
+  })
+
+  it('TagList renders SIMULATION badge for simulated demonstration tags', () => {
+    const tagsWithSim: Tag[] = [
+      {
+        ...mockTag,
+        id: 'SIM-01',
+        label: 'Simulation Tag',
+        isSimulated: true,
+      },
+    ]
+
+    render(<TagList tags={tagsWithSim} selected={null} onSelect={vi.fn()} />)
+    expect(screen.getByText('SIMULATION')).toBeInTheDocument()
+    expect(screen.getByText('Simulation Tag')).toBeInTheDocument()
+  })
+
+  it('Analytics component renders Real Telemetry Active badge and handles real tags', () => {
+    render(<Analytics sim={mockSimState} />)
+    expect(screen.getByText('Real Telemetry Active')).toBeInTheDocument()
+    expect(screen.getByText('System Telemetry & Spatial Analytics')).toBeInTheDocument()
+  })
+
+  it('ReportsView renders pure Activity & History audit view with subtabs', () => {
+    const { container } = render(
+      <ReportsView sim={mockSimState} mode="demo" />
+    )
+
+    expect(screen.getByText('Spatial Activity & History Audit')).toBeInTheDocument()
+    expect(screen.getByText('Activity Overview')).toBeInTheDocument()
+    expect(screen.getByText('Tag Movement History')).toBeInTheDocument()
+    expect(screen.getByText('Room & Zone Occupancy')).toBeInTheDocument()
+    expect(screen.getByText('Event & Alert Logs')).toBeInTheDocument()
+    expect(screen.getByText('Export CSV Log')).toBeInTheDocument()
+    expect(screen.getByText('Export JSON Audit')).toBeInTheDocument()
+
+    // Switch to Tag Movement History tab
+    fireEvent.click(screen.getByText('Tag Movement History'))
+    expect(screen.getByText(/Trajectory History:/i)).toBeInTheDocument()
+    expect(screen.getByText('Recent Position Waypoints')).toBeInTheDocument()
+
+    // Switch to Room & Zone Occupancy tab
+    fireEvent.click(screen.getByText('Room & Zone Occupancy'))
+    expect(screen.getByText('Lobby')).toBeInTheDocument()
+
+    // Switch to Event & Alert Logs tab
+    fireEvent.click(screen.getByText('Event & Alert Logs'))
+    expect(screen.getByText('Event & Geofence Audit Feed')).toBeInTheDocument()
+  })
 })
+
