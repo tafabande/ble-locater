@@ -21,7 +21,7 @@ class AlertHistoryDB:
 
     def __init__(self, db_path: str=None):
         if db_path is None:
-            db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models', 'alerts.db')
+            db_path = os.environ.get("BLE_ALERTS_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'models', 'alerts.db'))
         self.db_path = db_path
         self.engine = create_db_engine(self.db_path)
         self._init_db()

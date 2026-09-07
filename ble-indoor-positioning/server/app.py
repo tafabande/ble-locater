@@ -77,7 +77,7 @@ class OnlineDistanceLearner:
         self.last_save_time = time.time()
         self.mae_accumulator = []
         self.is_active = True
-        self.calib_filepath = os.path.join(PROJECT_ROOT, 'models', 'learned_calibrations.json')
+        self.calib_filepath = os.environ.get("BLE_CALIBRATION_FILE", os.path.join(PROJECT_ROOT, 'models', 'learned_calibrations.json'))
         self.load()
 
     def load(self):
@@ -142,7 +142,7 @@ class PositionHistoryDB:
 
     def __init__(self, db_path: str=None):
         if db_path is None:
-            db_path = os.path.join(PROJECT_ROOT, 'models', 'position_history.db')
+            db_path = os.environ.get("BLE_POSITION_DB_PATH", os.path.join(PROJECT_ROOT, 'models', 'position_history.db'))
         self.db_path = db_path
         self.engine = create_db_engine(self.db_path)
         self._init_db()
@@ -1029,7 +1029,7 @@ _active_pipeline_proc = None
 
 def _load_last_pipeline_run() -> dict:
     models_dir = os.path.join(PROJECT_ROOT, "models")
-    run_file = os.path.join(models_dir, "last_pipeline_run.json")
+    run_file = os.environ.get("BLE_PIPELINE_RUN_FILE", os.path.join(models_dir, "last_pipeline_run.json"))
     meta_file = os.path.join(models_dir, "model_metadata.json")
     
     if os.path.exists(run_file):
@@ -1085,7 +1085,7 @@ def _load_last_pipeline_run() -> dict:
 def _save_last_pipeline_run(run_data: dict) -> None:
     models_dir = os.path.join(PROJECT_ROOT, "models")
     os.makedirs(models_dir, exist_ok=True)
-    run_file = os.path.join(models_dir, "last_pipeline_run.json")
+    run_file = os.environ.get("BLE_PIPELINE_RUN_FILE", os.path.join(models_dir, "last_pipeline_run.json"))
     try:
         with open(run_file, "w", encoding="utf-8") as f:
             json.dump(run_data, f, indent=2)
@@ -1314,7 +1314,7 @@ async def reload_models():
         web_service_state["log_history"].append(f"[ERROR] {err_msg}")
         raise HTTPException(status_code=500, detail=err_msg)
 
-SCHEMATIC_FILE = os.path.join(PROJECT_ROOT, "models", "schematic.json")
+SCHEMATIC_FILE = os.environ.get("BLE_SCHEMATIC_FILE", os.path.join(PROJECT_ROOT, "models", "schematic.json"))
 
 class SchematicPayload(BaseModel):
     name: Optional[str] = "Default Schematic"

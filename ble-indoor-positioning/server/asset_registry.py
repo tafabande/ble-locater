@@ -48,7 +48,7 @@ class AssetRegistry:
 
     def __init__(self, db_path: str=None):
         if db_path is None:
-            db_path = os.path.join(PROJECT_ROOT, 'models', 'asset_registry.db')
+            db_path = os.environ.get("BLE_ASSET_DB_PATH", os.path.join(PROJECT_ROOT, 'models', 'asset_registry.db'))
         self.db_path = db_path
         self.engine = create_db_engine(self.db_path)
         self._init_db()
