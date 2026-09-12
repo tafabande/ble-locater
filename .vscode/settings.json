@@ -1,6 +1,6 @@
 {
     "idf.customExtraVars": {},
-    "idf.currentSetup": "C:\\esp\\v5.5.4\\esp-idf",
+    "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf",
     "python.defaultInterpreterPath": "${workspaceFolder}/ble-indoor-positioning/.venv/Scripts/python.exe",
     "python.analysis.extraPaths": [
         "${workspaceFolder}/ble-indoor-positioning"

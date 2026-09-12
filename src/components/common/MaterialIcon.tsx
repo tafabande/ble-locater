@@ -448,6 +448,22 @@ export function M3Pin({ size = 20, className = '', ...props }: IconProps) {
   )
 }
 
+export function M3ChevronLeft({ size = 20, className = '', ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} {...defaultProps} className={className} {...props}>
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  )
+}
+
+export function M3ChevronRight({ size = 20, className = '', ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} {...defaultProps} className={className} {...props}>
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  )
+}
+
 
 
 

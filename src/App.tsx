@@ -3,9 +3,6 @@ import { useSimulation, DEFAULT_MAP, buildPipeline, type MapItem, type Tag, type
 import { useLiveSource, EMPTY_STATE, type Mode } from './lib/datasource'
 import { AppShell, type View } from './components/AppShell'
 import { MonitorView } from './components/monitor/MonitorView'
-import { CollectorView } from './components/collector/CollectorView'
-import { AdminView } from './components/admin/AdminView'
-import { ReportsView } from './components/reports/ReportsView'
 import { ConnectionScreen } from './components/ConnectionScreen'
 import { AlertToasts } from './components/AlertToasts'
 import { ErrorDiagnosticBanner } from './components/ErrorDiagnosticBanner'
@@ -228,61 +225,24 @@ export default function App() {
         />
       )}
 
-      {view === 'monitor' && (
-        showConnection ? (
-          <ConnectionScreen
-            status={live.status}
-            endpoint={endpoint}
-            error={live.error}
-            onRetry={live.retry}
-            onDemo={() => setMode('demo')}
-          />
-        ) : (
-          <MonitorView
-            sim={sim}
-            mapItems={mapItems}
-            selected={selected}
-            onSelect={setSelected}
-            focus={focus}
-            onFocus={onFocus}
-            role={role}
-            onNavigateToSetup={() => setView('admin')}
-            onLoadDemoPreset={handleLoadDemoPreset}
-          />
-        )
-      )}
-      {view === 'collector' && (
-        <CollectorView
-          buildingDims={{ width: 10, height: 10, unit: 'meters' }}
-          schematicRooms={schematicRooms}
-          schematicAnchors={schematicAnchors}
-          mapItems={mapItems}
-          role={role}
-        />
-      )}
-      {view === 'reports' && (
-        <ReportsView
-          sim={realSimState}
-          mode={mode}
-          onMode={setMode}
-          connStatus={mode === 'live' ? live.status : null}
+      {showConnection ? (
+        <ConnectionScreen
+          status={live.status}
           endpoint={endpoint}
-          role={role}
+          error={live.error}
+          onRetry={live.retry}
+          onDemo={() => setMode('demo')}
         />
-      )}
-      {view === 'admin' && (
-        <AdminView
-          sim={realSimState}
-          mode={mode}
-          interval={interval}
-          onInterval={setIntervalMs}
-          endpoint={endpoint}
-          onEndpoint={setEndpoint}
+      ) : (
+        <MonitorView
+          sim={sim}
           mapItems={mapItems}
-          onMapItems={setMapItems}
+          selected={selected}
+          onSelect={setSelected}
+          focus={focus}
+          onFocus={onFocus}
           role={role}
-          simulationEnabled={simulationEnabled}
-          onToggleSimulation={setSimulationEnabled}
+          onLoadDemoPreset={handleLoadDemoPreset}
         />
       )}
     </AppShell>

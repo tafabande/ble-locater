@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { FloorPlan } from '../components/monitor/FloorPlan'
 import { BuildingView3D } from '../components/monitor/BuildingView3D'
 import { ConnectionScreen } from '../components/ConnectionScreen'
@@ -8,6 +8,10 @@ import { Configuration } from '../components/admin/Configuration'
 import { TagList } from '../components/monitor/TagList'
 import { Analytics } from '../components/admin/Analytics'
 import { ReportsView } from '../components/reports/ReportsView'
+import { AdminView } from '../components/admin/AdminView'
+import { CasualSetup } from '../components/admin/CasualSetup'
+import { InteractiveTourGuide } from '../components/common/InteractiveTourGuide'
+import { CASUAL_SETUP_TOUR, ENGINEER_STUDIO_TOUR } from '../lib/tourGuides'
 import App from '../App'
 import { ANCHORS, DEFAULT_MAP, GEOFENCES, type SimState, type Tag } from '../lib/simulation'
 
@@ -46,6 +50,8 @@ const mockSimState: SimState = {
 }
 
 import { ErrorDiagnosticBanner } from '../components/ErrorDiagnosticBanner'
+import { CollectorCollapsible } from '../components/collector/CollectorCollapsible'
+import { CollectorDropdown } from '../components/collector/CollectorDropdown'
 
 describe('Frontend Component Tests & Error Resilience', () => {
   it('ErrorDiagnosticBanner renders loud error diagnostic details when errors occur', () => {
@@ -236,5 +242,234 @@ describe('Frontend Component Tests & Error Resilience', () => {
     fireEvent.click(screen.getByText('Event & Alert Logs'))
     expect(screen.getByText('Event & Geofence Audit Feed')).toBeInTheDocument()
   })
+
+  it('CollectorCollapsible renders title, badge, and toggles collapse state', () => {
+    const onToggle = vi.fn()
+    const { getByText, queryByText } = render(
+      <CollectorCollapsible
+        title="Test Panel"
+        badge={<span>Active Badge</span>}
+        defaultOpen={true}
+        onToggle={onToggle}
+      >
+        <div>Collapsible Child Content</div>
+      </CollectorCollapsible>
+    )
+
+    expect(getByText('Test Panel')).toBeInTheDocument()
+    expect(getByText('Active Badge')).toBeInTheDocument()
+    expect(getByText('Collapsible Child Content')).toBeInTheDocument()
+
+    // Click toggle header
+    fireEvent.click(getByText('Test Panel'))
+    expect(onToggle).toHaveBeenCalledWith(false)
+    expect(queryByText('Collapsible Child Content')).not.toBeInTheDocument()
+
+    // Click to reopen
+    fireEvent.click(getByText('Test Panel'))
+    expect(onToggle).toHaveBeenCalledWith(true)
+    expect(getByText('Collapsible Child Content')).toBeInTheDocument()
+  })
+
+  it('CollectorDropdown renders trigger, opens menu on click, and triggers item callbacks', () => {
+    const onItemClick = vi.fn()
+    const { getByText, queryByText } = render(
+      <CollectorDropdown
+        trigger={<button type="button">Open Menu</button>}
+        items={[
+          { id: 'item1', label: 'Item One', onClick: onItemClick },
+          {
+            id: 'item2',
+            label: 'Item Two With Sub',
+            subItems: [
+              { id: 'sub1', label: 'Sub Item One' },
+            ],
+          },
+        ]}
+      />
+    )
+
+    expect(getByText('Open Menu')).toBeInTheDocument()
+    expect(queryByText('Item One')).not.toBeInTheDocument()
+
+    // Open dropdown
+    fireEvent.click(getByText('Open Menu'))
+    expect(getByText('Item One')).toBeInTheDocument()
+    expect(getByText('Item Two With Sub')).toBeInTheDocument()
+
+    // Click item
+    fireEvent.click(getByText('Item One'))
+    expect(onItemClick).toHaveBeenCalledTimes(1)
+    expect(queryByText('Item One')).not.toBeInTheDocument()
+  })
+
+  it('AdminView renders Casual Setup by default and toggles between Casual and Engineer modes', () => {
+    localStorage.removeItem('rtls_setup_mode')
+    const { getByText, queryByText } = render(
+      <AdminView
+        sim={mockSimState}
+        mode="demo"
+        interval={1000}
+        onInterval={vi.fn()}
+        endpoint="/api/state"
+        onEndpoint={vi.fn()}
+        mapItems={[]}
+        onMapItems={vi.fn()}
+        role="admin"
+      />
+    )
+
+    // Verify Casual Setup is active
+    expect(getByText('Casual Setup')).toBeInTheDocument()
+    expect(getByText('Engineer Studio')).toBeInTheDocument()
+    expect(getByText('Quick Space Setup')).toBeInTheDocument()
+    expect(getByText('Step 1: Choose Your Space')).toBeInTheDocument()
+    expect(queryByText('Floor Plan Designer')).not.toBeInTheDocument()
+
+    // Switch to Engineer Mode
+    fireEvent.click(getByText('Engineer Studio'))
+    expect(getByText('Floor Plan Designer')).toBeInTheDocument()
+    expect(getByText('Calibration')).toBeInTheDocument()
+    expect(getByText('Facility & Floor Plan Studio')).toBeInTheDocument()
+
+    // Click Calibration subtab
+    fireEvent.click(getByText('Calibration'))
+    expect(getByText('ML Calibration Parameters')).toBeInTheDocument()
+  })
+
+  it('CasualSetup renders friendly space presets and triggers activation', async () => {
+    const onMapItems = vi.fn()
+    const onNavigateToMonitor = vi.fn()
+
+    const { getByText, getAllByText } = render(
+      <CasualSetup
+        mapItems={[]}
+        onMapItems={onMapItems}
+        onNavigateToMonitor={onNavigateToMonitor}
+      />
+    )
+
+    // Check space presets
+    expect(getByText('Single Studio / Office')).toBeInTheDocument()
+    expect(getByText('2-Room Office Suite')).toBeInTheDocument()
+    expect(getByText('4-Room Smart Complex')).toBeInTheDocument()
+    expect(getByText('Open Warehouse / Hall')).toBeInTheDocument()
+
+    // Check anchor placement options
+    expect(getByText('4-Corner Coverage (Recommended)')).toBeInTheDocument()
+    expect(getByText('3-Node Triangular Perimeter')).toBeInTheDocument()
+    expect(getByText('Single Center Node')).toBeInTheDocument()
+
+    // Check space environments
+    expect(getByText('Open Space')).toBeInTheDocument()
+    expect(getByText('Standard Office')).toBeInTheDocument()
+    expect(getByText('Dense Space')).toBeInTheDocument()
+
+    // Select 2-room office suite
+    fireEvent.click(getByText('2-Room Office Suite'))
+
+    // Click Apply & Activate Setup
+    const activateButtons = getAllByText(/Activate Setup|Activate Space/i)
+    fireEvent.click(activateButtons[0])
+
+    // Verify mapItems updated and feedback shown
+    expect(onMapItems).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(getByText(/Setup applied successfully/i)).toBeInTheDocument()
+    })
+    expect(getByText('Open Live Monitor →')).toBeInTheDocument()
+
+    // Click Open Live Monitor
+    fireEvent.click(getByText('Open Live Monitor →'))
+    expect(onNavigateToMonitor).toHaveBeenCalledTimes(1)
+  })
+
+  it('InteractiveTourGuide navigates quests, displays decision advice, and triggers completion', () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn()
+    const onClose = vi.fn()
+    const onTabChange = vi.fn()
+
+    const { getByText, getByTitle, queryByText } = render(
+      <InteractiveTourGuide
+        steps={CASUAL_SETUP_TOUR}
+        isOpen={true}
+        onClose={onClose}
+        onTabChange={onTabChange}
+        tourTitle="Casual Setup Quest"
+      />
+    )
+
+    // Verify Mission 1 content
+    expect(getByText(/Quest 1: Choose Your Arena/i)).toBeInTheDocument()
+    expect(getByText(/Space Sizing & Visual Room Presets/i)).toBeInTheDocument()
+    expect(getByText(/MUST-HAVE/i)).toBeInTheDocument()
+    expect(getByText(/What this option does:/i)).toBeInTheDocument()
+    expect(getByText(/Should you use it\?/i)).toBeInTheDocument()
+    expect(getByText(/Essential First Step/i)).toBeInTheDocument()
+    expect(getByText(/Strategy Tip:/i)).toBeInTheDocument()
+
+    // Advance to Mission 2
+    fireEvent.click(getByText(/Next Mission/i))
+    expect(getByText(/Quest 2: Deploy The Beacons/i)).toBeInTheDocument()
+    expect(getByText(/Tracking Boxes Placement/i)).toBeInTheDocument()
+
+    // Go back to Mission 1
+    fireEvent.click(getByText(/Previous/i))
+    expect(getByText(/Quest 1: Choose Your Arena/i)).toBeInTheDocument()
+
+    // Advance through all 5 quests to test finish
+    fireEvent.click(getByText(/Next Mission/i)) // Mission 2
+    fireEvent.click(getByText(/Next Mission/i)) // Mission 3
+    fireEvent.click(getByText(/Next Mission/i)) // Mission 4
+    fireEvent.click(getByText(/Next Mission/i)) // Mission 5 (Last)
+    expect(getByText(/Quest 5: The Grand Activation/i)).toBeInTheDocument()
+    expect(getByText(/Finish Quest 🎉/i)).toBeInTheDocument()
+
+    // Finish quest
+    fireEvent.click(getByText(/Finish Quest 🎉/i))
+    expect(getByText(/Quest Complete! Achievement Unlocked!/i)).toBeInTheDocument()
+    expect(getByText(/Master Facility Architect/i)).toBeInTheDocument()
+    expect(getByText(/↺ Replay Tour/i)).toBeInTheDocument()
+
+    // Replay restarts
+    fireEvent.click(getByText(/↺ Replay Tour/i))
+    expect(getByText(/Quest 1: Choose Your Arena/i)).toBeInTheDocument()
+  })
+
+  it('AdminView launches guided quest walkthrough for both Casual and Engineer modes', () => {
+    localStorage.clear()
+    window.HTMLElement.prototype.scrollIntoView = vi.fn()
+    const { getByText, queryByText } = render(
+      <AdminView
+        sim={mockSimState}
+        mode="demo"
+        interval={1000}
+        onInterval={() => {}}
+        endpoint=""
+        onEndpoint={() => {}}
+        mapItems={[]}
+        onMapItems={() => {}}
+        role="admin"
+      />
+    )
+
+    // In Casual Mode by default
+    expect(getByText(/Casual Quest Guide/i)).toBeInTheDocument()
+    expect(queryByText(/Quest 1: Choose Your Arena/i)).not.toBeInTheDocument()
+
+    // Open Casual Quest Guide
+    fireEvent.click(getByText(/Casual Quest Guide/i))
+    expect(getByText(/Quest 1: Choose Your Arena/i)).toBeInTheDocument()
+    expect(getByText(/Space Sizing & Visual Room Presets/i)).toBeInTheDocument()
+
+    // Switch to Engineer Studio
+    fireEvent.click(getByText('Engineer Studio'))
+    expect(getByText(/Engineer Quest Guide/i)).toBeInTheDocument()
+    expect(getByText(/CAD Floor Plan Designer/i)).toBeInTheDocument()
+    expect(getByText(/Log-Distance ML Calibration/i)).toBeInTheDocument()
+  })
 })
+
+
+
 

@@ -32,37 +32,8 @@ from server.db import create_db_engine, PositionHistory
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('BLE_SERVER')
-DEFAULT_ANCHORS_CONFIG = {'ANCHOR_01': (0.2, 5.2), 'ANCHOR_02': (4.8, 5.2), 'ANCHOR_03': (2.5, 9.8), 'ANCHOR_04': (5.2, 5.2), 'ANCHOR_05': (9.8, 5.2), 'ANCHOR_06': (7.5, 9.8), 'ANCHOR_07': (0.2, 0.2), 'ANCHOR_08': (4.8, 0.2), 'ANCHOR_09': (2.5, 4.8), 'ANCHOR_10': (5.2, 0.2), 'ANCHOR_11': (9.8, 0.2), 'ANCHOR_12': (7.5, 4.8)}
-
-def resolve_room_name(x: float, y: float) -> str:
-    if x < 5.0 and y >= 5.0:
-        return 'Room A (Executive Suite 1)'
-    elif x >= 5.0 and y >= 5.0:
-        return 'Room B (Meeting Room 2)'
-    elif x < 5.0 and y < 5.0:
-        return 'Room C (Operations Hub)'
-    else:
-        return 'Room D (Main Entrance)'
-
-def resolve_room_name_with_hysteresis(x: float, y: float, current_room: str) -> str:
-    margin = 0.3
-    if 'Room A' in current_room:
-        if x > 5.0 + margin or y < 5.0 - margin:
-            return resolve_room_name(x, y)
-        return current_room
-    elif 'Room B' in current_room:
-        if x < 5.0 - margin or y < 5.0 - margin:
-            return resolve_room_name(x, y)
-        return current_room
-    elif 'Room C' in current_room:
-        if x > 5.0 + margin or y > 5.0 + margin:
-            return resolve_room_name(x, y)
-        return current_room
-    elif 'Room D' in current_room:
-        if x < 5.0 - margin or y > 5.0 + margin:
-            return resolve_room_name(x, y)
-        return current_room
-    return resolve_room_name(x, y)
+from core.config import DEFAULT_ANCHORS_CONFIG, load_anchor_config, load_anchor_metadata
+from core.positioning import resolve_room_name, resolve_room_name_with_hysteresis
 
 class OnlineDistanceLearner:
 

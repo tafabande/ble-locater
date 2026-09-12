@@ -31,27 +31,9 @@ interface Props {
 const NAV: { id: View; label: string; minRole: UserRole; icon: ReactNode }[] = [
   {
     id: 'monitor',
-    label: 'Live Monitor',
+    label: 'Live Tracking',
     minRole: 'viewer',
     icon: <M3Monitor size={18} />,
-  },
-  {
-    id: 'collector',
-    label: 'Data Collector',
-    minRole: 'viewer',
-    icon: <M3Collector size={18} />,
-  },
-  {
-    id: 'reports',
-    label: 'Activity & History',
-    minRole: 'viewer',
-    icon: <M3Reports size={18} />,
-  },
-  {
-    id: 'admin',
-    label: 'Facility Setup',
-    minRole: 'admin',
-    icon: <M3Admin size={18} />,
   },
 ]
 

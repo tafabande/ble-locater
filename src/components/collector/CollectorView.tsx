@@ -45,6 +45,9 @@ import {
   M3Reports,
 } from '../common/MaterialIcon'
 
+import { CollectorCollapsible } from './CollectorCollapsible'
+import { CollectorDropdown } from './CollectorDropdown'
+
 interface Props {
   buildingDims: BuildingDimensions
   schematicRooms: any[]
@@ -784,396 +787,567 @@ export function CollectorView({
   // Calculated walking length
   const totalPathMeters = calculatePathLength(surveyPoints, dims)
 
+  // Import Survey Plan JSON
+  const handleImportPlan = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const json = JSON.parse(evt.target?.result as string)
+        if (json.surveyPoints) setSurveyPoints(json.surveyPoints)
+        if (json.anchors) setAnchors(json.anchors)
+        if (json.obstacles) setObstacles(json.obstacles)
+        if (json.dims) setDims(json.dims)
+        setStatusMessage('Successfully imported survey plan JSON.')
+        setTimeout(() => setStatusMessage(null), 3000)
+      } catch (err) {
+        setStatusMessage('Failed to parse survey plan JSON file.')
+        setTimeout(() => setStatusMessage(null), 3000)
+      }
+    }
+    reader.readAsText(file)
+  }
+
+
   return (
     <div className="space-y-4">
-      {/* 1. Header Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
-            <M3Collector size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={sessionName}
-                onChange={(e) => setSessionName(e.target.value)}
-                className="bg-transparent text-sm font-bold text-foreground focus:outline-hidden focus:ring-2 focus:ring-accent rounded-lg px-1.5 py-0.5"
-              />
-              <span className="text-[10px] rounded-full px-2.5 py-0.5 font-semibold bg-muted text-muted-foreground">
-                {dims.width}m × {dims.height}m
-              </span>
+      {/* Hidden File Input for Plan Import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImportPlan}
+        accept=".json"
+        className="hidden"
+      />
+
+      {/* 1. Sleek Command & Action Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card p-3 shadow-sm border border-border/40">
+        {/* Left: App Title & Mode Switcher */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 pr-2 border-r border-border/40">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400">
+              <M3Collector size={18} />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Survey Grid Planner, Range Allocation & Ground-Truth Collector
-            </p>
+            <div>
+              <div className="text-xs font-bold text-foreground leading-tight">BLE Studio</div>
+              <div className="text-[10px] text-muted-foreground font-mono">
+                {dims.width}×{dims.height}m • {gridSpacingMeters}m
+              </div>
+            </div>
+          </div>
+
+          {/* Mode Switcher Tabs */}
+          <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('planner')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeViewTab === 'planner'
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <M3Grid size={15} />
+              <span>Survey Planner</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveViewTab('logger')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeViewTab === 'logger'
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <M3Reports size={15} />
+              <span>Raw Ingestion</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  activeViewTab === 'logger'
+                    ? 'bg-white/25 text-white'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {rawRecords.length}
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* Action Controls */}
+        {/* Right: Cascades & Dropdowns */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Grid Snap & Spacing */}
-          <div className="flex items-center gap-2 rounded-xl bg-muted/40 px-3 py-1.5 text-xs">
-            <label className="flex items-center gap-1.5 font-semibold cursor-pointer">
-              <input
-                type="checkbox"
-                checked={snapToGrid}
-                onChange={(e) => setSnapToGrid(e.target.checked)}
-                className="rounded text-accent focus:ring-accent"
-              />
-              Snap Grid
-            </label>
-            <span className="text-muted-foreground/40">|</span>
-            <select
-              value={gridSpacingMeters}
-              onChange={(e) => setGridSpacingMeters(Number(e.target.value))}
-              className="bg-transparent font-semibold text-foreground focus:outline-hidden"
-            >
-              <option value={0.25}>0.25 m</option>
-              <option value={0.5}>0.5 m</option>
-              <option value={1.0}>1.0 m</option>
-              <option value={1.5}>1.5 m</option>
-              <option value={2.0}>2.0 m</option>
-            </select>
-          </div>
+          {/* Quick Presets Cascading Dropdown */}
+          <CollectorDropdown
+            align="right"
+            items={[
+              {
+                id: 'preset_5x5',
+                label: '5m × 5m Compact Room (1m interval)',
+                icon: <M3Grid size={14} />,
+                onClick: () => {
+                  setDims({ width: 5, height: 5, unit: 'meters' })
+                  setGridSpacingMeters(1.0)
+                  setStatusMessage('Configured 5m × 5m room with 1.0m intervals.')
+                  setTimeout(() => setStatusMessage(null), 3000)
+                },
+              },
+              {
+                id: 'preset_10x10_2m',
+                label: '10m × 10m Standard Hall (2m interval)',
+                icon: <M3Grid size={14} />,
+                onClick: () => {
+                  setDims({ width: 10, height: 10, unit: 'meters' })
+                  setGridSpacingMeters(2.0)
+                  setStatusMessage('Configured 10m × 10m hall with 2.0m intervals.')
+                  setTimeout(() => setStatusMessage(null), 3000)
+                },
+              },
+              {
+                id: 'preset_10x10_1m',
+                label: '10m × 10m Standard Hall (1m interval)',
+                icon: <M3Grid size={14} />,
+                onClick: () => {
+                  setDims({ width: 10, height: 10, unit: 'meters' })
+                  setGridSpacingMeters(1.0)
+                  setStatusMessage('Configured 10m × 10m hall with 1.0m intervals.')
+                  setTimeout(() => setStatusMessage(null), 3000)
+                },
+              },
+              {
+                id: 'preset_15x10',
+                label: '15m × 10m Facility Suite (1m interval)',
+                icon: <M3Grid size={14} />,
+                onClick: () => {
+                  setDims({ width: 15, height: 10, unit: 'meters' })
+                  setGridSpacingMeters(1.0)
+                  setStatusMessage('Configured 15m × 10m suite with 1.0m intervals.')
+                  setTimeout(() => setStatusMessage(null), 3000)
+                },
+              },
+              {
+                id: 'preset_hardware_nodes',
+                label: 'ESP Hardware Presets',
+                icon: <M3Beacon size={14} />,
+                subItems: [
+                  {
+                    id: 'sub_flash_4_esps',
+                    label: '⚡ Auto-Place 4 Corner ESPs',
+                    icon: <M3Beacon size={14} />,
+                    onClick: handleSetupFourEspPreset,
+                  },
+                  {
+                    id: 'sub_broadcast_anchors',
+                    label: '📡 Broadcast Anchors to Core Engine',
+                    icon: <M3Deploy size={14} />,
+                    onClick: handleDeployAndBroadcastAnchors,
+                  },
+                ],
+              },
+            ]}
+            trigger={(isOpen) => (
+              <button
+                type="button"
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer select-none ${
+                  isOpen ? 'bg-muted text-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <M3Grid size={14} />
+                <span>Presets</span>
+                <span className="text-[10px] opacity-60">▼</span>
+              </button>
+            )}
+          />
 
-          {/* Hardware Daemon Toggle */}
-          <button
-            onClick={handleToggleCollectorDaemon}
-            className={`flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer ${
-              collectorDaemonStatus === 'ACTIVE'
-                ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                : 'bg-muted/60 hover:bg-muted text-foreground'
-            }`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                collectorDaemonStatus === 'ACTIVE' ? 'bg-white animate-pulse' : 'bg-rose-500'
-              }`}
-            />
-            {collectorDaemonStatus === 'ACTIVE' ? 'Hardware Collector: ON' : 'Hardware Collector: OFF'}
-          </button>
+          {/* Canvas Actions Cascading Dropdown */}
+          <CollectorDropdown
+            align="right"
+            items={[
+              {
+                id: 'act_optimize_route',
+                label: 'Optimize Shortest Route (TSP)',
+                icon: <M3Operations size={14} />,
+                badge: `${totalPathMeters}m`,
+                onClick: handleOptimizeRoute,
+              },
+              {
+                id: 'act_auto_grid',
+                label: `Auto-Grid Entire Facility (${gridSpacingMeters}m)`,
+                icon: <M3Grid size={14} />,
+                onClick: () => handleGenerateGrid(false),
+              },
+              ...(schematicRooms.length > 0
+                ? [
+                    {
+                      id: 'act_auto_grid_room',
+                      label: 'Auto-Grid Selected Room',
+                      icon: <M3Grid size={14} />,
+                      onClick: () => handleGenerateGrid(true),
+                    },
+                  ]
+                : []),
+              {
+                id: 'act_simulate_walk',
+                label: isSimulating ? 'Stop Survey Simulation' : 'Start Survey Simulation',
+                icon: <M3Bolt size={14} />,
+                onClick: () => setIsSimulating(!isSimulating),
+              },
+              {
+                id: 'act_daemon_toggle',
+                label: collectorDaemonStatus === 'ACTIVE' ? 'Daemon: Stop Collector' : 'Daemon: Start Collector',
+                icon: <M3Collector size={14} />,
+                onClick: handleToggleCollectorDaemon,
+              },
+              {
+                id: 'act_clear_points',
+                label: 'Clear All Survey Points',
+                icon: <M3Trash size={14} />,
+                danger: true,
+                onClick: () => {
+                  setSurveyPoints([])
+                  setWaypoints([])
+                  setSelectedId(null)
+                  setHighlightedNodeIds([])
+                },
+              },
+              {
+                id: 'act_clear_obstacles',
+                label: 'Clear All Obstacles',
+                icon: <M3Trash size={14} />,
+                danger: true,
+                onClick: () => {
+                  setObstacles([])
+                  setSelectedId(null)
+                },
+              },
+              {
+                id: 'act_reset_all',
+                label: 'Reset Entire Canvas',
+                icon: <M3Trash size={14} />,
+                danger: true,
+                onClick: () => {
+                  setSurveyPoints([])
+                  setAnchors([])
+                  setObstacles([])
+                  setWaypoints([])
+                  setSelectedId(null)
+                  setHighlightedNodeIds([])
+                },
+              },
+            ]}
+            trigger={(isOpen) => (
+              <button
+                type="button"
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer select-none ${
+                  isOpen ? 'bg-muted text-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <M3Operations size={14} />
+                <span>Actions</span>
+                <span className="text-[10px] opacity-60">▼</span>
+              </button>
+            )}
+          />
 
-          {/* Simulate Run */}
-          <button
-            onClick={() => setIsSimulating(!isSimulating)}
-            className={`flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-              isSimulating
-                ? 'bg-teal-500/20 text-teal-600'
-                : 'bg-muted/60 hover:bg-muted text-foreground'
-            }`}
+          {/* Layer Visibility Toggle Popover */}
+          <CollectorDropdown
+            align="right"
+            trigger={(isOpen) => (
+              <button
+                type="button"
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer select-none ${
+                  isOpen ? 'bg-muted text-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <M3Monitor size={14} />
+                <span>Layers</span>
+                <span className="text-[10px] opacity-60">▼</span>
+              </button>
+            )}
           >
-            <M3Operations size={15} />
-            {isSimulating ? 'Simulating Run...' : 'Simulate Collection'}
-          </button>
+            {() => (
+              <div className="w-56 p-2 space-y-2 text-xs">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground pb-1 border-b border-border/40">
+                  Visible Canvas Layers
+                </div>
+                <div className="space-y-1.5">
+                  <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <span className="font-medium">Metric Grid</span>
+                    <input
+                      type="checkbox"
+                      checked={showGrid}
+                      onChange={(e) => setShowGrid(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <span className="font-medium">Metric Rulers</span>
+                    <input
+                      type="checkbox"
+                      checked={showRulers}
+                      onChange={(e) => setShowRulers(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <span className="font-medium">Range Rings</span>
+                    <input
+                      type="checkbox"
+                      checked={showRangeRings}
+                      onChange={(e) => setShowRangeRings(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <span className="font-medium">Interference Zones</span>
+                    <input
+                      type="checkbox"
+                      checked={showInterferenceZones}
+                      onChange={(e) => setShowInterferenceZones(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <span className="font-medium">LoS Obstruction Rays</span>
+                    <input
+                      type="checkbox"
+                      checked={showObstructionRays}
+                      onChange={(e) => setShowObstructionRays(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <span className="font-medium">Node Distances</span>
+                    <input
+                      type="checkbox"
+                      checked={showDimensions}
+                      onChange={(e) => setShowDimensions(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <span className="font-medium">Room Shells</span>
+                    <input
+                      type="checkbox"
+                      checked={showRooms}
+                      onChange={(e) => setShowRooms(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <span className="font-medium">Survey Walk Path</span>
+                    <input
+                      type="checkbox"
+                      checked={showPath}
+                      onChange={(e) => setShowPath(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+          </CollectorDropdown>
 
-          {/* Export Plan */}
-          <button
-            onClick={handleExportPlan}
-            className="flex items-center gap-2 rounded-xl bg-accent text-accent-foreground px-3.5 py-1.5 text-xs font-semibold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
-          >
-            <M3Download size={15} />
-            Export Plan
-          </button>
-        </div>
-      </div>
-
-      {/* View Mode Switcher Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card p-2 shadow-xs border border-border/40">
-        <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl text-xs font-semibold">
-          <button
-            onClick={() => setActiveViewTab('planner')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-              activeViewTab === 'planner'
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <M3Grid size={16} />
-            <span>DIY Survey Grid Planner</span>
-          </button>
-          <button
-            onClick={() => setActiveViewTab('logger')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-              activeViewTab === 'logger'
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <M3Reports size={16} />
-            <span>Raw Ingestion & Live Logger</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
-                activeViewTab === 'logger' ? 'bg-white/25 text-white' : 'bg-muted text-muted-foreground'
-              }`}
-            >
-              {rawRecords.length}
-            </span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs pr-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Pure Raw Fidelity Guarantee (Date is Date • Time is Time • RSSI is Raw)
-          </span>
+          {/* Export & Import Cascading Dropdown */}
+          <CollectorDropdown
+            align="right"
+            items={[
+              {
+                id: 'exp_plan_json',
+                label: 'Export Survey Plan (.json)',
+                icon: <M3Download size={14} />,
+                onClick: handleExportPlan,
+              },
+              {
+                id: 'imp_plan_json',
+                label: 'Import Survey Plan (.json)',
+                icon: <M3Upload size={14} />,
+                onClick: () => fileInputRef.current?.click(),
+              },
+              {
+                id: 'exp_raw_csv',
+                label: 'Export Raw Data Sheet (.csv)',
+                icon: <M3Download size={14} />,
+                onClick: handleExportDataSheet,
+              },
+              {
+                id: 'exp_raw_log',
+                label: 'Export Plain Text Log (.log)',
+                icon: <M3Download size={14} />,
+                onClick: handleExportPlainTextLog,
+              },
+              {
+                id: 'copy_raw_log',
+                label: 'Copy Plain Text Log to Clipboard',
+                icon: <M3Check size={14} />,
+                onClick: handleCopyPlainTextLog,
+              },
+            ]}
+            trigger={(isOpen) => (
+              <button
+                type="button"
+                className="flex items-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer select-none"
+              >
+                <M3Download size={14} />
+                <span>Export / Import</span>
+                <span className="text-[10px] opacity-70">▼</span>
+              </button>
+            )}
+          />
         </div>
       </div>
 
       {/* Status banner */}
       {statusMessage && (
-        <div className="flex items-center gap-2 rounded-xl bg-teal-500/10 px-3.5 py-2 text-xs font-medium text-teal-700 dark:text-teal-300">
+        <div className="flex items-center gap-2 rounded-xl bg-teal-500/10 px-3.5 py-2 text-xs font-medium text-teal-700 dark:text-teal-300 animate-in fade-in duration-200">
           <M3Check size={16} />
           {statusMessage}
         </div>
       )}
 
-      {/* TAB A: DIY SURVEY GRID & FLOORPLAN PLANNER */}
+
+      {/* TAB A: INTERACTIVE SURVEY PLANNER */}
       {activeViewTab === 'planner' && (
-        <>
-          {/* 2. DIY Room Layout & Grid Interval Subdivision Control Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card p-4 shadow-sm border border-border/40">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <M3Grid size={16} className="text-teal-600" />
-              <span>DIY Room Layout:</span>
-            </span>
-            {/* Quick Room Presets */}
-            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl text-xs font-semibold">
-              <button
-                onClick={() => {
-                  setDims({ width: 5, height: 5, unit: 'meters' })
-                  setGridSpacingMeters(1.0)
-                  setStatusMessage('Room configured to 5m × 5m with 1.0m intervals.')
-                  setTimeout(() => setStatusMessage(null), 3000)
-                }}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  dims.width === 5 && dims.height === 5
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                5m × 5m (1m)
-              </button>
-              <button
-                onClick={() => {
-                  setDims({ width: 10, height: 10, unit: 'meters' })
-                  setGridSpacingMeters(2.0)
-                  setStatusMessage('Room configured to 10m × 10m with 2.0m intervals.')
-                  setTimeout(() => setStatusMessage(null), 3000)
-                }}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  dims.width === 10 && dims.height === 10 && gridSpacingMeters === 2.0
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                10m × 10m (2m)
-              </button>
-              <button
-                onClick={() => {
-                  setDims({ width: 10, height: 10, unit: 'meters' })
-                  setGridSpacingMeters(1.0)
-                  setStatusMessage('Room configured to 10m × 10m with 1.0m intervals.')
-                  setTimeout(() => setStatusMessage(null), 3000)
-                }}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  dims.width === 10 && dims.height === 10 && gridSpacingMeters === 1.0
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                10m × 10m (1m)
-              </button>
-              <button
-                onClick={() => {
-                  setDims({ width: 15, height: 10, unit: 'meters' })
-                  setGridSpacingMeters(1.0)
-                  setStatusMessage('Room configured to 15m × 10m with 1.0m intervals.')
-                  setTimeout(() => setStatusMessage(null), 3000)
-                }}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  dims.width === 15 && dims.height === 10
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                15m × 10m
-              </button>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
 
-          {/* Custom Width x Height Inputs */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-muted-foreground font-semibold">Custom:</span>
-            <input
-              type="number"
-              min="1"
-              max="50"
-              step="0.5"
-              value={dims.width}
-              onChange={(e) => setDims({ ...dims, width: Math.max(1, Number(e.target.value)) })}
-              className="w-14 rounded-lg bg-muted/50 px-2 py-1 font-mono text-center font-bold text-foreground focus:ring-2 focus:ring-accent"
-              title="Room Width in Meters"
-            />
-            <span className="text-muted-foreground font-bold">×</span>
-            <input
-              type="number"
-              min="1"
-              max="50"
-              step="0.5"
-              value={dims.height}
-              onChange={(e) => setDims({ ...dims, height: Math.max(1, Number(e.target.value)) })}
-              className="w-14 rounded-lg bg-muted/50 px-2 py-1 font-mono text-center font-bold text-foreground focus:ring-2 focus:ring-accent"
-              title="Room Height in Meters"
-            />
-            <span className="text-muted-foreground text-[11px]">m</span>
-          </div>
-
-          {/* Distance Interval Level */}
-          <div className="flex items-center gap-1.5 text-xs border-l border-border/50 pl-3">
-            <span className="text-muted-foreground font-semibold">Split Interval:</span>
-            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl text-xs font-semibold">
-              {[0.5, 1.0, 2.0, 2.5].map((lvl) => (
-                <button
-                  key={lvl}
-                  onClick={() => setGridSpacingMeters(lvl)}
-                  className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
-                    gridSpacingMeters === lvl
-                      ? 'bg-accent text-accent-foreground shadow-xs'
-                      : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {lvl}m
-                </button>
-              ))}
-            </div>
-            <span className="text-[11px] text-muted-foreground font-mono hidden xl:inline">
-              ({Math.round(dims.width / gridSpacingMeters)} × {Math.round(dims.height / gridSpacingMeters)} divisions)
-            </span>
-          </div>
-        </div>
-
-        {/* Quick ESP Hardware Actions */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSetupFourEspPreset}
-            className="flex items-center gap-1.5 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 text-teal-700 dark:text-teal-300 px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer"
-            title="Auto-place 4 ESP32 anchors with assigned MAC addresses and friendly names"
+        {/* Left Column: Element Library, Geometry & Workflow Accordions */}
+        <div className="space-y-3 lg:col-span-3">
+          {/* Card 1: Element Palette */}
+          <CollectorCollapsible
+            title="Element Library"
+            icon={<M3Tag size={16} />}
+            defaultOpen={true}
           >
-            <M3Beacon size={15} />
-            <span>⚡ Flash 4 ESPs Preset</span>
-          </button>
-          <button
-            onClick={handleDeployAndBroadcastAnchors}
-            className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer"
-            title="Broadcast anchor MACs, names, and positions to live positioning engine & WebSocket"
-          >
-            <M3Deploy size={15} />
-            <span>📡 Broadcast Anchors</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 3. Main Studio Grid: Palette (Left), Canvas (Center), Property Inspector (Right) */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* Left Column: Element Library & Efficiency Tools */}
-        <div className="space-y-4 lg:col-span-3">
-          {/* Add Elements Palette */}
-          <div className="rounded-2xl bg-card p-4 shadow-sm space-y-3">
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Element Library (Click to Add)
-            </h4>
             <div className="grid grid-cols-2 gap-2">
               <button
+                type="button"
                 onClick={() => handleAddElement('survey_point')}
-                className="flex flex-col items-center justify-center p-3 rounded-xl bg-muted/30 hover:bg-teal-500/10 hover:text-teal-600 transition-all text-xs font-semibold gap-1.5 text-center cursor-pointer"
+                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-muted/30 hover:bg-teal-500/10 hover:text-teal-600 transition-all text-xs font-semibold gap-1 text-center cursor-pointer"
               >
-                <M3Tag size={20} className="text-teal-600" />
+                <M3Tag size={18} className="text-teal-600" />
                 <span>Survey Point</span>
               </button>
               <button
+                type="button"
                 onClick={() => handleAddElement('anchor')}
-                className="flex flex-col items-center justify-center p-3 rounded-xl bg-muted/30 hover:bg-teal-500/10 hover:text-teal-600 transition-all text-xs font-semibold gap-1.5 text-center cursor-pointer"
+                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-muted/30 hover:bg-teal-500/10 hover:text-teal-600 transition-all text-xs font-semibold gap-1 text-center cursor-pointer"
               >
-                <M3Beacon size={20} className="text-teal-600" />
+                <M3Beacon size={18} className="text-teal-600" />
                 <span>Receiver Anchor</span>
               </button>
               <button
+                type="button"
                 onClick={() => handleAddElement('waypoint')}
-                className="flex flex-col items-center justify-center p-3 rounded-xl bg-muted/30 hover:bg-emerald-500/10 hover:text-emerald-600 transition-all text-xs font-semibold gap-1.5 text-center cursor-pointer"
+                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-muted/30 hover:bg-emerald-500/10 hover:text-emerald-600 transition-all text-xs font-semibold gap-1 text-center cursor-pointer"
               >
-                <M3Walk size={20} className="text-emerald-600" />
+                <M3Walk size={18} className="text-emerald-600" />
                 <span>Walk Waypoint</span>
               </button>
               <button
+                type="button"
                 onClick={() => handleAddElement('obstacle')}
-                className="flex flex-col items-center justify-center p-3 rounded-xl bg-muted/30 hover:bg-amber-500/10 hover:text-amber-600 transition-all text-xs font-semibold gap-1.5 text-center cursor-pointer"
+                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-muted/30 hover:bg-amber-500/10 hover:text-amber-600 transition-all text-xs font-semibold gap-1 text-center cursor-pointer"
               >
-                <M3Wall size={20} className="text-amber-600" />
+                <M3Wall size={18} className="text-amber-600" />
                 <span>Obstacle Barrier</span>
               </button>
             </div>
-          </div>
+          </CollectorCollapsible>
 
-          {/* Efficiency & Automation Tools */}
-          <div className="rounded-2xl bg-card p-4 shadow-sm space-y-3">
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-              <span>Efficiency Tools</span>
-              <span className="text-teal-600 font-bold flex items-center gap-1">
-                <M3Bolt size={14} />
-                <span>Fast Survey</span>
-              </span>
-            </h4>
+          {/* Card 2: Room Geometry & Grid Subdivision */}
+          <CollectorCollapsible
+            title="Room Geometry & Grid"
+            icon={<M3Grid size={16} />}
+            defaultOpen={true}
+            badge={<span className="text-[10px] font-mono text-teal-600 font-bold">{dims.width}×{dims.height}m</span>}
+          >
+            <div className="space-y-3 text-xs">
+              {/* Width x Height Custom Inputs */}
+              <div>
+                <label className="text-[11px] font-semibold text-muted-foreground block mb-1">Room Dimensions (Meters)</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <span className="text-[10px] text-muted-foreground block">Width (X)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      step="0.5"
+                      value={dims.width}
+                      onChange={(e) => setDims({ ...dims, width: Math.max(1, Number(e.target.value)) })}
+                      className="w-full rounded-xl bg-muted/40 px-2.5 py-1.5 font-mono text-center font-bold text-foreground focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                  <span className="text-muted-foreground font-bold mt-4">×</span>
+                  <div className="flex-1">
+                    <span className="text-[10px] text-muted-foreground block">Height (Y)</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      step="0.5"
+                      value={dims.height}
+                      onChange={(e) => setDims({ ...dims, height: Math.max(1, Number(e.target.value)) })}
+                      className="w-full rounded-xl bg-muted/40 px-2.5 py-1.5 font-mono text-center font-bold text-foreground focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid Subdivision Spacing */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-muted-foreground">Grid Interval Step</label>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {Math.round(dims.width / gridSpacingMeters)}×{Math.round(dims.height / gridSpacingMeters)} cells
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {[0.5, 1.0, 2.0, 2.5].map((lvl) => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => setGridSpacingMeters(lvl)}
+                      className={`py-1 rounded-lg text-xs font-semibold font-mono transition-all cursor-pointer ${
+                        gridSpacingMeters === lvl
+                          ? 'bg-teal-600 text-white shadow-xs'
+                          : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {lvl}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CollectorCollapsible>
+
+          {/* Card 3: Automation & Walk Path */}
+          <CollectorCollapsible
+            title="Survey Walk & Route"
+            icon={<M3Walk size={16} />}
+            defaultOpen={true}
+            badge={<span className="text-[10px] font-mono font-bold text-emerald-600">{totalPathMeters}m</span>}
+          >
             <div className="space-y-2">
               <button
-                onClick={handleSetupFourEspPreset}
-                className="w-full flex items-center justify-between rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 px-3 py-2 text-xs font-semibold transition-all cursor-pointer"
+                type="button"
+                onClick={() => setIsSimulating(!isSimulating)}
+                className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all cursor-pointer ${
+                  isSimulating
+                    ? 'bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30'
+                    : 'bg-muted/40 hover:bg-muted text-foreground'
+                }`}
               >
                 <span className="flex items-center gap-2">
-                  <M3Beacon size={16} />
-                  <span>Setup 4 ESP32 Anchors</span>
+                  <M3Bolt size={16} className={isSimulating ? 'animate-pulse text-teal-600' : ''} />
+                  <span>{isSimulating ? 'Simulating Survey Run...' : 'Simulate Collection Walk'}</span>
                 </span>
-                <span className="text-[10px] font-mono font-bold">4 Nodes</span>
+                <span className={`h-2 w-2 rounded-full ${isSimulating ? 'bg-teal-500 animate-ping' : 'bg-zinc-400'}`} />
               </button>
 
               <button
-                onClick={handleDeployAndBroadcastAnchors}
-                className="w-full flex items-center justify-between rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-3 py-2 text-xs font-semibold transition-all cursor-pointer"
-              >
-                <span className="flex items-center gap-2">
-                  <M3Deploy size={16} />
-                  <span>Broadcast Anchors to Engine</span>
-                </span>
-                <span className="text-[10px] font-mono font-bold">Live WS</span>
-              </button>
-
-              <button
-                onClick={() => handleGenerateGrid(false)}
-                className="w-full flex items-center justify-between rounded-xl bg-muted/40 hover:bg-muted px-3 py-2 text-xs font-semibold transition-all cursor-pointer"
-              >
-                <span className="flex items-center gap-2">
-                  <M3Grid size={16} className="text-teal-600" />
-                  <span>Auto-Grid Entire Facility</span>
-                </span>
-                <span className="text-[10px] text-muted-foreground font-mono">{gridSpacingMeters}m</span>
-              </button>
-
-              {schematicRooms.length > 0 && (
-                <button
-                  onClick={() => handleGenerateGrid(true)}
-                  className="w-full flex items-center justify-between rounded-xl bg-muted/40 hover:bg-muted px-3 py-2 text-xs font-semibold transition-all cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    <M3Grid size={16} className="text-teal-600" />
-                    <span>Auto-Grid Selected Room</span>
-                  </span>
-                  <span className="text-[10px] text-muted-foreground font-mono">Room 1</span>
-                </button>
-              )}
-
-              <button
+                type="button"
                 onClick={handleOptimizeRoute}
                 className="w-full flex items-center justify-between rounded-xl bg-muted/40 hover:bg-muted px-3 py-2 text-xs font-semibold transition-all cursor-pointer"
               >
@@ -1185,102 +1359,40 @@ export function CollectorView({
                   {totalPathMeters}m
                 </span>
               </button>
-
-              <button
-                onClick={() => {
-                  setSurveyPoints([])
-                  setWaypoints([])
-                  setSelectedId(null)
-                  setHighlightedNodeIds([])
-                }}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 px-3 py-2 text-xs font-semibold transition-all cursor-pointer"
-              >
-                <M3Trash size={14} />
-                <span>Clear All Survey Points</span>
-              </button>
             </div>
-          </div>
+          </CollectorCollapsible>
 
-          {/* Visibility Toggles */}
-          <div className="rounded-2xl bg-card p-4 shadow-sm space-y-2.5 text-xs">
-            <h4 className="font-bold uppercase tracking-wider text-muted-foreground text-[10px]">
-              Layer Visibility
-            </h4>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex items-center gap-1.5 cursor-pointer font-medium">
-                <input
-                  type="checkbox"
-                  checked={showGrid}
-                  onChange={(e) => setShowGrid(e.target.checked)}
-                  className="rounded text-accent"
-                />
-                Metric Grid
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer font-medium">
-                <input
-                  type="checkbox"
-                  checked={showRulers}
-                  onChange={(e) => setShowRulers(e.target.checked)}
-                  className="rounded text-accent"
-                />
-                Metric Rulers
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer font-medium">
-                <input
-                  type="checkbox"
-                  checked={showRangeRings}
-                  onChange={(e) => setShowRangeRings(e.target.checked)}
-                  className="rounded text-accent"
-                />
-                Range Rings
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer font-medium">
-                <input
-                  type="checkbox"
-                  checked={showInterferenceZones}
-                  onChange={(e) => setShowInterferenceZones(e.target.checked)}
-                  className="rounded text-accent"
-                />
-                Interference Zones
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer font-medium">
-                <input
-                  type="checkbox"
-                  checked={showObstructionRays}
-                  onChange={(e) => setShowObstructionRays(e.target.checked)}
-                  className="rounded text-accent"
-                />
-                LoS Obstruction
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer font-medium">
-                <input
-                  type="checkbox"
-                  checked={showDimensions}
-                  onChange={(e) => setShowDimensions(e.target.checked)}
-                  className="rounded text-accent"
-                />
-                Node Distances
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer font-medium">
-                <input
-                  type="checkbox"
-                  checked={showRooms}
-                  onChange={(e) => setShowRooms(e.target.checked)}
-                  className="rounded text-accent"
-                />
-                Room Shells
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer font-medium">
-                <input
-                  type="checkbox"
-                  checked={showPath}
-                  onChange={(e) => setShowPath(e.target.checked)}
-                  className="rounded text-accent"
-                />
-                Walk Path
-              </label>
+          {/* Card 4: Survey Planning Metrics */}
+          <CollectorCollapsible
+            title="Planning Metrics"
+            icon={<M3Operations size={16} />}
+            defaultOpen={false}
+          >
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex justify-between py-1 border-b border-border/30">
+                <span className="text-muted-foreground font-sans">Total Survey Points:</span>
+                <span className="font-bold text-foreground">{surveyPoints.length}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-border/30">
+                <span className="text-muted-foreground font-sans">Completed Points:</span>
+                <span className="font-bold text-emerald-600">
+                  {surveyPoints.filter((p) => p.status === 'completed').length}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-border/30">
+                <span className="text-muted-foreground font-sans">Active Anchors:</span>
+                <span className="font-bold text-teal-600">{anchors.length}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-border/30">
+                <span className="text-muted-foreground font-sans">Walk Waypoints:</span>
+                <span className="font-bold text-foreground">{waypoints.length}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground font-sans">Total Path Length:</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">{totalPathMeters}m</span>
+              </div>
             </div>
-          </div>
+          </CollectorCollapsible>
         </div>
 
         {/* Center Column: Interactive Drag-and-Drop SVG Survey Canvas */}
@@ -1834,26 +1946,27 @@ export function CollectorView({
           </div>
         </div>
 
-        {/* Right Column: Dynamic Property Inspector & Distance Matrix */}
-        <div className="space-y-4 lg:col-span-3">
-          {/* Selected Item Properties */}
-          <div className="rounded-2xl bg-card p-4 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-1">
-              <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Property Inspector
-              </h4>
-              {selectedId && (
+        {/* Right Column: Dynamic Property Inspector, Distance Matrix & ESP Roster */}
+        <div className="space-y-3 lg:col-span-3">
+          {/* 1. Property Inspector */}
+          <CollectorCollapsible
+            title="Property Inspector"
+            icon={<M3Info size={16} />}
+            defaultOpen={true}
+            badge={selectedId ? <span className="text-[10px] font-mono text-teal-600 font-bold">{selectedId}</span> : undefined}
+            action={
+              selectedId ? (
                 <button
+                  type="button"
                   onClick={handleDeleteSelected}
-                  className="text-rose-500 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  className="text-rose-500 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
                   title="Delete Selected Item"
                 >
-                  <M3Trash size={15} />
+                  <M3Trash size={14} />
                 </button>
-              )}
-            </div>
-
-            {/* Survey Point Inspector */}
+              ) : null
+            }
+          >
             {selectedPoint && (
               <div className="space-y-3 text-xs">
                 <div>
@@ -1942,39 +2055,8 @@ export function CollectorView({
                   </div>
                 </div>
 
-                {/* Euclidean Distance Matrix to Active Anchors */}
-                <div className="pt-2">
-                  <h5 className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider mb-2 flex items-center justify-between">
-                    <span>Anchor Distance Matrix</span>
-                    <span className="text-[10px] text-teal-600 font-mono">Euclidean (m)</span>
-                  </h5>
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                    {anchorDistances.map((ad) => (
-                      <div
-                        key={ad.anchorId}
-                        className={`flex items-center justify-between rounded-xl p-2 text-[11px] font-mono ${
-                          ad.inRange
-                            ? 'bg-muted/40 text-foreground'
-                            : 'bg-rose-500/10 text-rose-500'
-                        }`}
-                      >
-                        <span className="truncate max-w-[110px] font-sans font-medium">{ad.label}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold">{ad.distanceMeters}m</span>
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              ad.inRange ? 'bg-emerald-500' : 'bg-rose-500'
-                            }`}
-                            title={ad.inRange ? 'In Radio Range' : 'Out of Range'}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
-
             {/* Anchor Inspector */}
             {selectedAnchor && (
               <div className="space-y-3 text-xs">
@@ -2248,16 +2330,55 @@ export function CollectorView({
               </div>
             )}
 
-            {/* Empty State Inspector */}
             {!selectedPoint && !selectedAnchor && !selectedObstacle && !selectedWaypoint && (
               <div className="py-6 text-center text-muted-foreground space-y-2">
                 <M3Info size={24} className="mx-auto opacity-40" />
                 <p>Click any survey point, anchor, or obstacle on the canvas to inspect its parameters.</p>
               </div>
             )}
-          </div>
+          </CollectorCollapsible>
 
-          {/* Hardware Telemetry Target & ESP Node Roster */}
+          {/* 2. Anchor Distance Matrix (when a survey point is selected) */}
+          {selectedPoint && (
+            <CollectorCollapsible
+              title="Anchor Distance Matrix"
+              icon={<M3Beacon size={16} />}
+              defaultOpen={true}
+              badge={<span className="text-[10px] text-teal-600 font-mono">Euclidean</span>}
+            >
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {anchorDistances.map((ad) => (
+                  <div
+                    key={ad.anchorId}
+                    className={`flex items-center justify-between rounded-xl p-2 text-[11px] font-mono ${
+                      ad.inRange
+                        ? 'bg-muted/40 text-foreground'
+                        : 'bg-rose-500/10 text-rose-500'
+                    }`}
+                  >
+                    <span className="truncate max-w-[110px] font-sans font-medium">{ad.label}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold">{ad.distanceMeters}m</span>
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          ad.inRange ? 'bg-emerald-500' : 'bg-rose-500'
+                        }`}
+                        title={ad.inRange ? 'In Radio Range' : 'Out of Range'}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CollectorCollapsible>
+          )}
+
+          {/* 3. ESP32 Anchor Roster */}
+          <CollectorCollapsible
+            title={`ESP32 Anchor Roster (${anchors.length})`}
+            icon={<M3Deploy size={16} />}
+            defaultOpen={false}
+            badge={<span className="text-[10px] text-teal-600 font-bold font-mono">Live Broadcast</span>}
+          >
           <div className="rounded-2xl bg-card p-4 shadow-sm space-y-3 text-xs">
             <div className="flex items-center justify-between">
               <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -2312,9 +2433,10 @@ export function CollectorView({
               })}
             </div>
           </div>
+          </CollectorCollapsible>
         </div>
-      </div>
-        </>
+
+        </div>
       )}
 
       {/* TAB B: ZERO-TRANSFORMATION RAW INGESTION & LIVE LOGGER */}
@@ -2409,43 +2531,51 @@ export function CollectorView({
             </div>
 
             {/* Export Actions */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={handleExportDataSheet}
-                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer"
-                title="Download uncleaned CSV data sheet with date, time, timestamp, anchor_id, device_mac, rssi, and payload"
-              >
-                <M3Download size={14} />
-                <span>📊 Export Data Sheet (.csv)</span>
-              </button>
 
-              <button
-                onClick={handleExportPlainTextLog}
-                className="flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer"
-                title="Download verbatim plain text log file (.log) copying and passing lines directly from nodes"
-              >
-                <M3Download size={14} />
-                <span>📄 Export Plain Text Log (.log)</span>
-              </button>
-
-              <button
-                onClick={handleCopyPlainTextLog}
-                className="flex items-center gap-1 rounded-xl bg-muted/60 hover:bg-muted text-foreground px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer"
-                title="Copy verbatim node lines to clipboard"
-              >
-                <M3Check size={14} />
-                <span>Copy Log</span>
-              </button>
-
-              <button
-                onClick={handleClearRawBuffer}
-                className="flex items-center gap-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer"
-                title="Clear all stored raw records and plain text lines"
-              >
-                <M3Trash size={14} />
-                <span>Clear Buffer</span>
-              </button>
+            {/* Unified Export & Actions Cascading Dropdown */}
+            <div className="flex items-center gap-2">
+              <CollectorDropdown
+                align="right"
+                items={[
+                  {
+                    id: 'export_csv',
+                    label: 'Export Data Sheet (.csv)',
+                    icon: <M3Download size={14} />,
+                    onClick: handleExportDataSheet,
+                  },
+                  {
+                    id: 'export_log',
+                    label: 'Export Plain Text Log (.log)',
+                    icon: <M3Download size={14} />,
+                    onClick: handleExportPlainTextLog,
+                  },
+                  {
+                    id: 'copy_log',
+                    label: 'Copy Log to Clipboard',
+                    icon: <M3Check size={14} />,
+                    onClick: handleCopyPlainTextLog,
+                  },
+                  {
+                    id: 'clear_buffer',
+                    label: 'Clear Raw Buffer',
+                    icon: <M3Trash size={14} />,
+                    danger: true,
+                    onClick: handleClearRawBuffer,
+                  },
+                ]}
+                trigger={(isOpen) => (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs cursor-pointer select-none"
+                  >
+                    <M3Download size={14} />
+                    <span>Export & Logs</span>
+                    <span className="text-[10px] opacity-70">▼</span>
+                  </button>
+                )}
+              />
             </div>
+
           </div>
 
           {/* Dual Ingestion Grid: Data Sheet (Left) + Plain Text Log (Right) */}
