@@ -34,19 +34,19 @@ class ModelTrainerApp:
     """Dedicated desktop GUI for ML dataset preparation, training, and evaluation."""
 
     THEME = {
-        "bg": "#1E1E2E",          # Catppuccin Mocha Base
-        "panel": "#181825",       # Mantle
-        "card": "#313244",        # Surface0
-        "border": "#45475A",      # Surface1
-        "text": "#CDD6F4",        # Text
-        "subtext": "#A6ADC8",     # Subtext0
-        "accent": "#89B4FA",      # Blue
-        "accent_hover": "#B4BEFE",# Lavender
-        "green": "#A6E3A1",       # Green
-        "yellow": "#F9E2AF",      # Yellow
-        "red": "#F38BA8",         # Red
-        "purple": "#CBA6F7",      # Mauve
-        "teal": "#94E2D5",        # Teal
+        "bg": "#121214",          # Deep Zinc
+        "panel": "#18181B",       # Zinc 900
+        "card": "#27272A",        # Zinc 800
+        "card_hover": "#323238",  # Zinc 750
+        "border": "#3F3F46",      # Zinc 700
+        "text": "#FAFAFA",        # Zinc 50
+        "subtext": "#A1A1AA",     # Zinc 400
+        "accent": "#E4E4E7",      # Crisp neutral Zinc 200
+        "accent_hover": "#D4D4D8",
+        "green": "#10B981",       # Emerald 500
+        "yellow": "#F59E0B",      # Amber 500
+        "red": "#EF4444",         # Rose 500
+        "terminal_bg": "#0E0E10", # Deep terminal Zinc
     }
 
     def __init__(self, root: tk.Tk) -> None:
@@ -167,7 +167,7 @@ class ModelTrainerApp:
         # Big Train Button
         self.btn_run_train = tk.Button(
             left, text="🚀  RUN END-TO-END ML PIPELINE",
-            bg=t["accent"], fg="#000000", font=("Segoe UI", 10, "bold"),
+            bg=t["green"], fg="#FFFFFF", font=("Segoe UI", 10, "bold"),
             relief="flat", cursor="hand2", padx=16, pady=10,
             command=self.run_pipeline,
         )
@@ -190,7 +190,7 @@ class ModelTrainerApp:
         self.progress_bar = ttk.Progressbar(right, orient="horizontal", mode="determinate")
         self.progress_bar.pack(fill="x", pady=(8, 10))
 
-        self.log_text = tk.Text(right, bg="#11111B", fg=t["text"], font=("Consolas", 9), relief="flat", wrap="word")
+        self.log_text = tk.Text(right, bg=t["terminal_bg"], fg=t["text"], font=("Consolas", 9), relief="flat", wrap="word")
         self.log_text.pack(fill="both", expand=True)
 
     def _build_eval_tab(self, parent: tk.Frame) -> None:
@@ -204,8 +204,8 @@ class ModelTrainerApp:
         tk.Label(toolbar, text="MODEL PERFORMANCE & TOURNAMENT METRICS", bg=t["panel"], fg=t["text"], font=("Segoe UI", 10, "bold")).pack(side="left")
 
         # Explicit Model Promotion / Export Action Button
-        tk.Button(toolbar, text="💾 Export to Production", bg=t["accent"], fg="#000000", font=("Segoe UI", 8, "bold"), relief="flat", cursor="hand2", padx=10, pady=4, command=self._export_to_production).pack(side="right", padx=4)
-        tk.Button(toolbar, text="🔄 Refresh Metrics", bg=t["green"], fg="#000000", font=("Segoe UI", 8, "bold"), relief="flat", cursor="hand2", padx=10, pady=4, command=self.refresh_dashboard).pack(side="right", padx=4)
+        tk.Button(toolbar, text="💾 Export to Production", bg=t["accent"], fg="#121214", font=("Segoe UI", 8, "bold"), relief="flat", cursor="hand2", padx=10, pady=4, command=self._export_to_production).pack(side="right", padx=4)
+        tk.Button(toolbar, text="🔄 Refresh Metrics", bg=t["card"], fg=t["text"], font=("Segoe UI", 8, "bold"), relief="flat", cursor="hand2", padx=10, pady=4, command=self.refresh_dashboard).pack(side="right", padx=4)
         tk.Button(toolbar, text="📋 Copy Summary", bg=t["card"], fg=t["text"], font=("Segoe UI", 8), relief="flat", cursor="hand2", padx=10, pady=4, command=self._copy_summary).pack(side="right", padx=4)
 
         # KPI Row
@@ -217,8 +217,8 @@ class ModelTrainerApp:
         self.kpi_champ = self._create_kpi_box(kpi_row, 0, "CHAMPION MODEL", "--", t["accent"])
         self.kpi_mae = self._create_kpi_box(kpi_row, 1, "TEST MAE", "-- m", t["green"])
         self.kpi_r2 = self._create_kpi_box(kpi_row, 2, "GOODNESS OF FIT (R²)", "--", t["yellow"])
-        self.kpi_rmse = self._create_kpi_box(kpi_row, 3, "RMSE / MAX ERR", "-- m", t["purple"])
-        self.kpi_zone = self._create_kpi_box(kpi_row, 4, "ZONE ACCURACY", "-- %", t["teal"])
+        self.kpi_rmse = self._create_kpi_box(kpi_row, 3, "RMSE / MAX ERR", "-- m", t["subtext"])
+        self.kpi_zone = self._create_kpi_box(kpi_row, 4, "ZONE ACCURACY", "-- %", t["green"])
 
         # Split lower half: Leaderboard & Per-distance breakdown
         lower = tk.Frame(p, bg=t["bg"])

@@ -144,9 +144,28 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# OS metadata
+# OS metadata & temporary artifacts
 .DS_Store
 Thumbs.db
+desktop.ini
+catboost_info/
+*.tmp
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Security & Secrets Handling
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cert
+*secret*.json
+*credential*.json
 
 # Collected datasets, trained models, databases, and reports (Tracked for replication)
 !datasets/*.csv

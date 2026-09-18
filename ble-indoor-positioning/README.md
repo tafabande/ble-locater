@@ -68,7 +68,7 @@ python ble-indoor-positioning/pipeline.py
 
 ### 3. Launch AI Model Studio & Dataset Quality Audit GUI
 ```bash
-python ble-indoor-positioning/training_gui.py
+python trainer_gui.py
 ```
 
 ### 4. Launch Real-Time FastAPI Positioning Engine & WebSocket Server
@@ -76,7 +76,7 @@ python ble-indoor-positioning/training_gui.py
 uvicorn server.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### 5. Run Python Test Suite (37 tests)
+### 5. Run Python Test Suite (82 tests)
 ```bash
 pytest
 ```
@@ -94,16 +94,19 @@ ble-indoor-positioning/
 ├── feature_engineering/
 │   └── engineer.py            # 60-feature extraction engine & Dataset Audit module
 ├── training/
-│   └── train.py               # Super Learner Tournament & Experiment Logger
+│   ├── train.py               # Super Learner Tournament & Experiment Logger
+│   └── trainer_gui.py         # Zinc dark AI Model Studio GUI & Tournament Leaderboard
 ├── models/                    # Trained model artifacts (.joblib) & metadata (.json)
 ├── collector/
-│   └── collector.py           # Multi-manager ESP32 serial data collector GUI & HTTP streamer
-├── tests/                     # 37 pytest tests (endpoints, trilateration, features, firmware)
+│   ├── collector_gui.py       # Visual room layout surveyor & Wi-Fi UDP stream receiver
+│   ├── setup_gui.py           # ESP32 wireless provisioner & hardware MAC interrogator
+│   └── node_registry.py       # Persistent node configuration & binding database
+├── admin/                     # System administrator & live hardware telemetry console
+├── tests/                     # 82 pytest tests (endpoints, trilateration, features, firmware)
 ├── reports/
 │   ├── experiment_evolution_log.md  # Chronological experiment evolution log
 │   ├── experiment_evolution_log.json# Machine-readable run history
 │   └── model_diagnostics.png  # V2 8-panel diagnostic plot grid
-├── pipeline.py                # Pipeline entry point with real-time JSON progress event stream
-└── training_gui.py            # Interactive Model Studio GUI & Live Tournament Leaderboard
+└── pipeline.py                # Pipeline entry point with real-time JSON progress event stream
 ```
 

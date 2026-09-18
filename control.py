@@ -44,20 +44,19 @@ class ApplicationLauncher:
     """Lightweight entry point and ecosystem launcher."""
 
     THEME = {
-        "bg": "#0F172A",          # Slate 900
-        "panel": "#1E293B",       # Slate 800
-        "card": "#334155",        # Slate 700
-        "card_hover": "#3B4D66",
-        "border": "#475569",      # Slate 600
-        "text": "#F8FAFC",        # Slate 50
-        "subtext": "#94A3B8",     # Slate 400
-        "accent": "#38BDF8",      # Sky 400
-        "accent_hover": "#0284C7",
+        "bg": "#121214",          # Deep Zinc background
+        "panel": "#18181B",       # Zinc 900 panel
+        "card": "#27272A",        # Zinc 800 card
+        "card_hover": "#323238",  # Zinc 750 hover
+        "border": "#3F3F46",      # Zinc 700 border
+        "text": "#FAFAFA",        # Zinc 50 text
+        "subtext": "#A1A1AA",     # Zinc 400 subtext
+        "accent": "#E4E4E7",      # Crisp neutral Zinc 200
+        "accent_hover": "#D4D4D8",
         "green": "#10B981",       # Emerald 500
         "green_dark": "#064E3B",
         "red": "#EF4444",         # Rose 500
         "amber": "#F59E0B",       # Amber 500
-        "purple": "#A855F7",      # Purple 500
     }
 
     def __init__(self, root: tk.Tk) -> None:
@@ -128,7 +127,7 @@ class ApplicationLauncher:
         main = tk.Frame(self.root, bg=self.THEME["bg"])
         main.pack(fill="both", expand=True, padx=24, pady=20)
 
-        # Grid of Application Cards (2x2)
+        # Grid of Application Cards
         apps_frame = tk.Frame(main, bg=self.THEME["bg"])
         apps_frame.pack(fill="x", pady=(0, 16))
         apps_frame.columnconfigure(0, weight=1, uniform="app")
@@ -147,26 +146,36 @@ class ApplicationLauncher:
         # 2. System Administrator & Telemetry Card
         self.card_admin = self._create_app_card(
             apps_frame, row=0, col=1,
-            icon="🛠️", title="System Administrator & Telemetry",
+            icon="📊", title="System Administrator & Telemetry",
             desc="Hardware node health, RSSI readings, packet stats, dropped packets,\nnetwork connections, and diagnostic logs.",
-            status="Python GUI", status_color=self.THEME["purple"],
+            status="Python GUI", status_color=self.THEME["accent"],
             action_text="Launch Admin Console",
             action_cmd=self.launch_admin,
         )
 
-        # 3. Data Collector Card
+        # 3. Experiment Controller & Data Collector Card
         self.card_coll = self._create_app_card(
             apps_frame, row=1, col=0,
-            icon="📡", title="Sensor Data Collector",
-            desc="Dataset survey collection, environmental condition tagging,\nground-truth distance records, and raw CSV persistence.",
+            icon="📡", title="Experiment Controller & Data Collector",
+            desc="Remodeled collection console: Master Start/Pause/Stop ribbon,\n2D room layout, obstacle raycasting & wireless Wi-Fi UDP ingestion.",
             status="Python GUI", status_color=self.THEME["green"],
-            action_text="Launch Collector GUI",
+            action_text="Launch Controller GUI",
             action_cmd=self.launch_collector,
         )
 
-        # 4. Model Trainer Card
-        self.card_trainer = self._create_app_card(
+        # 4. ESP32 Wireless Provisioner & Flasher Card
+        self.card_setup = self._create_app_card(
             apps_frame, row=1, col=1,
+            icon="🛠️", title="ESP32 Wireless Setup & Flasher",
+            desc="Provision Wi-Fi credentials, bind hardware MAC to 4 corners\n(Node A, B, C, D), flash ESP32 ROM & serial debug monitor.",
+            status="Python GUI", status_color=self.THEME["accent"],
+            action_text="Launch Setup & Flasher GUI",
+            action_cmd=self.launch_setup,
+        )
+
+        # 5. Model Trainer Card (Row 2 spanning or column 0)
+        self.card_trainer = self._create_app_card(
+            apps_frame, row=2, col=0,
             icon="🧠", title="AI Model Studio & Trainer",
             desc="Feature engineering (60 features), Super Learner ML tournament,\nMAE/RMSE evaluation metrics, and diagnostic plots.",
             status="Python GUI", status_color=self.THEME["amber"],
@@ -198,7 +207,7 @@ class ApplicationLauncher:
 
         tk.Label(log_frame, text="OPERATIONAL ACTIVITY LOG", bg=self.THEME["panel"], fg=self.THEME["subtext"], font=("Segoe UI", 8, "bold")).pack(anchor="w")
 
-        self.log_text = tk.Text(log_frame, bg="#090E17", fg=self.THEME["text"], font=("Consolas", 9), relief="flat", wrap="word", height=6)
+        self.log_text = tk.Text(log_frame, bg="#0E0E10", fg=self.THEME["text"], font=("Consolas", 9), relief="flat", wrap="word", height=6)
         self.log_text.pack(fill="both", expand=True, pady=(6, 0))
 
     def _create_app_card(self, parent: tk.Frame, row: int, col: int, icon: str, title: str, desc: str, status: str, status_color: str, action_text: str, action_cmd) -> dict:
@@ -291,9 +300,15 @@ class ApplicationLauncher:
         subprocess.Popen([PYTHON_EXE, str(script)], cwd=str(BASE_DIR))
 
     def launch_collector(self) -> None:
-        """Launch the standalone Data Collector GUI."""
-        self._log("Launching Standalone Data Collector GUI...")
-        script = BASE_DIR / "collector_gui.py"
+        """Launch the standalone Experiment Controller & Data Collector GUI."""
+        self._log("Launching Standalone Experiment Controller & Data Collector GUI...")
+        script = BASE_DIR / "controller.py"
+        subprocess.Popen([PYTHON_EXE, str(script)], cwd=str(BASE_DIR))
+
+    def launch_setup(self) -> None:
+        """Launch the standalone ESP32 Wireless Provisioner & Flasher GUI."""
+        self._log("Launching Standalone ESP32 Wireless Provisioner & Flasher GUI...")
+        script = BASE_DIR / "setup.py"
         subprocess.Popen([PYTHON_EXE, str(script)], cwd=str(BASE_DIR))
 
     def launch_trainer(self) -> None:
@@ -457,9 +472,10 @@ def main() -> None:
             "Usage:\n"
             "  python control.py                    Launch interactive Control Centre GUI\n"
             "  python control.py --autostart        Launch Control Centre and immediately start services\n"
-            "  python control.py --app admin        Launch System Administrator / Telemetry GUI\n"
-            "  python control.py --app collector    Launch Data Collector GUI\n"
-            "  python control.py --app trainer      Launch Model Trainer GUI\n"
+            "  python control.py --app setup        Launch ESP32 Wireless Provisioner & Flasher GUI\n"
+            "  python control.py --app controller   Launch Visual Data Collector & Environment Controller GUI\n"
+            "  python control.py --app trainer      Launch AI Model Studio & Trainer GUI\n"
+            "  python control.py --app admin        Launch System Administrator & Telemetry GUI\n"
             "  python control.py --app tracking     Launch Live Tracking Web Dashboard\n"
         )
         return
@@ -473,9 +489,13 @@ def main() -> None:
                 import admin_gui
                 admin_gui.main()
                 return
-            elif target_app in ("collector", "collect"):
-                import collector_gui
-                collector_gui.main()
+            elif target_app in ("controller", "collector", "collect"):
+                import controller
+                controller.main()
+                return
+            elif target_app in ("setup", "provision", "flasher"):
+                import setup
+                setup.main()
                 return
             elif target_app in ("trainer", "train"):
                 import trainer_gui

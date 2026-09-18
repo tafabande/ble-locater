@@ -31,20 +31,19 @@ class SystemAdminApp:
     """Dedicated desktop GUI for system administration and telemetry monitoring."""
 
     THEME = {
-        "bg": "#0B1120",          # Deep Obsidian Navy
-        "panel": "#131D31",       # Navy Surface
-        "card": "#1E293B",        # Slate 800
-        "border": "#334155",      # Slate 700
-        "text": "#F1F5F9",        # Slate 100
-        "subtext": "#94A3B8",     # Slate 400
-        "accent": "#38BDF8",      # Sky 400
+        "bg": "#121214",          # Deep Zinc
+        "panel": "#18181B",       # Zinc 900
+        "card": "#27272A",        # Zinc 800
+        "border": "#3F3F46",      # Zinc 700
+        "text": "#FAFAFA",        # Zinc 50
+        "subtext": "#A1A1AA",     # Zinc 400
+        "accent": "#E4E4E7",      # Crisp neutral Zinc 200
         "green": "#10B981",       # Emerald 500
         "green_dark": "#064E3B",
         "amber": "#F59E0B",       # Amber 500
         "amber_dark": "#78350F",
         "red": "#EF4444",         # Rose 500
         "red_dark": "#7F1D1D",
-        "purple": "#A855F7",      # Purple 500
     }
 
     def __init__(self, root: tk.Tk) -> None:
@@ -147,7 +146,7 @@ class SystemAdminApp:
         self.kpi_packets = self._create_kpi(kpi_row, 1, "TOTAL PACKETS", "--", t["accent"])
         self.kpi_drops = self._create_kpi(kpi_row, 2, "DROPPED PACKETS", "0 (0.0%)", t["green"])
         self.kpi_cpu = self._create_kpi(kpi_row, 3, "BACKEND CPU / RAM", "--% / --MB", t["amber"])
-        self.kpi_uptime = self._create_kpi(kpi_row, 4, "SYSTEM UPTIME", "0s", t["purple"])
+        self.kpi_uptime = self._create_kpi(kpi_row, 4, "SYSTEM UPTIME", "0s", t["text"])
 
         # Node Telemetry Table
         table_frame = tk.Frame(p, bg=t["panel"], padx=14, pady=12)

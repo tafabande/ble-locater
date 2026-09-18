@@ -7,7 +7,8 @@ def write_file(path, content):
     print(f'Created: {path}')
 
 def main():
-    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Unity_BLE_Simulator')
+    workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = os.path.join(workspace_root, 'Unity_BLE_Simulator')
     scripts_dir = os.path.join(base_dir, 'Assets', 'Scripts')
     editor_dir = os.path.join(base_dir, 'Assets', 'Editor')
     print(f'Generating High-Detail 4-Room Facility Complex in: {base_dir}')

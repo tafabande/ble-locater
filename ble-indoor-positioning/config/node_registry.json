@@ -1,0 +1,38 @@
+{
+  "NODE_A": {
+    "anchor_id": "ANCHOR_01",
+    "display_name": "ESP32-A (Corner SW)",
+    "corner": "SW",
+    "mac": "24:6F:28:1A:4C:01",
+    "default_pos": [0.2, 0.2],
+    "status": "ready",
+    "last_flashed": null
+  },
+  "NODE_B": {
+    "anchor_id": "ANCHOR_02",
+    "display_name": "ESP32-B (Corner SE)",
+    "corner": "SE",
+    "mac": "24:6F:28:1A:4C:02",
+    "default_pos": [4.8, 0.2],
+    "status": "ready",
+    "last_flashed": null
+  },
+  "NODE_C": {
+    "anchor_id": "ANCHOR_03",
+    "display_name": "ESP32-C (Corner NW)",
+    "corner": "NW",
+    "mac": "24:6F:28:1A:4C:03",
+    "default_pos": [0.2, 4.8],
+    "status": "ready",
+    "last_flashed": null
+  },
+  "NODE_D": {
+    "anchor_id": "ANCHOR_04",
+    "display_name": "ESP32-D (Corner NE)",
+    "corner": "NE",
+    "mac": "24:6F:28:1A:4C:04",
+    "default_pos": [4.8, 4.8],
+    "status": "ready",
+    "last_flashed": null
+  }
+}

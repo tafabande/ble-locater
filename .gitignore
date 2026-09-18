@@ -52,6 +52,19 @@ desktop.ini
 *.tmp
 *.bak
 
+# Security & Secrets Handling
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cert
+*secret*.json
+*credential*.json
+
 # Preserve Critical Models & Datasets for Replication
 !ble-indoor-positioning/datasets/*.csv
 !ble-indoor-positioning/models/*.joblib

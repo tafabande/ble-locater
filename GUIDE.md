@@ -27,20 +27,21 @@ The application architecture is refactored into a **decoupled ecosystem of speci
 ## 🚀 Quick Start & Application Launch Options
 
 ### Option 1: Application Launcher & Control Centre (Recommended)
-Double-click `control.bat` or run:
+Double-click `launch.bat` or run:
 ```cmd
 python control.py
 ```
-This opens the lightweight **Application Launcher**, where you can launch any of the specialized tools independently or click **"Start Full Stack"** to launch all background microservices.
+This opens the dedicated **Application Control Centre**, where you can launch any of the specialized tools independently or click **"Start Full Stack"** to launch all background services.
 
 ### Option 2: Launch Applications Directly
 
 | Application | Launch Command | Purpose |
 |---|---|---|
 | **📍 Live Tracking Dashboard** | `launch.bat` or `npm run dev` (`http://127.0.0.1:3000`) | Live indoor tracking map (2D/3D), tag coordinates, and solver telemetry |
-| **🛠️ System Administrator** | `python admin_gui.py` | Node health table, dropped packets, connection stats, and event logs |
-| **📡 Data Collector** | `python collector_gui.py` | Ground-truth survey collection, live RSSI meter, and raw CSV persistence |
-| **🧠 Model Trainer** | `python trainer_gui.py` | Super Learner ML tournament, dataset inspection, and accuracy evaluation |
+| **🛠️ ESP32 Setup & Flasher** | `python setup.py` | Wireless Wi-Fi provisioning, hardware MAC interrogation, and ROM flashing |
+| **📡 Data Acquisition Controller** | `python controller.py` | Visual 2D room surveyor, big Start/Pause/Stop ribbon, and Wi-Fi UDP stream receiver |
+| **🛠️ System Administrator** | `python admin_gui.py` | Node health matrix, dropped packet stats, connection telemetry, and self-checks |
+| **🧠 Model Trainer** | `python trainer_gui.py` | Super Learner ML tournament, feature engineering (60 features), and diagnostic plots |
 
 ---
 
