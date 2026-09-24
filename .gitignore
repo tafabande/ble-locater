@@ -44,13 +44,22 @@ desktop.ini
 !.vscode/launch.json
 .idea/
 
-# Database Journals & Temporary Locks
+# Database & Runtime State (Dynamic SQLite & Journals)
+*.db
+*.sqlite
+*.sqlite3
 *.sqlite3-journal
 *.db-journal
 *.db-wal
 *.db-shm
 *.tmp
 *.bak
+
+# Synthetic Datasets & Ad-hoc Session Dumps
+ble-indoor-positioning/datasets/synthetic_observations.csv
+ble-indoor-positioning/datasets/raw/dataset_*.csv
+ble-indoor-positioning/datasets/raw/*_info.json
+datasets/
 
 # Security & Secrets Handling
 .env
@@ -65,8 +74,7 @@ desktop.ini
 *secret*.json
 *credential*.json
 
-# Preserve Critical Models & Datasets for Replication
-!ble-indoor-positioning/datasets/*.csv
+# Preserve Critical Models & Canonical Baseline Datasets for Replication
+!ble-indoor-positioning/datasets/observations.csv
 !ble-indoor-positioning/models/*.joblib
 !ble-indoor-positioning/models/*.json
-!ble-indoor-positioning/models/*.db
