@@ -167,10 +167,11 @@ catboost_info/
 *secret*.json
 *credential*.json
 
-# Collected datasets, trained models, databases, and reports (Tracked for replication)
-!datasets/*.csv
-!collector/data/
+# Canonical datasets and trained models (Tracked for replication)
+!datasets/observations.csv
 !models/*.joblib
 !models/*.json
-!models/*.db
+*.db
+*.sqlite
+*.sqlite3
 !reports/*.png
