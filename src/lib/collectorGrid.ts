@@ -29,6 +29,8 @@ export interface CollectorAnchor {
   receptionRangeMeters: number // Customizable range in meters (e.g. 1.0 to 25.0)
   port?: string
   status: 'online' | 'offline' | 'calibrating'
+  configured?: boolean
+  locked?: boolean
 }
 
 export interface WalkWaypoint {
@@ -488,6 +490,7 @@ export interface RawDataRecord {
   deviceMac: string
   rssi: number | string
   rawPayload: string
+  provenance?: 'HARDWARE_WIFI_UDP' | 'HARDWARE_SERIAL_UART' | 'SYNTHETIC_SIMULATOR'
 }
 
 /**

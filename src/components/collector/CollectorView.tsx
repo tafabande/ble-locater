@@ -180,51 +180,7 @@ export function CollectorView({
       const saved = localStorage.getItem('rtls_raw_collector_records')
       if (saved) return JSON.parse(saved)
     } catch {}
-    const now = new Date()
-    const dStr = now.toISOString().split('T')[0]
-    const tStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0')
-    return [
-      {
-        id: 'rec_init_1',
-        date: dStr,
-        time: tStr,
-        timestamp: Date.now() - 3200,
-        anchorId: 'ESP32_01',
-        deviceMac: '52:06:26:03:01:DA',
-        rssi: -65,
-        rawPayload: '1693800000,ESP32_01,52:06:26:03:01:DA,-65,ESP32_TAG',
-      },
-      {
-        id: 'rec_init_2',
-        date: dStr,
-        time: tStr,
-        timestamp: Date.now() - 2100,
-        anchorId: 'ESP32_02',
-        deviceMac: '52:06:26:03:01:DA',
-        rssi: -71,
-        rawPayload: '{"type":"raw","timestamp":1693800001,"mac":"52:06:26:03:01:DA","rssi":-71}',
-      },
-      {
-        id: 'rec_init_3',
-        date: dStr,
-        time: tStr,
-        timestamp: Date.now() - 1100,
-        anchorId: 'ESP32_03',
-        deviceMac: '52:06:26:03:01:DA',
-        rssi: -58,
-        rawPayload: '1693800002,ESP32_03,52:06:26:03:01:DA,-58,ESP32_TAG',
-      },
-      {
-        id: 'rec_init_4',
-        date: dStr,
-        time: tStr,
-        timestamp: Date.now(),
-        anchorId: 'ESP32_04',
-        deviceMac: '52:06:26:03:01:DA',
-        rssi: -77,
-        rawPayload: '{"type":"raw","timestamp":1693800003,"mac":"52:06:26:03:01:DA","rssi":-77}',
-      },
-    ]
+    return []
   })
 
   const [rawLines, setRawLines] = useState<string[]>(() => {
@@ -232,12 +188,7 @@ export function CollectorView({
       const saved = localStorage.getItem('rtls_raw_collector_lines')
       if (saved) return JSON.parse(saved)
     } catch {}
-    return [
-      '1693800000,ESP32_01,52:06:26:03:01:DA,-65,ESP32_TAG',
-      '{"type":"raw","timestamp":1693800001,"mac":"52:06:26:03:01:DA","rssi":-71}',
-      '1693800002,ESP32_03,52:06:26:03:01:DA,-58,ESP32_TAG',
-      '{"type":"raw","timestamp":1693800003,"mac":"52:06:26:03:01:DA","rssi":-77}',
-    ]
+    return []
   })
 
   const [isLiveStreaming, setIsLiveStreaming] = useState(true)
@@ -284,41 +235,13 @@ export function CollectorView({
         }
       } catch {}
 
-      // 2. If simulation active or hardware collector daemon active, generate continuous live raw line
-      if (isSimulating || collectorDaemonStatus === 'ACTIVE') {
-        const targetAnchor = anchors[Math.floor(Math.random() * anchors.length)] || {
-          id: 'ESP32_01',
-          macAddress: '24:6F:28:1A:4C:01',
-          systemName: 'ESP-01',
-        }
-        const now = new Date()
-        const dStr = now.toISOString().split('T')[0]
-        const tStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0')
-        const rawRssi = -Math.floor(48 + Math.random() * 38)
-        const ts = Date.now()
-        const useJson = Math.random() > 0.4
-        const payload = useJson
-          ? JSON.stringify({ type: 'raw', timestamp: ts, mac: targetMac, rssi: rawRssi })
-          : `${ts},${targetAnchor.id},${targetMac},${rawRssi},ESP_NODE`
-
-        const newRec: RawDataRecord = {
-          id: `rec_${ts}_${Math.random().toString(36).substring(2, 6)}`,
-          date: dStr,
-          time: tStr,
-          timestamp: ts,
-          anchorId: targetAnchor.id,
-          deviceMac: targetMac,
-          rssi: rawRssi,
-          rawPayload: payload,
-        }
-
-        setRawRecords((prev) => [newRec, ...prev].slice(0, 1000))
-        setRawLines((prev) => [payload, ...prev].slice(0, 1000))
-      }
+      // Synthetic data generator unplugged per system policy.
+      // Data is exclusively ingested from backend /api/collector/records (Hardware UDP/Serial or external Ingestion API).
     }, 1500)
 
     return () => clearInterval(interval)
-  }, [isLiveStreaming, isSimulating, collectorDaemonStatus, anchors, targetMac])
+  }, [isLiveStreaming])
+
 
   // Auto-scroll plain text console
   useEffect(() => {
@@ -337,6 +260,46 @@ export function CollectorView({
         }
       })
       .catch(() => {})
+  }, [])
+
+  // Live hardware nodes configuration & health poller
+  useEffect(() => {
+    let active = true
+    const pollNodesHealth = async () => {
+      try {
+        const res = await fetch('/api/nodes/health')
+        if (res.ok) {
+          const data = await res.json()
+          if (active && data?.nodes) {
+            setAnchors((prev) =>
+              prev.map((anc, idx) => {
+                const nodeKey = `NODE_${String.fromCharCode(65 + (idx % 4))}`
+                const nInfo =
+                  data.nodes[nodeKey] ||
+                  (Object.values(data.nodes).find((n: any) => n.anchor_id === anc.id) as any)
+                if (nInfo) {
+                  return {
+                    ...anc,
+                    status: nInfo.online ? 'online' : 'offline',
+                    configured: Boolean(nInfo.configured),
+                    locked: Boolean(nInfo.locked),
+                    macAddress: nInfo.mac && nInfo.mac !== 'Unassigned' ? nInfo.mac : anc.macAddress,
+                  }
+                }
+                return anc
+              })
+            )
+          }
+        }
+      } catch {}
+    }
+
+    pollNodesHealth()
+    const intervalId = setInterval(pollNodesHealth, 1500)
+    return () => {
+      active = false
+      clearInterval(intervalId)
+    }
   }, [])
 
   // Simulated collection progress tick
@@ -734,38 +697,35 @@ export function CollectorView({
     setTimeout(() => setStatusMessage(null), 3000)
   }
 
-  // Inject Raw Sample Packet (Zero Filter)
-  const handleInjectSamplePacket = () => {
-    const targetAnchor = anchors[Math.floor(Math.random() * anchors.length)] || {
-      id: 'ESP32_01',
-      macAddress: '24:6F:28:1A:4C:01',
-      systemName: 'ESP-01',
+  // Poll & Refresh Hardware Ingestion Buffer
+  const handleRefreshHardwareBuffer = async () => {
+    try {
+      const res = await fetch('/api/collector/records?limit=50')
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.records && data.records.length > 0) {
+          setRawRecords((prev) => {
+            const existingIds = new Set(prev.map((r) => r.id))
+            const newRecs = data.records.filter((r: RawDataRecord) => !existingIds.has(r.id))
+            return [...newRecs, ...prev].slice(0, 1000)
+          })
+          if (data?.raw_lines && data.raw_lines.length > 0) {
+            setRawLines((prev) => {
+              const uniqueNewLines = data.raw_lines.slice(-50)
+              return Array.from(new Set([...uniqueNewLines, ...prev])).slice(0, 1000)
+            })
+          }
+          setStatusMessage(`Ingested ${data.records.length} real hardware packets from backend collector.`)
+        } else {
+          setStatusMessage('No new hardware packets in buffer. Awaiting real ESP32 nodes...')
+        }
+      } else {
+        setStatusMessage('Backend collector offline. Start control.py or controller.py.')
+      }
+    } catch {
+      setStatusMessage('Collector API offline on localhost:8000.')
     }
-    const now = new Date()
-    const dStr = now.toISOString().split('T')[0]
-    const tStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0')
-    const rawRssi = -Math.floor(52 + Math.random() * 32)
-    const ts = Date.now()
-    const useJson = Math.random() > 0.5
-    const payload = useJson
-      ? JSON.stringify({ type: 'raw', timestamp: ts, mac: targetMac, rssi: rawRssi })
-      : `${ts},${targetAnchor.id},${targetMac},${rawRssi},ESP_NODE`
-
-    const newRec: RawDataRecord = {
-      id: `rec_${ts}_${Math.random().toString(36).substring(2, 6)}`,
-      date: dStr,
-      time: tStr,
-      timestamp: ts,
-      anchorId: targetAnchor.id,
-      deviceMac: targetMac,
-      rssi: rawRssi,
-      rawPayload: payload,
-    }
-
-    setRawRecords((prev) => [newRec, ...prev].slice(0, 1000))
-    setRawLines((prev) => [payload, ...prev].slice(0, 1000))
-    setStatusMessage(`Captured new raw packet from ${targetAnchor.id} (RSSI: ${rawRssi} dBm).`)
-    setTimeout(() => setStatusMessage(null), 2500)
+    setTimeout(() => setStatusMessage(null), 3000)
   }
 
   // Filtered records for Data Sheet viewer
@@ -1322,6 +1282,112 @@ export function CollectorView({
             </div>
           </CollectorCollapsible>
 
+          {/* Card: Hardware Nodes & Health */}
+          <CollectorCollapsible
+            title="Hardware Nodes & Health"
+            icon={<M3Beacon size={16} />}
+            defaultOpen={true}
+            badge={
+              <span className="text-[10px] font-mono font-bold text-teal-600 dark:text-teal-400">
+                {anchors.filter((a) => a.status === 'online').length}/{anchors.length} Online
+              </span>
+            }
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-border/40 text-muted-foreground">
+                <span>
+                  Configured:{' '}
+                  <strong className="text-foreground">
+                    {
+                      anchors.filter(
+                        (a) =>
+                          a.configured ??
+                          (Boolean(a.macAddress) && a.macAddress !== 'Unassigned')
+                      ).length
+                    }
+                    /{anchors.length}
+                  </strong>
+                </span>
+                <span>
+                  Active:{' '}
+                  <strong className="text-emerald-600">
+                    {anchors.filter((a) => a.status === 'online').length}/
+                    {anchors.length}
+                  </strong>
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {anchors.map((anc, idx) => {
+                  const isOnline = anc.status === 'online'
+                  const isConfigured =
+                    anc.configured ??
+                    Boolean(anc.macAddress && anc.macAddress !== 'Unassigned')
+                  const isLocked = Boolean(anc.locked)
+                  const nodeLetter = String.fromCharCode(65 + (idx % 4))
+                  const isSel = anc.id === selectedId
+
+                  return (
+                    <div
+                      key={`card_anc_${anc.id}`}
+                      onClick={() => {
+                        setSelectedId(anc.id)
+                        setSelectedType('anchor')
+                      }}
+                      className={`p-2 rounded-xl text-xs border transition-all cursor-pointer ${
+                        isSel
+                          ? 'border-indigo-500 bg-indigo-50/10'
+                          : 'border-border/40 hover:bg-muted/40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              isOnline ? 'bg-emerald-500' : 'bg-zinc-500'
+                            }`}
+                          />
+                          <span
+                            className={
+                              isOnline
+                                ? 'text-foreground'
+                                : 'text-muted-foreground'
+                            }
+                          >
+                            Node {nodeLetter} ({anc.id})
+                          </span>
+                          {isLocked && <span title="MAC Locked">🔒</span>}
+                        </div>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono font-semibold ${
+                            isOnline
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-zinc-500/15 text-zinc-500 dark:text-zinc-400'
+                          }`}
+                        >
+                          {isOnline ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+                        <span
+                          className={
+                            isConfigured
+                              ? 'text-foreground'
+                              : 'text-amber-600 font-semibold'
+                          }
+                        >
+                          {isConfigured
+                            ? anc.macAddress || 'Assigned'
+                            : '⚠ Unconfigured'}
+                        </span>
+                        <span>{anc.port || 'UDP'}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </CollectorCollapsible>
+
           {/* Card 3: Automation & Walk Path */}
           <CollectorCollapsible
             title="Survey Walk & Route"
@@ -1690,6 +1756,7 @@ export function CollectorView({
               {showRangeRings &&
                 anchors.map((anc) => {
                   const radiusPctX = (anc.receptionRangeMeters / dims.width) * 100
+                  const isOnline = anc.status === 'online'
                   return (
                     <circle
                       key={`ring_${anc.id}`}
@@ -1698,9 +1765,9 @@ export function CollectorView({
                       r={radiusPctX}
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="0.4"
+                      strokeWidth={isOnline ? '0.4' : '0.2'}
                       strokeDasharray="1.5,1.5"
-                      className="text-teal-500/40 pointer-events-none"
+                      className={`${isOnline ? 'text-teal-500/40' : 'text-zinc-600/25'} pointer-events-none`}
                     />
                   )
                 })}
@@ -1787,8 +1854,14 @@ export function CollectorView({
               })}
 
               {/* Receiver Anchors */}
-              {anchors.map((anc) => {
+              {anchors.map((anc, idx) => {
                 const isSel = anc.id === selectedId
+                const isOnline = anc.status === 'online'
+                const isConfigured =
+                  anc.configured ??
+                  Boolean(anc.macAddress && anc.macAddress !== 'Unassigned')
+                const isLocked = Boolean(anc.locked)
+                const nodeLetter = String.fromCharCode(65 + (idx % 4))
                 const isHighlighted = highlightedNodeIds.includes(anc.id)
 
                 return (
@@ -1824,15 +1897,17 @@ export function CollectorView({
                         strokeWidth="0.6"
                       />
                     )}
+                    {/* Main Node Box: Greyed out if offline, vibrant indigo if online */}
                     <rect
                       x={anc.x - 1.8}
                       y={anc.y - 1.8}
                       width="3.6"
                       height="3.6"
                       rx="0.8"
-                      fill="#4f46e5"
-                      stroke="#ffffff"
-                      strokeWidth="0.5"
+                      fill={isOnline ? '#4f46e5' : '#27272a'}
+                      stroke={isOnline ? '#ffffff' : '#52525b'}
+                      strokeWidth={isOnline ? '0.5' : '0.4'}
+                      opacity={isOnline ? 1 : 0.75}
                     />
                     <text
                       x={anc.x}
@@ -1840,11 +1915,23 @@ export function CollectorView({
                       textAnchor="middle"
                       fontSize="2.0"
                       fontWeight="800"
-                      fill="#ffffff"
+                      fill={isOnline ? '#ffffff' : '#9ca3af'}
                       className="pointer-events-none"
                     >
-                      A
+                      {nodeLetter}
                     </text>
+                    {/* Lock indicator */}
+                    {isLocked && (
+                      <text
+                        x={anc.x + 1.8}
+                        y={anc.y - 1.8}
+                        textAnchor="middle"
+                        fontSize="1.6"
+                        className="pointer-events-none"
+                      >
+                        🔒
+                      </text>
+                    )}
                     {/* System Name / Label */}
                     <text
                       x={anc.x}
@@ -1852,22 +1939,38 @@ export function CollectorView({
                       textAnchor="middle"
                       fontSize="1.9"
                       fontWeight="700"
-                      fill="currentColor"
-                      className="text-foreground pointer-events-none"
+                      fill={isOnline ? 'currentColor' : '#71717a'}
+                      className={
+                        isOnline
+                          ? 'text-foreground pointer-events-none'
+                          : 'text-muted-foreground pointer-events-none'
+                      }
                     >
                       {anc.systemName || anc.label}
+                    </text>
+                    {/* Status Subtitle: Online / Offline / Unconfigured */}
+                    <text
+                      x={anc.x}
+                      y={anc.y + 5.2}
+                      textAnchor="middle"
+                      fontSize="1.4"
+                      fontWeight="700"
+                      fill={!isConfigured ? '#f59e0b' : (isOnline ? '#10b981' : '#71717a')}
+                      className="pointer-events-none"
+                    >
+                      {!isConfigured ? '⚠ UNCONFIGURED' : (isOnline ? '🟢 ONLINE' : '⚪ OFFLINE')}
                     </text>
                     {/* MAC Subtitle */}
                     {anc.macAddress && (
                       <text
                         x={anc.x}
-                        y={anc.y + 5.4}
+                        y={anc.y + 6.8}
                         textAnchor="middle"
-                        fontSize="1.5"
+                        fontSize="1.3"
                         fontFamily="monospace"
                         fontWeight="600"
                         fill="currentColor"
-                        className="text-muted-foreground pointer-events-none"
+                        className="text-muted-foreground opacity-75 pointer-events-none"
                       >
                         {anc.macAddress}
                       </text>
@@ -2519,14 +2622,14 @@ export function CollectorView({
                 </select>
               </div>
 
-              {/* Inject Test Packet */}
+              {/* Query Hardware Buffer */}
               <button
-                onClick={handleInjectSamplePacket}
+                onClick={handleRefreshHardwareBuffer}
                 className="flex items-center gap-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer"
-                title="Capture an immediate sample uncleaned packet from active ESP32 anchors"
+                title="Sync real telemetry packets from the active ESP32 anchors via collector API"
               >
                 <M3Bolt size={14} />
-                <span>⚡ Capture Test Packet</span>
+                <span>🔄 Sync Hardware Buffer</span>
               </button>
             </div>
 

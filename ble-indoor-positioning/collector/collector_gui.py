@@ -129,10 +129,12 @@ class DataCollectorApp:
         self.active_tab = "collect"
         self.rssi_history: List[Tuple[float, str, int]] = []
         self.anchor_telemetry_ui: Dict[str, Dict[str, tk.Label]] = {}
+        self.nodes_status_ui: Dict[str, Dict[str, tk.Label]] = {}
         self.los_matrix_ui: Dict[str, Dict[str, tk.Label]] = {}
         self.form_widgets: List[tk.Widget] = []
         self.tool_buttons: Dict[str, tk.Button] = {}
         self.stabilize_countdown = 0
+        self._last_nodes_sync_time: float = 0.0
 
         self._configure_styles()
         self._build_shell()
@@ -153,6 +155,10 @@ class DataCollectorApp:
 
         # Initial layout computation
         self._on_canvas_layout_changed()
+
+        # Background streaming and initial hardware nodes status synchronization
+        self.recording_engine.start_stream(self.port_var.get())
+        self._update_nodes_status_ui()
 
         # Check for unfinalized sessions on launch (crash recovery)
         self.root.after(300, self._check_crash_recovery)
@@ -329,8 +335,8 @@ class DataCollectorApp:
         tk.Label(src_box, text="Data Stream Source:", bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 7, "bold")).pack(anchor="w")
         self.cb_port = ttk.Combobox(
             src_box, textvariable=self.port_var,
-            values=["Wireless Wi-Fi (UDP :5005)", "Simulated Stream"],
-            state="readonly", width=24,
+            values=["Wireless Wi-Fi (UDP :5005)"] + [p["device"] for p in list_serial_ports()],
+            state="readonly", width=26,
         )
         self.cb_port.pack()
 
@@ -391,10 +397,13 @@ class DataCollectorApp:
         # 2. OBJECT PROPERTIES / INSPECTOR
         self._build_inspector_section(scroll_content)
 
-        # 3. GEOMETRIC PROPAGATION & LOS MATRIX
+        # 3. HARDWARE NODES CONFIGURATION & LIVE HEALTH
+        self._build_nodes_status_section(scroll_content)
+
+        # 4. GEOMETRIC PROPAGATION & LOS MATRIX
         self._build_propagation_section(scroll_content)
 
-        # 4. EXPERIMENTAL READINESS & STABILIZATION
+        # 5. EXPERIMENTAL READINESS & STABILIZATION
         self._build_condition_section(scroll_content)
 
     def _build_area_section(self, parent: tk.Frame) -> None:
@@ -474,6 +483,126 @@ class DataCollectorApp:
             bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8), justify="left"
         )
         self.inspector_prompt.pack(anchor="w", pady=4)
+
+    def _build_nodes_status_section(self, parent: tk.Frame) -> None:
+        t = self.THEME
+        card = tk.Frame(parent, bg=t["panel"], padx=10, pady=6)
+        card.pack(fill="x")
+
+        hdr = tk.Frame(card, bg=t["panel"])
+        hdr.pack(fill="x", pady=(0, 4))
+        tk.Label(hdr, text="HARDWARE NODES & HEALTH", bg=t["panel"], fg=t["accent"], font=("Segoe UI", 9, "bold")).pack(side="left")
+
+        b_cfg = tk.Button(
+            hdr, text="⚙ ESP32 Setup", bg=t["card"], fg=t["text"],
+            font=("Segoe UI", 7, "bold"), relief="flat", cursor="hand2", padx=6, pady=2,
+            command=self._launch_setup_tool,
+        )
+        b_cfg.pack(side="right")
+
+        self.nodes_status_ui: Dict[str, Dict[str, Any]] = {}
+        for node_k, anc_id, corner in [
+            ("NODE_A", "ANCHOR_01", "SW"),
+            ("NODE_B", "ANCHOR_02", "SE"),
+            ("NODE_C", "ANCHOR_03", "NW"),
+            ("NODE_D", "ANCHOR_04", "NE"),
+        ]:
+            row = tk.Frame(card, bg=t["card"], padx=6, pady=4, highlightthickness=1, highlightbackground=t["border"])
+            row.pack(fill="x", pady=2)
+
+            top_line = tk.Frame(row, bg=t["card"])
+            top_line.pack(fill="x")
+
+            col_swatch = self.ANCHOR_COLORS.get(anc_id, "#38BDF8")
+            lbl_name = tk.Label(top_line, text=f"{node_k[-1]} · {corner} ({anc_id})", bg=t["card"], fg=col_swatch, font=("Segoe UI", 8, "bold"))
+            lbl_name.pack(side="left")
+
+            lbl_online = tk.Label(top_line, text="⚪ OFFLINE", bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 7, "bold"), padx=5, pady=1)
+            lbl_online.pack(side="right")
+
+            bot_line = tk.Frame(row, bg=t["card"])
+            bot_line.pack(fill="x", pady=(2, 0))
+
+            lbl_cfg = tk.Label(bot_line, text="⚠ Not Configured", bg=t["card"], fg="#D97706", font=("Segoe UI", 7))
+            lbl_cfg.pack(side="left")
+
+            lbl_meta = tk.Label(bot_line, text="-- pkts", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 7))
+            lbl_meta.pack(side="right")
+
+            self.nodes_status_ui[node_k] = {
+                "name": lbl_name,
+                "online": lbl_online,
+                "config": lbl_cfg,
+                "meta": lbl_meta,
+                "row": row,
+                "anchor_id": anc_id,
+            }
+
+    def _update_nodes_status_ui(self) -> None:
+        """Query live hardware sync and update UI cards and 2D canvas."""
+        t = self.THEME
+        try:
+            sync_st = self.recording_engine.get_nodes_sync_status()
+        except Exception:
+            return
+
+        nodes = sync_st.get("nodes", {})
+        on_cnt = sync_st.get("online_count", 0)
+        conf_cnt = sync_st.get("configured_count", 0)
+        tot = sync_st.get("total_count", 4)
+
+        # Update Master Sync Label in Top Bar
+        if hasattr(self, "lbl_master_sync"):
+            if on_cnt == tot:
+                self.lbl_master_sync.config(
+                    text=f"● {on_cnt}/{tot} Nodes Online ({conf_cnt}/{tot} Configured)",
+                    bg=t["green_dark"], fg=t["green"],
+                )
+            elif on_cnt > 0:
+                self.lbl_master_sync.config(
+                    text=f"● {on_cnt}/{tot} Online · {conf_cnt}/{tot} Configured",
+                    bg=t["amber_dark"], fg=t["amber"],
+                )
+            else:
+                self.lbl_master_sync.config(
+                    text=f"● 0/{tot} Online ({conf_cnt}/{tot} Configured)",
+                    bg=t["red_dark"], fg="#FCA5A5",
+                )
+
+        # Update Sidebar Hardware Nodes Cards
+        if hasattr(self, "nodes_status_ui"):
+            for node_k, ui in self.nodes_status_ui.items():
+                info = nodes.get(node_k, {})
+                is_on = bool(info.get("online", False))
+                is_conf = bool(info.get("configured", False))
+                is_locked = bool(info.get("locked", False))
+                mac = info.get("mac", "Unassigned")
+                pkts = info.get("packets", 0)
+                ip = info.get("ip", "")
+
+                lock_tag = " 🔒" if is_locked else ""
+                anc_id = info.get("anchor_id", ui.get("anchor_id", "ANCHOR_01"))
+                corner = info.get("corner", "")
+                ui["name"].config(text=f"{node_k[-1]} · {corner} ({anc_id}){lock_tag}")
+
+                if is_on:
+                    ui["online"].config(text="🟢 ONLINE", bg=t["green_dark"], fg=t["green"])
+                else:
+                    ui["online"].config(text="⚪ OFFLINE", bg=t["panel"], fg=t["subtext"])
+
+                if is_conf:
+                    ui["config"].config(text=f"✔ {mac}", fg=t["subtext"])
+                else:
+                    ui["config"].config(text="⚠ Not Configured", fg="#D97706")
+
+                meta_str = f"{pkts} pkts"
+                if ip:
+                    meta_str += f" · {ip}"
+                ui["meta"].config(text=meta_str)
+
+        # Synchronize Canvas Node Rendering (greys out offline nodes)
+        if hasattr(self, "canvas_editor"):
+            self.canvas_editor.set_nodes_status(nodes)
 
     def _build_propagation_section(self, parent: tk.Frame) -> None:
         t = self.THEME
@@ -1314,10 +1443,10 @@ class DataCollectorApp:
     # ACQUISITION LIFECYCLE & THREADING
     # =========================================================================
     def _refresh_serial_ports(self) -> None:
-        ports = ["Simulated Stream"] + [p["device"] for p in list_serial_ports()]
+        ports = ["Wireless Wi-Fi (UDP :5005)"] + [p["device"] for p in list_serial_ports()]
         self.cb_port["values"] = ports
         if self.port_var.get() not in ports:
-            self.port_var.set("Simulated Stream")
+            self.port_var.set("Wireless Wi-Fi (UDP :5005)")
 
     def _freeze_form_parameters(self, freeze: bool) -> None:
         """Lock experimental geometry and parameters during active collection."""
@@ -1511,6 +1640,11 @@ class DataCollectorApp:
     # =========================================================================
     def _process_packet_queue(self) -> None:
         target_max = self.target_samples_var.get()
+        now_ts = time.time()
+        if now_ts - getattr(self, "_last_nodes_sync_time", 0.0) >= 1.2:
+            self._last_nodes_sync_time = now_ts
+            self._update_nodes_status_ui()
+
         while not self.packet_queue.empty():
             pkt = self.packet_queue.get_nowait()
             rssi = int(pkt.get("rssi", -80))
@@ -1522,13 +1656,8 @@ class DataCollectorApp:
 
             # Update master wireless sync indicator
             sync_st = pkt.get("sync_status")
-            if sync_st and hasattr(self, "lbl_master_sync"):
-                on_cnt = sync_st.get("online_count", 0)
-                tot = sync_st.get("total_count", 4)
-                if sync_st.get("in_sync"):
-                    self.lbl_master_sync.config(text=f"● {on_cnt}/{tot} Nodes In Sync", bg=self.THEME["green_dark"], fg=self.THEME["green"])
-                else:
-                    self.lbl_master_sync.config(text=f"● {on_cnt}/{tot} Nodes Online", bg=self.THEME["amber_dark"], fg=self.THEME["amber"])
+            if sync_st:
+                self._update_nodes_status_ui()
 
             now = time.time()
             self.rssi_history.append((now, anc_id, rssi))

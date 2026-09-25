@@ -25,6 +25,7 @@ DEFAULT_REGISTRY: Dict[str, Dict[str, Any]] = {
         "mac": "24:6F:28:1A:4C:01",
         "default_pos": [0.2, 0.2],
         "status": "ready",
+        "locked": False,
         "last_flashed": None,
     },
     "NODE_B": {
@@ -34,6 +35,7 @@ DEFAULT_REGISTRY: Dict[str, Dict[str, Any]] = {
         "mac": "24:6F:28:1A:4C:02",
         "default_pos": [4.8, 0.2],
         "status": "ready",
+        "locked": False,
         "last_flashed": None,
     },
     "NODE_C": {
@@ -43,6 +45,7 @@ DEFAULT_REGISTRY: Dict[str, Dict[str, Any]] = {
         "mac": "24:6F:28:1A:4C:03",
         "default_pos": [0.2, 4.8],
         "status": "ready",
+        "locked": False,
         "last_flashed": None,
     },
     "NODE_D": {
@@ -52,6 +55,7 @@ DEFAULT_REGISTRY: Dict[str, Dict[str, Any]] = {
         "mac": "24:6F:28:1A:4C:04",
         "default_pos": [4.8, 4.8],
         "status": "ready",
+        "locked": False,
         "last_flashed": None,
     },
 }
@@ -108,6 +112,7 @@ def sync_anchors_metadata(registry: Optional[Dict[str, Dict[str, Any]]] = None) 
             "name": info.get("display_name", f"ESP32 {node_key}"),
             "node_key": node_key,
             "corner": info.get("corner", "Unknown"),
+            "locked": bool(info.get("locked", False)),
             "default_pos": info.get("default_pos", [0.0, 0.0]),
         }
 
@@ -118,16 +123,49 @@ def sync_anchors_metadata(registry: Optional[Dict[str, Dict[str, Any]]] = None) 
         pass
 
 
+def is_node_locked(node_key: str) -> bool:
+    """Check if a node has its hardware MAC permanently locked."""
+    registry = load_node_registry()
+    if node_key in registry:
+        return bool(registry[node_key].get("locked", False))
+    return False
+
+
+def set_node_lock(node_key: str, locked: bool) -> Dict[str, Any]:
+    """Lock or unlock a node to prevent or allow MAC modification."""
+    registry = load_node_registry()
+    if node_key not in registry:
+        raise KeyError(f"Unknown node key: {node_key}. Expected one of {list(registry.keys())}")
+    registry[node_key]["locked"] = bool(locked)
+    save_node_registry(registry)
+    return registry[node_key]
+
+
+def lock_node(node_key: str) -> Dict[str, Any]:
+    """Permanently lock a node's hardware MAC binding."""
+    return set_node_lock(node_key, True)
+
+
+def unlock_node(node_key: str) -> Dict[str, Any]:
+    """Unlock a node's hardware MAC binding to allow reassignment or replacement."""
+    return set_node_lock(node_key, False)
+
+
 def bind_mac_to_node(
     node_key: str,
     mac: str,
     status: str = "configured",
-    display_name: Optional[str] = None
+    display_name: Optional[str] = None,
+    force_unlock: bool = False,
 ) -> Dict[str, Any]:
     """Permanently bind a hardware MAC address to a node (Node A, B, C, or D).
 
-    Ensures the MAC is unique: if another node previously held this MAC,
-    it is transferred with a notice.
+    Strictly enforces hardware locking:
+    1. If the node is locked and new MAC differs from its locked MAC:
+       Rejects with PermissionError unless force_unlock is True.
+    2. If the MAC is already locked to another node:
+       Rejects with PermissionError unless force_unlock is True.
+    3. If not locked, any previous assignment is cleanly transferred.
     """
     normalized = normalize_mac(mac)
     registry = load_node_registry()
@@ -135,21 +173,36 @@ def bind_mac_to_node(
     if node_key not in registry:
         raise KeyError(f"Unknown node key: {node_key}. Expected one of {list(registry.keys())}")
 
-    # Remove this MAC from any other node to maintain strict 1:1 binding
+    # Check 1: Target node is locked and cannot be replaced with another MAC
+    target_node = registry[node_key]
+    if target_node.get("locked", False) and not force_unlock:
+        curr_mac = target_node.get("mac", "")
+        if curr_mac and curr_mac.upper() != normalized:
+            raise PermissionError(
+                f"Node {node_key} is LOCKED with MAC {curr_mac}. "
+                f"Cannot replace its MAC with {normalized} unless {node_key} is unlocked first."
+            )
+
+    # Check 2: MAC is already bound to another node
     for other_key, info in registry.items():
         if other_key != node_key and info.get("mac", "").upper() == normalized:
+            if info.get("locked", False) and not force_unlock:
+                raise PermissionError(
+                    f"MAC address {normalized} is LOCKED to {other_key} ({info.get('display_name', '')}). "
+                    f"Cannot assign it to {node_key} unless {other_key} is unlocked first."
+                )
+            # Transfer MAC if other node is unlocked
             info["mac"] = ""
             info["status"] = "unassigned"
 
-    node = registry[node_key]
-    node["mac"] = normalized
-    node["status"] = status
-    node["last_flashed"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    target_node["mac"] = normalized
+    target_node["status"] = status
+    target_node["last_flashed"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if display_name:
-        node["display_name"] = display_name
+        target_node["display_name"] = display_name
 
     save_node_registry(registry)
-    return node
+    return target_node
 
 
 def get_node_by_mac(mac: str) -> Optional[Tuple[str, Dict[str, Any]]]:

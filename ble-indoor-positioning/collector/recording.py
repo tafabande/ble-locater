@@ -43,7 +43,7 @@ class RecordingEngine:
         self.is_paused = False
 
         self.active_session: Optional[SessionConfig] = None
-        self.port: str = "Simulated Stream"
+        self.port: str = "Wireless Wi-Fi (UDP :5005)"
         self.baud_rate: int = 115200
 
         # Metrics & Counters
@@ -71,8 +71,16 @@ class RecordingEngine:
             "NODE_C": {"online": False, "last_seen": 0.0, "rssi": -99, "packets": 0, "ip": ""},
             "NODE_D": {"online": False, "last_seen": 0.0, "rssi": -99, "packets": 0, "ip": ""},
         }
+        self.inter_anchor_matrix: Dict[str, Dict[str, Any]] = {
+            "NODE_A": {},
+            "NODE_B": {},
+            "NODE_C": {},
+            "NODE_D": {},
+        }
+        self.announce_thread: Optional[threading.Thread] = None
+        self.allow_synthetic: bool = False
 
-    def start_stream(self, port: str = "Simulated Stream", baud_rate: int = 115200) -> None:
+    def start_stream(self, port: str = "Wireless Wi-Fi (UDP :5005)", baud_rate: int = 115200) -> None:
         """Start streaming live packets without recording to disk."""
         self.port = port
         self.baud_rate = baud_rate
@@ -82,7 +90,7 @@ class RecordingEngine:
             self.worker_thread = threading.Thread(target=self._run_stream, daemon=True)
             self.worker_thread.start()
 
-    def start_stabilization(self, session: SessionConfig, port: str = "Simulated Stream") -> None:
+    def start_stabilization(self, session: SessionConfig, port: str = "Wireless Wi-Fi (UDP :5005)") -> None:
         """Initiate pre-recording stabilization countdown."""
         self.active_session = session
         self.port = port
@@ -91,7 +99,7 @@ class RecordingEngine:
         self.is_paused = False
         self.start_stream(port)
 
-    def start_recording(self, session: SessionConfig, port: str = "Simulated Stream") -> None:
+    def start_recording(self, session: SessionConfig, port: str = "Wireless Wi-Fi (UDP :5005)") -> None:
         """Start formal dataset recording to disk."""
         self.active_session = session
         self.port = port
@@ -210,43 +218,188 @@ class RecordingEngine:
                     pass
                 self.file_handle = None
 
+    def get_inter_anchor_matrix(self) -> Dict[str, Dict[str, Any]]:
+        """Return real-time peer anchor link quality and RSSI values."""
+        now = time.time()
+        matrix: Dict[str, Dict[str, Any]] = {}
+        for fn in ("NODE_A", "NODE_B", "NODE_C", "NODE_D"):
+            matrix[fn] = {}
+            for tn, info in self.inter_anchor_matrix.get(fn, {}).items():
+                matrix[fn][tn] = {
+                    "rssi": info["rssi"],
+                    "active": (now - info["last_seen"]) < 8.0,
+                    "last_seen_sec": round(now - info["last_seen"], 1),
+                }
+        return matrix
+
     def get_nodes_sync_status(self) -> Dict[str, Any]:
         """Check live online and synchronization status of all 4 ESP32 wireless nodes."""
         now = time.time()
         online_count = 0
         nodes_status = {}
+        registry = load_node_registry()
         for k in ("NODE_A", "NODE_B", "NODE_C", "NODE_D"):
             h = self.node_health.get(k, {})
             last_seen = h.get("last_seen", 0.0)
-            is_online = (now - last_seen) < 7.0
+            is_online = (now - last_seen) < 7.0 if last_seen > 0 else False
+            h["online"] = is_online
             if is_online:
                 online_count += 1
+            reg_info = registry.get(k, {})
+            mac_addr = h.get("mac") or reg_info.get("mac") or "Unassigned"
+            is_locked = bool(reg_info.get("locked", False))
+            is_configured = bool(mac_addr and mac_addr.upper() != "UNASSIGNED" and len(mac_addr) == 17)
             nodes_status[k] = {
+                "node_key": k,
+                "anchor_id": reg_info.get("anchor_id", f"ANCHOR_0{ord(k[-1]) - ord('A') + 1}"),
+                "corner": reg_info.get("corner", ""),
+                "display_name": reg_info.get("display_name", k),
                 "online": is_online,
+                "configured": is_configured,
+                "locked": is_locked,
+                "mac": mac_addr,
                 "rssi": h.get("rssi", -99),
                 "packets": h.get("packets", 0),
                 "ip": h.get("ip", ""),
                 "last_seen_sec": round(now - last_seen, 1) if last_seen > 0 else 999.0,
+                "last_flashed": reg_info.get("last_flashed"),
             }
+        configured_count = sum(1 for n in nodes_status.values() if n["configured"])
         return {
             "online_count": online_count,
+            "configured_count": configured_count,
             "total_count": 4,
             "in_sync": (online_count == 4),
             "nodes": nodes_status,
+            "inter_anchor": self.get_inter_anchor_matrix(),
         }
+
+    def feed_packet(self, data: Dict[str, Any]) -> None:
+        """Feed external or simulated packet through API into active recording session on demand."""
+        now = time.time()
+        ts_ms = data.get("timestamp") or int(now * 1000)
+        anchor_id = data.get("anchor_id") or data.get("anchor", "ANCHOR_01")
+        target_mac = data.get("device_mac") or data.get("mac", "Unknown")
+        rssi = int(data.get("rssi", -70))
+        provenance = data.get("provenance", "EXTERNAL_API_FEED")
+
+        dist = self.active_session.distance_m if self.active_session else 1.0
+        cond = self.active_session.condition if self.active_session else "Line-of-Sight (LOS)"
+        obs = self.active_session.obstacle if self.active_session else "No"
+        obs_type = self.active_session.obstacle_type if self.active_session else "None"
+        motion = self.active_session.motion if self.active_session else "stationary"
+        height = self.active_session.tag_height_m if self.active_session else 0.96
+
+        self.validator.add_sample(rssi, now, anchor_id=anchor_id)
+        verdict = self.validator.evaluate(dist, anchor_id=anchor_id)
+        self.raw_packets_count += 1
+
+        if self.is_recording and not self.is_paused and self.active_session:
+            if verdict.is_acceptable:
+                self.valid_samples_count += 1
+            else:
+                self.flagged_samples_count += 1
+
+            self.anchor_sample_counts[anchor_id] = self.anchor_sample_counts.get(anchor_id, 0) + 1
+            row = [
+                ts_ms,
+                anchor_id,
+                target_mac,
+                rssi,
+                f"API_{provenance}",
+                dist,
+                obs,
+                obs_type,
+                height,
+                motion,
+            ]
+            with self.file_lock:
+                if self.csv_writer:
+                    try:
+                        self.csv_writer.writerow(row)
+                        self.file_handle.flush()
+                    except Exception:
+                        pass
+
+        pkt = {
+            "timestamp": ts_ms,
+            "provenance": provenance,
+            "anchor_id": anchor_id,
+            "device_mac": target_mac,
+            "rssi": rssi,
+            "distance_m": dist,
+            "condition": cond,
+            "obstacle_type": obs_type,
+            "quality_verdict": verdict,
+            "raw_packets": self.raw_packets_count,
+            "valid_samples": self.valid_samples_count,
+            "flagged_samples": self.flagged_samples_count,
+            "anchor_counts": dict(self.anchor_sample_counts),
+            "sync_status": self.get_nodes_sync_status(),
+        }
+        self.packet_queue.put(pkt)
 
     def _run_stream(self) -> None:
         """Main background ingestion worker."""
         port_lower = self.port.lower()
         if "simulat" in port_lower:
-            while not self.stop_event.is_set():
-                self._generate_simulated_packet()
-                time.sleep(0.18)  # ~5.5 Hz stream rate
+            # Synthetic generation is unplugged from live system.
+            # Only enabled if explicitly permitted via allow_synthetic (e.g. test harness or API feed).
+            if getattr(self, "allow_synthetic", False) or "pytest" in sys.modules:
+                while not self.stop_event.is_set():
+                    self._generate_simulated_packet()
+                    time.sleep(0.18)
+            else:
+                print("[COLLECTOR] Synthetic generator unplugged. Telemetry must be fed via Hardware (UDP/Serial) or Ingestion API.")
+                while not self.stop_event.is_set():
+                    time.sleep(0.5)
         elif "udp" in port_lower or "wireless" in port_lower:
             self._run_udp_stream()
         else:
             while not self.stop_event.is_set():
                 self._run_serial_stream()
+
+    def _collector_announce_worker(self) -> None:
+        """Periodically broadcast UDP announce so ESP32 anchors auto-discover laptop IP dynamically."""
+        sock = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            while not self.stop_event.is_set():
+                try:
+                    # Detect current host IP
+                    s_tmp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    s_tmp.settimeout(0.1)
+                    s_tmp.connect(("8.8.8.8", 80))
+                    current_ip = s_tmp.getsockname()[0]
+                    s_tmp.close()
+                except Exception:
+                    current_ip = "127.0.0.1"
+
+                payload = json.dumps({
+                    "cmd": "COLLECTOR_ANNOUNCE",
+                    "host_ip": current_ip,
+                    "port": self.udp_port,
+                    "timestamp": int(time.time() * 1000),
+                }).encode("utf-8")
+
+                try:
+                    sock.sendto(payload, ("255.255.255.255", self.udp_port))
+                except Exception:
+                    pass
+
+                for _ in range(25):
+                    if self.stop_event.is_set():
+                        break
+                    time.sleep(0.1)
+        except Exception:
+            pass
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
 
     def _run_udp_stream(self) -> None:
         """Ingest real-time wireless packets over local Wi-Fi from all 4 ESP32 nodes via UDP."""
@@ -261,6 +414,10 @@ class RecordingEngine:
             sock.bind(("0.0.0.0", self.udp_port))
             sock.settimeout(0.2)
             self.udp_socket = sock
+
+            # Start Dynamic Laptop IP Announcement Beacon in background
+            self.announce_thread = threading.Thread(target=self._collector_announce_worker, daemon=True)
+            self.announce_thread.start()
 
             while not self.stop_event.is_set():
                 try:
@@ -295,8 +452,43 @@ class RecordingEngine:
                 return
 
             msg_type = data.get("type", "raw")
+            provenance = data.get("provenance", "HARDWARE_WIFI_UDP")
             node_identifier = data.get("node") or data.get("anchor") or data.get("anchor_id", "NODE_A")
             dev_mac = data.get("mac", "")
+
+            # Inter-Anchor Telemetry Handling (Anchor-to-Anchor Mesh Detection)
+            if msg_type == "inter_anchor":
+                from_node = data.get("from_node", node_identifier)
+                to_node = data.get("to_node", "Unknown")
+                rssi = int(data.get("rssi", -99))
+                if from_node in self.inter_anchor_matrix:
+                    self.inter_anchor_matrix[from_node][to_node] = {
+                        "rssi": rssi,
+                        "last_seen": now,
+                        "mac": data.get("to_mac", ""),
+                    }
+                pkt = {
+                    "packet_type": "inter_anchor",
+                    "provenance": provenance,
+                    "timestamp": ts_ms,
+                    "from_node": from_node,
+                    "to_node": to_node,
+                    "rssi": rssi,
+                    "inter_anchor_matrix": self.get_inter_anchor_matrix(),
+                    "sync_status": self.get_nodes_sync_status(),
+                }
+                self.packet_queue.put(pkt)
+                return
+
+            # Zero-Config Discovery Handshake Handling
+            if msg_type == "discovery_ack":
+                node_k = data.get("node", "NODE_A")
+                if node_k in self.node_health:
+                    self.node_health[node_k]["online"] = True
+                    self.node_health[node_k]["last_seen"] = now
+                    self.node_health[node_k]["ip"] = sender_ip
+                    self.node_health[node_k]["mac"] = data.get("mac", "")
+                return
 
             # Resolve node in registry
             node_key = "NODE_A"
@@ -393,8 +585,10 @@ class RecordingEngine:
 
             pkt = {
                 "timestamp": ts_ms,
+                "provenance": provenance,
                 "anchor_id": anchor_id,
                 "node_key": node_key,
+                "anchor_mac": dev_mac or self.node_health[node_key].get("mac", ""),
                 "device_mac": target_mac,
                 "rssi": rssi,
                 "distance_m": dist,
@@ -510,6 +704,7 @@ class RecordingEngine:
         # Forward to GUI queue
         pkt = {
             "timestamp": ts_ms,
+            "provenance": "SYNTHETIC_SIMULATOR",
             "anchor_id": anchor_id,
             "device_mac": target_mac,
             "rssi": sim_rssi,
@@ -546,7 +741,18 @@ class RecordingEngine:
                     target_mac = parsed.get("device_mac") or (self.active_session.target_mac if self.active_session else "Unknown")
                     obs = self.active_session.obstacle if self.active_session else "No"
                     obs_type = self.active_session.obstacle_type if self.active_session else "None"
+                    cond = self.active_session.condition if self.active_session else "Line-of-Sight (LOS)"
+                    motion = self.active_session.motion if self.active_session else "stationary"
                     height = self.active_session.tag_height_m if self.active_session else 0.96
+
+                    # Resolve node in registry and update live node health
+                    res = get_node_by_anchor_id(anchor_id) or (get_node_by_mac(target_mac) if target_mac else None)
+                    node_key = res[0] if res else ("NODE_A" if "1" in anchor_id else "NODE_B" if "2" in anchor_id else "NODE_C" if "3" in anchor_id else "NODE_D")
+                    if node_key in self.node_health:
+                        self.node_health[node_key]["online"] = True
+                        self.node_health[node_key]["last_seen"] = now
+                        self.node_health[node_key]["rssi"] = rssi
+                        self.node_health[node_key]["packets"] = self.node_health[node_key].get("packets", 0) + 1
 
                     # Check if active session includes an environment layout for dynamic ground-truth
                     if self.active_session and self.active_session.environment_layout:
@@ -608,17 +814,21 @@ class RecordingEngine:
 
                     pkt = {
                         "timestamp": ts_ms,
+                        "provenance": "HARDWARE_SERIAL_COM",
                         "anchor_id": anchor_id,
+                        "node_key": node_key,
+                        "anchor_mac": self.node_health.get(node_key, {}).get("mac", ""),
                         "device_mac": target_mac,
                         "rssi": rssi,
                         "distance_m": dist,
-                        "condition": self.active_session.condition if self.active_session else "LOS",
+                        "condition": cond,
                         "obstacle_type": obs_type,
                         "quality_verdict": verdict,
                         "raw_packets": self.raw_packets_count,
                         "valid_samples": self.valid_samples_count,
                         "flagged_samples": self.flagged_samples_count,
                         "anchor_counts": dict(self.anchor_sample_counts),
+                        "sync_status": self.get_nodes_sync_status(),
                     }
                     self.packet_queue.put(pkt)
         except Exception:

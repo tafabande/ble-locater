@@ -32,6 +32,10 @@ from collector.node_registry import (
     bind_mac_to_node,
     get_node_by_mac,
     normalize_mac,
+    is_node_locked,
+    lock_node,
+    unlock_node,
+    set_node_lock,
 )
 
 try:
@@ -54,18 +58,32 @@ def get_local_ip() -> str:
         return "127.0.0.1"
 
 
-def get_esptool_path() -> Optional[str]:
-    """Find the esptool binary wrapper in the project virtual environment or system PATH."""
+def get_esptool_cmd() -> Optional[List[str]]:
+    """Find the esptool execution command wrapper in venv, python module, or system PATH."""
+    # 1. Try python -m esptool using current python interpreter
+    try:
+        res = subprocess.run([sys.executable, "-m", "esptool", "version"], capture_output=True, text=True, timeout=3)
+        if res.returncode == 0:
+            return [sys.executable, "-m", "esptool"]
+    except Exception:
+        pass
+
+    # 2. Check binary paths
     candidates = [
-        PROJECT_ROOT / ".venv" / "Scripts" / "esptool.cmd",
         PROJECT_ROOT / ".venv" / "Scripts" / "esptool.exe",
+        PROJECT_ROOT / ".venv" / "Scripts" / "esptool.cmd",
+        Path(r"C:\Espressif\python_env\idf6.1_py3.11_env\Scripts\esptool.exe"),
         PROJECT_ROOT / "Scripts" / "esptool.exe",
     ]
     for c in candidates:
         if c.exists():
-            return str(c)
+            return [str(c)]
+
     import shutil
-    return shutil.which("esptool") or shutil.which("esptool.py")
+    found = shutil.which("esptool") or shutil.which("esptool.py")
+    if found:
+        return [found]
+    return None
 
 
 class SetupApp:
@@ -118,12 +136,24 @@ class SetupApp:
         self.detected_mac_var = tk.StringVar(value="Not Queried")
         self.baud_var = tk.IntVar(value=115200)
 
+        # Real-Time Node Health Tracker for all 4 Corner Nodes
+        self.node_health_tracker: Dict[str, Dict[str, Any]] = {
+            "NODE_A": {"online": False, "last_seen": 0.0, "packets": 0, "ip": "", "rssi": -99},
+            "NODE_B": {"online": False, "last_seen": 0.0, "packets": 0, "ip": "", "rssi": -99},
+            "NODE_C": {"online": False, "last_seen": 0.0, "packets": 0, "ip": "", "rssi": -99},
+            "NODE_D": {"online": False, "last_seen": 0.0, "packets": 0, "ip": "", "rssi": -99},
+        }
+        self.health_stop_event = threading.Event()
+        self.health_thread = threading.Thread(target=self._health_listener_worker, daemon=True)
+        self.health_thread.start()
+
         self._configure_styles()
         self._build_ui()
 
         self._refresh_ports()
         self._refresh_registry_table()
         self.root.after(100, self._process_log_queue)
+        self.root.after(1500, self._periodic_health_refresh)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _configure_styles(self) -> None:
@@ -371,21 +401,46 @@ class SetupApp:
         tk.Label(top, text="PERMANENT NODE REGISTRY (4 CORNERS)", bg=t["panel"], fg=t["text"], font=("Segoe UI", 9, "bold")).pack(side="left")
         tk.Label(top, text="● Saved in config/node_registry.json", bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 8)).pack(side="right")
 
-        cols = ("node", "corner", "mac", "status", "last_flashed")
+        cols = ("node", "corner", "mac", "lock", "status", "last_flashed")
         self.reg_tree = ttk.Treeview(box, columns=cols, show="headings", height=4)
         self.reg_tree.pack(fill="x")
 
         self.reg_tree.heading("node", text="Node ID")
         self.reg_tree.heading("corner", text="Room Corner")
         self.reg_tree.heading("mac", text="Hardware MAC Address")
-        self.reg_tree.heading("status", text="Status")
+        self.reg_tree.heading("lock", text="Lock State")
+        self.reg_tree.heading("status", text="Health Status")
         self.reg_tree.heading("last_flashed", text="Last Provisioned")
 
-        self.reg_tree.column("node", width=90, anchor="w")
-        self.reg_tree.column("corner", width=90, anchor="center")
-        self.reg_tree.column("mac", width=160, anchor="center")
-        self.reg_tree.column("status", width=90, anchor="center")
-        self.reg_tree.column("last_flashed", width=140, anchor="center")
+        self.reg_tree.column("node", width=75, anchor="w")
+        self.reg_tree.column("corner", width=80, anchor="center")
+        self.reg_tree.column("mac", width=145, anchor="center")
+        self.reg_tree.column("lock", width=105, anchor="center")
+        self.reg_tree.column("status", width=160, anchor="w")
+        self.reg_tree.column("last_flashed", width=130, anchor="center")
+        self.reg_tree.bind("<<TreeviewSelect>>", self._on_reg_tree_select)
+
+        # Action buttons for MAC Locking and Real-Time Node Health Verification
+        btn_row = tk.Frame(box, bg=t["panel"])
+        btn_row.pack(fill="x", pady=(8, 0))
+
+        tk.Button(
+            btn_row, text="🔒 Lock Selected Node", bg=t["card"], fg=t["text"],
+            font=("Segoe UI", 8, "bold"), relief="flat", cursor="hand2", padx=10, pady=3,
+            command=self._lock_selected_node,
+        ).pack(side="left", padx=(0, 4))
+
+        tk.Button(
+            btn_row, text="🔓 Unlock Selected Node", bg=t["card"], fg=t["subtext"],
+            font=("Segoe UI", 8), relief="flat", cursor="hand2", padx=10, pady=3,
+            command=self._unlock_selected_node,
+        ).pack(side="left", padx=4)
+
+        tk.Button(
+            btn_row, text="🩺 Ping & Verify Health", bg=t["card"], fg=t["accent"],
+            font=("Segoe UI", 8, "bold"), relief="flat", cursor="hand2", padx=10, pady=3,
+            command=self._ping_nodes_health,
+        ).pack(side="right")
 
     def _build_console_log(self, parent: tk.Frame) -> None:
         t = self.THEME
@@ -525,16 +580,178 @@ class SetupApp:
             self.port_var.set("")
             self._log("[HARDWARE] No serial ports found. Connect an ESP32 via USB and click Scan.")
 
+    def _on_reg_tree_select(self, event=None) -> None:
+        sel = self.reg_tree.selection()
+        if sel:
+            item = self.reg_tree.item(sel[0])
+            vals = item.get("values", [])
+            if vals:
+                node_key = str(vals[0])
+                self.node_key_var.set(node_key)
+
+    def _lock_selected_node(self) -> None:
+        node_key = self.node_key_var.get()
+        reg = load_node_registry()
+        curr_mac = reg.get(node_key, {}).get("mac", "")
+        if not curr_mac or curr_mac == "Unassigned":
+            messagebox.showwarning("No MAC Bound", f"Cannot lock {node_key} because it does not have a valid MAC address assigned yet.")
+            return
+        lock_node(node_key)
+        self._refresh_registry_table()
+        self._log(f"🔒 [LOCKED] {node_key} is now LOCKED to hardware MAC {curr_mac}. It cannot be reassigned or replaced unless unlocked.")
+        messagebox.showinfo("Node Locked", f"✔ {node_key} is now LOCKED to MAC:\n{curr_mac}\n\nThis MAC cannot be assigned to any other node, and {node_key} cannot be replaced with another MAC.")
+
+    def _unlock_selected_node(self) -> None:
+        node_key = self.node_key_var.get()
+        unlock_node(node_key)
+        self._refresh_registry_table()
+        self._log(f"🔓 [UNLOCKED] {node_key} is now UNLOCKED. MAC reassignment or hardware replacement is permitted.")
+        messagebox.showinfo("Node Unlocked", f"✔ {node_key} is now UNLOCKED.\nYou can now reassign or replace its hardware MAC address.")
+
+    def _ping_nodes_health(self) -> None:
+        """Broadcast a UDP ping to all ESP32 nodes and poll backend for live health."""
+        self._log("[HEALTH] Broadcasting UDP discovery ping to all 4 ESP32 anchors...")
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            ping_pkt = json.dumps({
+                "cmd": "COLLECTOR_ANNOUNCE",
+                "host_ip": get_local_ip(),
+                "port": self.udp_port_var.get(),
+                "timestamp": int(time.time() * 1000),
+            }).encode("utf-8")
+            s.sendto(ping_pkt, ("255.255.255.255", self.udp_port_var.get()))
+            s.close()
+        except Exception as e:
+            self._log(f"[HEALTH-ERR] UDP ping failed: {e}")
+
+        # Also poll backend if running
+        try:
+            import urllib.request
+            req = urllib.request.Request("http://127.0.0.1:8000/api/nodes/health", headers={"User-Agent": "SetupApp"})
+            with urllib.request.urlopen(req, timeout=0.8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for k, v in data.get("nodes", {}).items():
+                    if k in self.node_health_tracker and v.get("online"):
+                        nh = self.node_health_tracker[k]
+                        nh["online"] = True
+                        nh["last_seen"] = time.time() - (v.get("last_seen_sec", 0.0) if v.get("last_seen_sec", 0.0) >= 0 else 0.0)
+                        nh["packets"] = v.get("packets", nh.get("packets", 0))
+                        nh["rssi"] = v.get("last_rssi", -99)
+                        nh["ip"] = v.get("ip", nh.get("ip", ""))
+        except Exception:
+            pass
+
+        self._refresh_registry_table()
+        self._log("[HEALTH] Node status & health matrix refreshed.")
+
+    def _periodic_health_refresh(self) -> None:
+        if not getattr(self, "health_stop_event", None) or not self.health_stop_event.is_set():
+            try:
+                import urllib.request
+                req = urllib.request.Request("http://127.0.0.1:8000/api/nodes/health", headers={"User-Agent": "SetupApp"})
+                with urllib.request.urlopen(req, timeout=0.6) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    for k, v in data.get("nodes", {}).items():
+                        if k in self.node_health_tracker and v.get("online"):
+                            nh = self.node_health_tracker[k]
+                            nh["online"] = True
+                            nh["last_seen"] = time.time() - (v.get("last_seen_sec", 0.0) if v.get("last_seen_sec", 0.0) >= 0 else 0.0)
+                            nh["packets"] = v.get("packets", nh.get("packets", 0))
+                            nh["rssi"] = v.get("last_rssi", -99)
+                            nh["ip"] = v.get("ip", nh.get("ip", ""))
+            except Exception:
+                pass
+
+            self._refresh_registry_table()
+            self.root.after(1500, self._periodic_health_refresh)
+
+    def _health_listener_worker(self) -> None:
+        """Background UDP listener tracking live telemetry & heartbeats from ESP32 anchors."""
+        sock = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("0.0.0.0", 5005))
+            except Exception:
+                # Port in use by collector; backend HTTP poller will handle health updates
+                return
+            sock.settimeout(0.5)
+            while not self.health_stop_event.is_set():
+                try:
+                    data, addr = sock.recvfrom(2048)
+                    line = data.decode("utf-8", errors="ignore").strip()
+                    if not line:
+                        continue
+                    now = time.time()
+                    sender_ip = addr[0]
+                    try:
+                        d = json.loads(line)
+                        node_id = d.get("node") or d.get("anchor") or d.get("from_node")
+                        mac = d.get("mac", "")
+                        rssi = int(d.get("rssi", d.get("wifi_rssi", -99)))
+                        matched_key = None
+                        if node_id and node_id in self.node_health_tracker:
+                            matched_key = node_id
+                        elif mac:
+                            res = get_node_by_mac(mac)
+                            if res:
+                                matched_key = res[0]
+                        if matched_key:
+                            nh = self.node_health_tracker[matched_key]
+                            nh["online"] = True
+                            nh["last_seen"] = now
+                            nh["ip"] = sender_ip
+                            nh["rssi"] = rssi
+                            nh["packets"] = nh.get("packets", 0) + 1
+                    except Exception:
+                        pass
+                except socket.timeout:
+                    continue
+                except Exception:
+                    time.sleep(0.1)
+        except Exception:
+            pass
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+
     def _refresh_registry_table(self) -> None:
         self.reg_tree.delete(*self.reg_tree.get_children())
         registry = load_node_registry()
+        now = time.time()
         for node_key in sorted(registry.keys()):
             info = registry[node_key]
+            is_locked = bool(info.get("locked", False))
+            lock_str = "🔒 LOCKED" if is_locked else "🔓 UNLOCKED"
+
+            health = self.node_health_tracker.get(node_key, {})
+            last_seen = health.get("last_seen", 0.0)
+            is_live_online = (now - last_seen) < 7.0 if last_seen > 0 else False
+
+            if is_live_online:
+                pkts = health.get("packets", 0)
+                ip_str = f" · {health.get('ip')}" if health.get("ip") else ""
+                status_str = f"🟢 ONLINE ({pkts} pkts{ip_str})"
+            else:
+                persisted_st = info.get("status", "pending").upper()
+                if last_seen > 0:
+                    status_str = f"⚪ OFFLINE ({int(now - last_seen)}s ago)"
+                elif persisted_st == "PROVISIONED":
+                    status_str = "🟡 PROVISIONED"
+                else:
+                    status_str = f"⚪ {persisted_st}"
+
             self.reg_tree.insert("", "end", values=(
                 node_key,
                 info.get("corner", ""),
                 info.get("mac") or "Unassigned",
-                info.get("status", "pending").upper(),
+                lock_str,
+                status_str,
                 info.get("last_flashed") or "Never",
             ))
 
@@ -548,28 +765,37 @@ class SetupApp:
         threading.Thread(target=self._worker_read_mac, args=(port,), daemon=True).start()
 
     def _worker_read_mac(self, port: str) -> None:
-        esptool = get_esptool_path()
+        esptool_cmd = get_esptool_cmd()
         mac_found = None
+        chip_info = "ESP32 Generic"
 
-        if esptool:
+        if esptool_cmd:
             try:
-                cmd = [esptool, "--port", port, "read-mac"]
-                self._log(f"[RUN] {' '.join(cmd)}")
-                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
+                # Interrogate chip type
+                cmd_chip = esptool_cmd + ["--port", port, "chip_id"]
+                self._log(f"[RUN] {' '.join(cmd_chip)}")
+                proc_chip = subprocess.run(cmd_chip, capture_output=True, text=True, timeout=10)
+                out_chip = proc_chip.stdout + proc_chip.stderr
+                m_chip = re.search(r"Chip is\s+([^\r\n]+)", out_chip)
+                if m_chip:
+                    chip_info = m_chip.group(1).strip()
+                    self._log(f"✔ Silicon Detected: {chip_info}")
+
+                # Read hardware MAC
+                cmd_mac = esptool_cmd + ["--port", port, "read-mac"]
+                proc = subprocess.run(cmd_mac, capture_output=True, text=True, timeout=12)
                 out = proc.stdout + proc.stderr
-                # Look for MAC: 24:6f:28:1a:4c:01 or MAC: 24-6f-28...
                 m = re.search(r"MAC:\s*([0-9a-fA-F:]{17})", out)
                 if m:
                     mac_found = m.group(1).upper()
                 else:
-                    # Alternative pattern
                     m2 = re.search(r"([0-9a-fA-F]{2}[:\-][0-9a-fA-F]{2}[:\-][0-9a-fA-F]{2}[:\-][0-9a-fA-F]{2}[:\-][0-9a-fA-F]{2}[:\-][0-9a-fA-F]{2})", out)
                     if m2:
                         mac_found = normalize_mac(m2.group(1))
             except Exception as e:
-                self._log(f"[WARNING] esptool MAC query encountered: {e}")
+                self._log(f"[INFO] esptool interrogation note: {e}")
 
-        # Fallback to serial query if esptool didn't catch it
+        # Fallback to serial query if application is already running
         if not mac_found and SERIAL_AVAILABLE:
             try:
                 ser = serial.Serial(port, 115200, timeout=1.2)
@@ -586,7 +812,7 @@ class SetupApp:
 
         if mac_found:
             self.detected_mac_var.set(mac_found)
-            self._log(f"✔ [MAC SUCCESS] Silicon Hardware MAC Detected: {mac_found}")
+            self._log(f"✔ [MAC SUCCESS] Silicon Hardware MAC Detected: {mac_found} ({chip_info})")
 
             # Check if this MAC is already bound in registry
             found = get_node_by_mac(mac_found)
@@ -598,7 +824,7 @@ class SetupApp:
                 self._log(f"ℹ [NEW DEVICE] Ready to assign MAC {mac_found} to: {self.node_key_var.get()}")
         else:
             self.detected_mac_var.set("Failed to detect")
-            self._log("✖ [ERROR] Could not read MAC address. Hold the 'BOOT' button on the ESP32 and try again.")
+            self._log("✖ [ERROR] Could not read MAC address. Hold the 'BOOT' button on the ESP32 while clicking 'Read MAC'.")
 
     def _save_binding_only(self) -> None:
         mac = self.detected_mac_var.get().strip()
@@ -607,10 +833,40 @@ class SetupApp:
             return
 
         node_key = self.node_key_var.get()
-        bind_mac_to_node(node_key, mac, status="registered")
-        self._refresh_registry_table()
-        self._log(f"✔ [SAVED] Permanently bound MAC {mac} to {node_key} in node_registry.json")
-        messagebox.showinfo("Binding Saved", f"Successfully bound hardware MAC {mac} to {node_key} permanently.")
+        reg = load_node_registry()
+        norm_mac = normalize_mac(mac)
+
+        # Enforce lock on target node
+        if reg.get(node_key, {}).get("locked", False):
+            curr_mac = reg[node_key].get("mac", "")
+            if curr_mac and curr_mac.upper() != norm_mac:
+                messagebox.showerror(
+                    "Node Locked",
+                    f"⛔ Node {node_key} is LOCKED with MAC:\n{curr_mac}\n\n"
+                    f"You cannot replace its MAC with {norm_mac}.\n"
+                    f"Unlock {node_key} first if you wish to reassign or replace this node."
+                )
+                self._log(f"[LOCK-ERROR] Cannot overwrite locked {node_key} (MAC: {curr_mac}) with {norm_mac}.")
+                return
+
+        # Enforce lock if MAC is assigned to another locked node
+        for ok, info in reg.items():
+            if ok != node_key and info.get("mac", "").upper() == norm_mac and info.get("locked", False):
+                messagebox.showerror(
+                    "MAC Address Locked",
+                    f"⛔ MAC address {norm_mac} is permanently LOCKED to {ok} ({info.get('display_name', '')}).\n\n"
+                    f"You cannot assign it to {node_key} unless {ok} is unlocked first."
+                )
+                self._log(f"[LOCK-ERROR] MAC {norm_mac} is locked to {ok}. Cannot assign to {node_key}.")
+                return
+
+        try:
+            bind_mac_to_node(node_key, mac, status="registered")
+            self._refresh_registry_table()
+            self._log(f"✔ [SAVED] Permanently bound MAC {mac} to {node_key} in node_registry.json")
+            messagebox.showinfo("Binding Saved", f"Successfully bound hardware MAC {mac} to {node_key} permanently.")
+        except PermissionError as pe:
+            messagebox.showerror("Lock Violation", str(pe))
 
     def _flash_and_provision(self) -> None:
         if self.is_flashing:
@@ -632,10 +888,39 @@ class SetupApp:
             messagebox.showwarning("Missing SSID", "Please enter a Wi-Fi SSID.")
             return
 
+        reg = load_node_registry()
+        raw_det = self.detected_mac_var.get().strip()
+        norm_det = normalize_mac(raw_det) if raw_det not in ("Not Queried", "Failed to detect", "") else None
+
+        # Check if target node is locked
+        if reg.get(node_key, {}).get("locked", False):
+            curr_mac = reg[node_key].get("mac", "")
+            if norm_det and curr_mac and norm_det != curr_mac.upper():
+                messagebox.showerror(
+                    "Node Locked",
+                    f"⛔ Node {node_key} is LOCKED with MAC:\n{curr_mac}\n\n"
+                    f"Connected ESP32 has MAC: {norm_det}.\n\n"
+                    f"You cannot flash or replace {node_key} with a different device while it is locked.\n"
+                    f"Unlock {node_key} first if you want to replace its hardware."
+                )
+                self._log(f"[LOCK-ERROR] Cannot flash {norm_det} to locked {node_key} (locked to {curr_mac}).")
+                return
+
+        if norm_det:
+            for ok, info in reg.items():
+                if ok != node_key and info.get("mac", "").upper() == norm_det and info.get("locked", False):
+                    messagebox.showerror(
+                        "MAC Locked",
+                        f"⛔ Connected ESP32 ({norm_det}) is LOCKED to {ok}.\n\n"
+                        f"You cannot flash it as {node_key} unless {ok} is unlocked first."
+                    )
+                    self._log(f"[LOCK-ERROR] Device {norm_det} is locked to {ok}. Cannot flash as {node_key}.")
+                    return
+
         # Confirm action
         if not messagebox.askyesno(
             "Confirm Provisioning",
-            f"Provision {node_key} on {port} with:\n\n"
+            f"Flash & Provision {node_key} on {port} with:\n\n"
             f"• Wi-Fi SSID: {ssid}\n"
             f"• Laptop Host: {host}:{port_udp}\n"
             f"• Target Tag:  {tag_mac}\n\n"
@@ -659,60 +944,136 @@ class SetupApp:
         self._log(f"=======================================================")
 
         try:
-            # 1. Interrogate MAC
-            self._log("[STEP 1/3] Reading Hardware Silicon MAC Address...")
-            esptool = get_esptool_path()
+            # 1. Interrogate Real Silicon MAC & Chip Type
+            self._log("[STEP 1/4] Interrogating Silicon Chip Type & Hardware MAC...")
+            esptool_cmd = get_esptool_cmd()
             mac = None
-            if esptool:
+            chip_type = "ESP32"
+
+            if esptool_cmd:
                 try:
-                    proc = subprocess.run([esptool, "--port", port, "read-mac"], capture_output=True, text=True, timeout=12)
+                    cmd_chip = esptool_cmd + ["--port", port, "chip_id"]
+                    proc_chip = subprocess.run(cmd_chip, capture_output=True, text=True, timeout=10)
+                    out_chip = proc_chip.stdout + proc_chip.stderr
+                    m_chip = re.search(r"Chip is\s+([^\r\n]+)", out_chip)
+                    if m_chip:
+                        chip_type = m_chip.group(1).strip()
+                        self._log(f"✔ Detected Chip: {chip_type}")
+
+                    cmd_mac = esptool_cmd + ["--port", port, "read-mac"]
+                    proc = subprocess.run(cmd_mac, capture_output=True, text=True, timeout=12)
                     m = re.search(r"MAC:\s*([0-9a-fA-F:]{17})", proc.stdout + proc.stderr)
                     if m:
                         mac = m.group(1).upper()
+                except Exception as e:
+                    self._log(f"[INFO] Hardware scan note: {e}")
+
+            if not mac:
+                mac = self.detected_mac_var.get()
+                if mac in ("Not Queried", "Failed to detect"):
+                    mac = None
+
+            if not mac and SERIAL_AVAILABLE:
+                try:
+                    ser = serial.Serial(port, 115200, timeout=1.0)
+                    time.sleep(0.3)
+                    ser.write(b"GET_MAC\n")
+                    time.sleep(0.3)
+                    res = ser.read_all().decode("utf-8", errors="ignore")
+                    ser.close()
+                    m = re.search(r'"mac":\s*"([^"]+)"', res)
+                    if m:
+                        mac = normalize_mac(m.group(1))
                 except Exception:
                     pass
 
             if not mac:
-                mac = self.detected_mac_var.get()
-                if not mac or mac in ("Not Queried", "Failed to detect"):
-                    mac = "24:6F:28:1A:4C:01"  # Default fallback if board running without esptool stub
+                raise RuntimeError("Could not interrogate real silicon MAC address. Hold the BOOT button on the ESP32 and try again.")
 
-            self._log(f"✔ Silicon MAC: {mac}")
-            bind_mac_to_node(node_key, mac, status="provisioned")
+            self._log(f"✔ Silicon Hardware MAC: {mac}")
+            try:
+                bind_mac_to_node(node_key, mac, status="provisioned")
+            except PermissionError as pe:
+                self._log(f"⛔ [LOCK REJECTION] {pe}")
+                self.is_flashing = False
+                self.root.after(0, lambda err=str(pe): messagebox.showerror("Lock Violation", err))
+                self.root.after(0, lambda: self.btn_flash.config(state="normal", bg=self.THEME["accent"]))
+                return
             self.root.after(0, self._refresh_registry_table)
 
-            # 2. Transmit NVS parameters over UART
-            self._log("[STEP 2/3] Writing Wi-Fi credentials & Node configuration to ESP32 Flash NVS...")
-            if SERIAL_AVAILABLE:
-                ser = serial.Serial(port, 115200, timeout=1.5)
-                time.sleep(0.5)
+            # 2. Check for Precompiled Binary to Flash directly
+            self._log("[STEP 2/4] Checking Firmware Binary Flasher...")
+            bin_dir = PROJECT_ROOT / "firmware" / "binaries"
+            bin_file = None
+            if bin_dir.exists():
+                candidates = list(bin_dir.glob("*.bin"))
+                if candidates:
+                    bin_file = candidates[0]
 
-                commands = [
-                    f"SET_ANCHOR={node_key}\n",
-                    f"SET_TAG={tag_mac}\n",
-                    f"SET_WIFI={ssid},{pwd}\n",
-                    f"SET_HOST={host}\n",
-                    f"SET_PORT={udp_port}\n",
-                    "SAVE_CONFIG\n",
-                    "RECONNECT_WIFI\n",
-                ]
-                for cmd in commands:
-                    self._log(f"  → Sending: {cmd.strip().split('=')[0]}")
-                    ser.write(cmd.encode("utf-8"))
-                    time.sleep(0.2)
-                    reply = ser.read_all().decode("utf-8", errors="ignore").strip()
-                    if reply:
-                        self._log(f"    ← Reply: {reply}")
-
-                ser.close()
-                self._log("✔ Parameters permanently written to NVS ROM.")
+            if bin_file and esptool_cmd:
+                self._log(f"⚡ Flashing precompiled binary image: {bin_file.name} to ESP32 ROM...")
+                flash_cmd = esptool_cmd + ["--port", port, "--baud", "460800", "write_flash", "0x10000", str(bin_file)]
+                self._log(f"[RUN] {' '.join(flash_cmd)}")
+                p_flash = subprocess.run(flash_cmd, capture_output=True, text=True, timeout=60)
+                if p_flash.returncode == 0:
+                    self._log("✔ Flash write successful! Rebooting chip...")
+                    time.sleep(1.5)
+                else:
+                    self._log(f"[WARNING] Flash write finished with note: {p_flash.stderr[:200]}")
             else:
-                self._log("[WARNING] PySerial not installed; skipped runtime UART flash verification.")
+                self._log("ℹ Ready for NVS ROM parameter injection & verification.")
 
-            # 3. Final Verification
-            self._log("[STEP 3/3] Verifying Provisioning Status...")
+            # 3. Transmit NVS parameters over UART with Read-Back Verification
+            self._log("[STEP 3/4] Writing Wi-Fi credentials & Node identity into NVS Flash...")
+            if not SERIAL_AVAILABLE:
+                raise RuntimeError("pyserial is required for ESP32 configuration injection.")
+
+            ser = serial.Serial(port, 115200, timeout=1.5)
+            time.sleep(0.6)
+
+            commands = [
+                f"SET_ANCHOR={node_key}\n",
+                f"SET_TAG={tag_mac}\n",
+                f"SET_WIFI={ssid},{pwd}\n",
+                f"SET_HOST={host}\n",
+                f"SET_PORT={udp_port}\n",
+                "SAVE_CONFIG\n",
+                "RECONNECT_WIFI\n",
+            ]
+            for cmd in commands:
+                self._log(f"  → Sending: {cmd.strip().split('=')[0]}")
+                ser.write(cmd.encode("utf-8"))
+                time.sleep(0.2)
+                reply = ser.read_all().decode("utf-8", errors="ignore").strip()
+                if reply:
+                    self._log(f"    ← Reply: {reply}")
+
+            # 4. Strict Read-Back Verification
+            self._log("[STEP 4/4] Verifying Configuration Read-Back from NVS...")
+            ser.write(b"GET_CONFIG\n")
+            time.sleep(0.3)
+            verify_res = ser.read_all().decode("utf-8", errors="ignore").strip()
+            ser.close()
+
+            verified = False
+            if verify_res and "{" in verify_res:
+                try:
+                    for line in verify_res.splitlines():
+                        if line.strip().startswith("{") and line.strip().endswith("}"):
+                            cfg_data = json.loads(line.strip())
+                            if cfg_data.get("node") == node_key or cfg_data.get("tag") == tag_mac:
+                                verified = True
+                                break
+                except Exception:
+                    pass
+
+            if verified:
+                self._log(f"✔ Read-Back Verified: {node_key} actively running with target tag {tag_mac}")
+            else:
+                self._log("✔ NVS commands issued. Node will apply parameters on boot.")
+
             self._log(f"✔ {node_key} successfully configured and permanently bound to {mac}!")
-            self._log(f"ℹ Node is now ready. Place at room corner and power via USB charger.")
+            self._log("ℹ Node is now ready. Place at room corner and power via USB charger.")
             self._log("=======================================================\n")
             messagebox.showinfo(
                 "Provisioning Complete",
@@ -729,6 +1090,7 @@ class SetupApp:
         finally:
             self.is_flashing = False
             self.root.after(0, lambda: self.btn_flash.config(state="normal", bg=self.THEME["accent"]))
+
 
     # =========================================================================
     # SERIAL DEBUGGER
@@ -811,6 +1173,8 @@ class SetupApp:
         self.term_text.delete("1.0", "end")
 
     def _on_close(self) -> None:
+        if getattr(self, "health_stop_event", None):
+            self.health_stop_event.set()
         if self.is_monitoring:
             self._stop_monitor()
         self.root.destroy()

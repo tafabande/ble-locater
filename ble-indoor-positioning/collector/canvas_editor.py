@@ -87,11 +87,42 @@ class CanvasEditor:
         # Selection: tuple of (type, id) e.g. ("anchor", "ANCHOR_01"), ("target", "TARGET_01"), ("barrier", barrier_id)
         self.selected_item: Optional[Tuple[str, str]] = None
 
+        # Live Hardware Nodes Health & Configuration Status
+        self.nodes_status: Dict[str, Dict[str, Any]] = {}
+
         # Drag tracking
         self.drag_start_canvas: Optional[Tuple[float, float]] = None
         self.drag_start_phys: Optional[Tuple[float, float]] = None
 
         self._bind_events()
+
+    def set_nodes_status(self, status: Dict[str, Any]) -> None:
+        """Update live status & configuration information for canvas rendering."""
+        if not status:
+            return
+        if "nodes" in status and isinstance(status["nodes"], dict):
+            self.nodes_status = status["nodes"]
+        else:
+            self.nodes_status = status
+        self.redraw()
+
+    def _get_node_status_for_anchor(self, anc_id: str) -> Dict[str, Any]:
+        """Lookup node health/configuration info by anchor_id or node key."""
+        if not self.nodes_status:
+            return {}
+        if anc_id in self.nodes_status:
+            return self.nodes_status[anc_id]
+        try:
+            num = int(anc_id.replace("ANCHOR_", ""))
+            node_key = f"NODE_{chr(ord('A') + num - 1)}"
+            if node_key in self.nodes_status:
+                return self.nodes_status[node_key]
+        except Exception:
+            pass
+        for k, v in self.nodes_status.items():
+            if isinstance(v, dict) and v.get("anchor_id") == anc_id:
+                return v
+        return {}
 
     def render(self) -> None:
         """Alias for redraw()."""
@@ -326,29 +357,43 @@ class CanvasEditor:
             if not anc.is_placed:
                 continue
 
+            node_st = self._get_node_status_for_anchor(anc_id)
+            is_online = bool(node_st.get("online", False)) if self.nodes_status else True
+
             au, av = self.coords.to_canvas(anc.x_m, anc.y_m)
             is_los, obstacle_name = los_status.get(anc_id, (True, None))
 
-            line_color = "#10B981" if is_los else "#EF4444"
-            dash_pattern = () if is_los else (5, 4)
+            if not is_online:
+                line_color = "#52525B"
+                dash_pattern = (4, 4)
+                line_w = 1
+            else:
+                line_color = "#10B981" if is_los else "#EF4444"
+                dash_pattern = () if is_los else (5, 4)
+                line_w = 2
 
             # Draw ray
-            c.create_line(au, av, tu, tv, fill=line_color, width=2, dash=dash_pattern)
+            c.create_line(au, av, tu, tv, fill=line_color, width=line_w, dash=dash_pattern)
 
             # Draw mid-ray distance badge
             if self.show_distances or self.show_los:
                 mid_u = (au + tu) / 2.0
                 mid_v = (av + tv) / 2.0
                 dist_val = distances.get(anc_id, 0.0)
-                if self.show_distances and self.show_los:
-                    tag_text = f"{dist_val:.2f}m LOS" if is_los else f"{dist_val:.2f}m NLOS ({obstacle_name})"
-                elif self.show_distances:
-                    tag_text = f"{dist_val:.2f}m"
+                if not is_online:
+                    tag_text = f"{dist_val:.2f}m (OFFLINE)"
+                    c.create_rectangle(mid_u - 46, mid_v - 9, mid_u + 46, mid_v + 9, fill="#18181B", outline="#52525B")
+                    c.create_text(mid_u, mid_v, text=tag_text, fill="#9CA3AF", font=("Segoe UI", 7, "bold"))
                 else:
-                    tag_text = "LOS" if is_los else f"NLOS ({obstacle_name})"
+                    if self.show_distances and self.show_los:
+                        tag_text = f"{dist_val:.2f}m LOS" if is_los else f"{dist_val:.2f}m NLOS ({obstacle_name})"
+                    elif self.show_distances:
+                        tag_text = f"{dist_val:.2f}m"
+                    else:
+                        tag_text = "LOS" if is_los else f"NLOS ({obstacle_name})"
 
-                c.create_rectangle(mid_u - 46, mid_v - 9, mid_u + 46, mid_v + 9, fill="#1E293B", outline=line_color)
-                c.create_text(mid_u, mid_v, text=tag_text, fill="#FFFFFF", font=("Segoe UI", 7, "bold"))
+                    c.create_rectangle(mid_u - 46, mid_v - 9, mid_u + 46, mid_v + 9, fill="#1E293B", outline=line_color)
+                    c.create_text(mid_u, mid_v, text=tag_text, fill="#FFFFFF", font=("Segoe UI", 7, "bold"))
 
     def _draw_barriers(self) -> None:
         c = self.canvas
@@ -399,6 +444,13 @@ class CanvasEditor:
             if not anc.is_placed:
                 continue
 
+            node_st = self._get_node_status_for_anchor(anc_id)
+            has_status = bool(self.nodes_status)
+            is_online = bool(node_st.get("online", False)) if has_status else False
+            mac_str = node_st.get("mac") or ""
+            is_configured = bool(node_st.get("configured", False if not mac_str or mac_str.upper() == "UNASSIGNED" else True))
+            is_locked = bool(node_st.get("locked", False))
+
             is_selected = (self.selected_item == ("anchor", anc_id))
             u, v = self.coords.to_canvas(anc.x_m, anc.y_m)
             r = 13
@@ -407,20 +459,56 @@ class CanvasEditor:
             if is_selected:
                 c.create_oval(u - r - 4, v - r - 4, u + r + 4, v + r + 4, outline="#F59E0B", width=2, dash=(3, 3))
 
-            # Main badge
-            node_color = self.ANCHOR_COLORS.get(anc_id, "#38BDF8")
-            c.create_oval(u - r, v - r, u + r, v + r, fill="#0284C7", outline=node_color, width=2)
+            # Offline nodes get GREYED OUT on the canvas
+            node_theme_color = self.ANCHOR_COLORS.get(anc_id, "#38BDF8")
+            if not is_online:
+                fill_color = "#27272A"       # Muted dark grey fill
+                outline_color = "#52525B"    # Dimmed grey outline
+                letter_color = "#9CA3AF"     # Dimmed grey letter
+                label_color = "#71717A"      # Dimmed coordinates
+                border_width = 1
+            else:
+                fill_color = "#0284C7"       # Vibrant active blue
+                outline_color = node_theme_color  # Anchor designated color
+                letter_color = "#FFFFFF"
+                label_color = "#E2E8F0"
+                border_width = 2
+
+            # Main badge circle
+            c.create_oval(u - r, v - r, u + r, v + r, fill=fill_color, outline=outline_color, width=border_width)
 
             # Node Letter (A, B, C, D)
             letter = anc.label.replace("Node ", "") if anc.label else anc_id[-1]
-            c.create_text(u, v, text=letter, fill="#FFFFFF", font=("Segoe UI", 9, "bold"))
+            c.create_text(u, v, text=letter, fill=letter_color, font=("Segoe UI", 9, "bold"))
 
-            # Label tag with coordinates
+            # Lock indicator on top right of node
+            if is_locked:
+                c.create_text(u + r, v - r, text="🔒", font=("Segoe UI", 7))
+
+            # Online beacon pulse/dot if online
+            if is_online:
+                c.create_oval(u + 7, v - 13, u + 15, v - 5, fill="#10B981", outline="#052E16", width=1)
+
+            # Top label tag with coordinates
             c.create_text(
                 u, v - 20,
                 text=f"{anc.label} ({anc.x_m:.2f}m, {anc.y_m:.2f}m)",
-                fill="#E2E8F0", font=("Segoe UI", 8, "bold"),
+                fill=label_color, font=("Segoe UI", 8, "bold"),
             )
+
+            # Sub-pill badge below anchor: Configuration & Online Status
+            if not is_configured:
+                # Not configured / Unassigned MAC
+                c.create_rectangle(u - 46, v + 16, u + 46, v + 28, fill="#18181B", outline="#D97706")
+                c.create_text(u, v + 22, text="⚠ UNCONFIGURED", fill="#FBBF24", font=("Segoe UI", 6, "bold"))
+            elif not is_online:
+                # Configured but currently offline (greyed out)
+                c.create_rectangle(u - 32, v + 16, u + 32, v + 28, fill="#18181B", outline="#52525B")
+                c.create_text(u, v + 22, text="⚪ OFFLINE", fill="#9CA3AF", font=("Segoe UI", 7, "bold"))
+            else:
+                # Online and configured
+                c.create_rectangle(u - 30, v + 16, u + 30, v + 28, fill="#064E3B", outline="#10B981")
+                c.create_text(u, v + 22, text="🟢 ONLINE", fill="#34D399", font=("Segoe UI", 7, "bold"))
 
     def _draw_target(self) -> None:
         target = self.layout.target

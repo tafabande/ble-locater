@@ -1,0 +1,46 @@
+{
+  "ANCHOR_01": {
+    "mac": "C8:2E:18:26:39:A0",
+    "name": "ESP32-A (Corner SW)",
+    "node_key": "NODE_A",
+    "corner": "SW",
+    "locked": true,
+    "default_pos": [
+      0.2,
+      0.2
+    ]
+  },
+  "ANCHOR_02": {
+    "mac": "24:6F:28:1A:4C:02",
+    "name": "ESP32-B (Corner SE)",
+    "node_key": "NODE_B",
+    "corner": "SE",
+    "locked": false,
+    "default_pos": [
+      4.8,
+      0.2
+    ]
+  },
+  "ANCHOR_03": {
+    "mac": "D4:8A:FC:CE:E0:44",
+    "name": "ESP32-C (Corner NW)",
+    "node_key": "NODE_C",
+    "corner": "NW",
+    "locked": false,
+    "default_pos": [
+      0.2,
+      4.8
+    ]
+  },
+  "ANCHOR_04": {
+    "mac": "24:6F:28:1A:4C:04",
+    "name": "ESP32-D (Corner NE)",
+    "node_key": "NODE_D",
+    "corner": "NE",
+    "locked": false,
+    "default_pos": [
+      4.8,
+      4.8
+    ]
+  }
+}

@@ -52,7 +52,7 @@ class SessionConfig:
     tag_height_m: float = 0.96
     notes: str = ""
     target_samples: int = 100
-    data_source: str = "Simulated Stream"
+    data_source: str = "Wireless Wi-Fi (UDP :5005)"
     raw_dir: Path = field(default_factory=lambda: RAW_DATA_DIR)
     environment_layout: Optional[Dict[str, Any]] = None
     created_at: str = field(default_factory=lambda: datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -138,7 +138,7 @@ class SessionManager:
         obstacle: str = "No",
         obstacle_type: str = "None",
         motion: str = "stationary",
-        data_source: str = "Simulated Stream",
+        data_source: str = "Wireless Wi-Fi (UDP :5005)",
         environment_layout: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str, Optional[SessionConfig]]:
         """Create and initialize a new data collection session."""

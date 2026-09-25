@@ -12,7 +12,8 @@ from server.app import (
     get_alerts, clear_alerts, get_position_history,
     search_assets, list_assets, get_asset, create_asset, AssetCreate, update_asset, AssetUpdate, delete_asset,
     get_nearby_assets, get_contextual_map, get_confidence_heatmap,
-    configure_anchor, ConfigUpdate
+    configure_anchor, ConfigUpdate,
+    get_nodes_health, lock_node_api, unlock_node_api, NodeLockRequest
 )
 
 @pytest.mark.anyio
@@ -179,4 +180,39 @@ async def test_schematic_zero_defaults_and_roundtrip(tmp_path, monkeypatch):
     assert len(reloaded["rooms"]) == 1
     assert len(reloaded["anchors"]) == 4
     assert {a["id"] for a in reloaded["anchors"]} == {"A_TL", "A_TR", "A_BL", "A_BR"}
+
+
+@pytest.mark.anyio
+async def test_nodes_health_and_locking_api():
+    """Verify that node health query and lock/unlock API routes function accurately."""
+    # 1. Query nodes health
+    health = await get_nodes_health()
+    assert health["status"] == "healthy"
+    assert "nodes" in health
+    assert "NODE_A" in health["nodes"]
+    assert "NODE_B" in health["nodes"]
+    assert "NODE_C" in health["nodes"]
+    assert "NODE_D" in health["nodes"]
+    assert "locked" in health["nodes"]["NODE_A"]
+    assert "online" in health["nodes"]["NODE_A"]
+
+    # 2. Lock API
+    lock_res = await lock_node_api(NodeLockRequest(node_key="NODE_A", locked=True))
+    assert lock_res["status"] == "ok"
+    assert lock_res["locked"] is True
+
+    # Confirm health reflects lock state
+    h2 = await get_nodes_health()
+    assert h2["nodes"]["NODE_A"]["locked"] is True
+
+    # 3. Unlock API
+    unlock_res = await unlock_node_api(NodeLockRequest(node_key="NODE_A", locked=False))
+    assert unlock_res["status"] == "ok"
+    assert unlock_res["locked"] is False
+
+    # Re-lock NODE_A per user preference
+    await lock_node_api(NodeLockRequest(node_key="NODE_A", locked=True))
+    h3 = await get_nodes_health()
+    assert h3["nodes"]["NODE_A"]["locked"] is True
+
 

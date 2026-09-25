@@ -228,19 +228,31 @@ DEFAULT_ANCHORS_METADATA = {
 def get_anchors_broadcast():
     res = {}
     metadata = shared.get('anchors_metadata', {})
+    now = time.time()
     for aid, coords in shared['anchors_config'].items():
         meta = metadata.get(aid, {})
+        ah = shared.setdefault('anchor_health', {}).get(aid, {})
+        last_seen = ah.get('last_seen', 0.0)
+        is_online = (now - last_seen) < 7.0 if last_seen > 0 else False
+        mac_val = meta.get('mac') or meta.get('mac_address') or ''
+        is_conf = bool(mac_val and mac_val.upper() != 'UNASSIGNED' and len(mac_val) == 17)
         res[aid] = {
             'id': aid,
             'x': coords[0],
             'y': coords[1],
-            'mac': meta.get('mac') or meta.get('mac_address') or '',
-            'name': meta.get('name') or meta.get('system_name') or aid
+            'mac': mac_val,
+            'name': meta.get('name') or meta.get('system_name') or aid,
+            'locked': bool(meta.get('locked', False)),
+            'configured': is_conf,
+            'online': is_online,
+            'status': 'ONLINE' if is_online else 'OFFLINE',
+            'last_seen_sec': round(now - last_seen, 1) if last_seen > 0 else -1,
+            'packets': ah.get('packets', 0),
         }
     return res
 
 asset_registry_inst = AssetRegistry()
-shared = {'model': None, 'scaler': None, 'model_metadata': None, 'zone_model': None, 'zone_scaler': None, 'anchors_config': DEFAULT_ANCHORS_CONFIG.copy(), 'anchors_metadata': DEFAULT_ANCHORS_METADATA.copy(), 'trilateration_engine': TrilaterationEngine(DEFAULT_ANCHORS_CONFIG), 'online_learner': OnlineDistanceLearner(), 'geofence_engine': GeofenceEngine(), 'tag_manager': TagStateManager(), 'position_db': PositionHistoryDB(), 'asset_registry': asset_registry_inst, 'search_engine': SearchEngine(asset_registry_inst), 'active_connections': []}
+shared = {'model': None, 'scaler': None, 'model_metadata': None, 'zone_model': None, 'zone_scaler': None, 'anchors_config': DEFAULT_ANCHORS_CONFIG.copy(), 'anchors_metadata': DEFAULT_ANCHORS_METADATA.copy(), 'anchor_health': {}, 'trilateration_engine': TrilaterationEngine(DEFAULT_ANCHORS_CONFIG), 'online_learner': OnlineDistanceLearner(), 'geofence_engine': GeofenceEngine(), 'tag_manager': TagStateManager(), 'position_db': PositionHistoryDB(), 'asset_registry': asset_registry_inst, 'search_engine': SearchEngine(asset_registry_inst), 'active_connections': []}
 
 def load_ml_assets():
     model_path = os.path.join(PROJECT_ROOT, 'models', 'distance_estimator.joblib')
@@ -477,6 +489,10 @@ def add_raw_packet(packet: PacketData):
                 true_dist = math.sqrt((tx - ax) ** 2 + (ty - ay) ** 2)
                 raw_est = tag.estimated_distances.get(anchor_id, true_dist)
                 shared['online_learner'].learn_sample(anchor_id, rssi_val, true_dist, raw_est)
+        ah = shared.setdefault('anchor_health', {}).setdefault(anchor_id, {'packets': 0})
+        ah['last_seen'] = time.time()
+        ah['packets'] = ah.get('packets', 0) + 1
+        ah['rssi'] = rssi_val
         tag.last_raw_packets[anchor_id].append((pkt_time, rssi_val))
         perform_localization(tag)
         return {'status': 'success', 'tag_id': tag_id, 'active_anchors': list(tag.last_raw_packets.keys())}
@@ -840,9 +856,75 @@ async def get_control_status():
             "ram_percent": round(ram, 1),
             "ram_gb": round(ram_gb, 1)
         },
+        "nodes": get_anchors_broadcast(),
         "test_result": web_service_state["last_test_result"],
         "logs": web_service_state["log_history"][-30:]
     }
+
+@app.get('/api/nodes/health')
+@app.get('/api/anchors/health')
+async def get_nodes_health():
+    from collector.node_registry import load_node_registry
+    registry = load_node_registry()
+    now = time.time()
+    nodes = {}
+    online_count = 0
+    for k in ("NODE_A", "NODE_B", "NODE_C", "NODE_D"):
+        info = registry.get(k, {})
+        aid = info.get("anchor_id", f"ANCHOR_0{ord(k[-1]) - ord('A') + 1}")
+        ah = shared.setdefault("anchor_health", {}).get(aid, {})
+        last_seen = ah.get("last_seen", 0.0)
+        is_online = (now - last_seen) < 7.0 if last_seen > 0 else False
+        if is_online:
+            online_count += 1
+        mac_addr = info.get("mac", "Unassigned")
+        is_conf = bool(mac_addr and mac_addr.upper() != "UNASSIGNED" and len(mac_addr) == 17)
+        nodes[k] = {
+            "node_key": k,
+            "anchor_id": aid,
+            "display_name": info.get("display_name", k),
+            "corner": info.get("corner", ""),
+            "mac": mac_addr,
+            "locked": bool(info.get("locked", False)),
+            "configured": is_conf,
+            "online": is_online,
+            "status": "ONLINE" if is_online else ("PROVISIONED" if info.get("status") == "provisioned" else "OFFLINE"),
+            "last_seen_sec": round(now - last_seen, 1) if last_seen > 0 else -1,
+            "packets": ah.get("packets", 0),
+            "last_rssi": ah.get("rssi", -99),
+            "last_flashed": info.get("last_flashed"),
+        }
+    configured_count = sum(1 for n in nodes.values() if n["configured"])
+    return {
+        "status": "healthy",
+        "in_sync": (online_count == 4),
+        "online_count": online_count,
+        "configured_count": configured_count,
+        "total_count": 4,
+        "nodes": nodes,
+    }
+
+class NodeLockRequest(BaseModel):
+    node_key: str
+    locked: bool = True
+
+@app.post('/api/nodes/lock')
+async def lock_node_api(req: NodeLockRequest):
+    from collector.node_registry import set_node_lock
+    try:
+        updated = set_node_lock(req.node_key, req.locked)
+        return {"status": "ok", "node_key": req.node_key, "locked": updated.get("locked")}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.post('/api/nodes/unlock')
+async def unlock_node_api(req: NodeLockRequest):
+    from collector.node_registry import set_node_lock
+    try:
+        updated = set_node_lock(req.node_key, False)
+        return {"status": "ok", "node_key": req.node_key, "locked": False}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 class ControlAction(BaseModel):
     action: str  # 'start_sim', 'stop_sim', 'start_collector', 'stop_collector', 'run_tests'
@@ -908,6 +990,7 @@ class CollectorIngestPayload(BaseModel):
     anchor_id: Optional[str] = None
     device_mac: Optional[str] = None
     rssi: Optional[Union[int, float, str]] = None
+    provenance: Optional[str] = None
     raw_payload: Optional[str] = None
     line: Optional[str] = None
 
@@ -918,6 +1001,7 @@ async def ingest_collector_packet(payload: CollectorIngestPayload):
     t_str = payload.time or now.strftime('%H:%M:%S.%f')[:-3]
     ts = payload.timestamp if payload.timestamp is not None else int(now.timestamp() * 1000)
     raw_line = payload.raw_payload or payload.line or ''
+    provenance = payload.provenance or 'HARDWARE_WIFI_UDP'
     if not raw_line:
         raw_line = f"{ts},{payload.anchor_id or 'Unknown'},{payload.device_mac or 'Unknown'},{payload.rssi or 'N/A'}"
     
@@ -929,6 +1013,7 @@ async def ingest_collector_packet(payload: CollectorIngestPayload):
         "anchor_id": payload.anchor_id or 'Unknown',
         "device_mac": payload.device_mac or 'Unknown',
         "rssi": payload.rssi if payload.rssi is not None else 'N/A',
+        "provenance": provenance,
         "raw_payload": raw_line
     }
     
@@ -936,6 +1021,17 @@ async def ingest_collector_packet(payload: CollectorIngestPayload):
     collector_data_state["raw_lines"].append(raw_line)
     collector_data_state["total_received"] += 1
     
+    aid = payload.anchor_id or 'Unknown'
+    if aid and aid != 'Unknown':
+        ah = shared.setdefault('anchor_health', {}).setdefault(aid, {'packets': 0})
+        ah['last_seen'] = time.time()
+        ah['packets'] = ah.get('packets', 0) + 1
+        if payload.rssi is not None and payload.rssi != 'N/A':
+            try:
+                ah['rssi'] = int(payload.rssi)
+            except Exception:
+                pass
+
     if len(collector_data_state["records"]) > collector_data_state["max_buffer"]:
         collector_data_state["records"].pop(0)
     if len(collector_data_state["raw_lines"]) > collector_data_state["max_buffer"]:
@@ -949,10 +1045,10 @@ async def ingest_collector_packet(payload: CollectorIngestPayload):
         
         if not os.path.exists(ds_file):
             with open(ds_file, 'w', newline='', encoding='utf-8') as f:
-                csv.writer(f).writerow(['date', 'time', 'timestamp', 'anchor_id', 'device_mac', 'rssi', 'raw_payload'])
+                csv.writer(f).writerow(['date', 'time', 'timestamp', 'anchor_id', 'device_mac', 'rssi', 'provenance', 'raw_payload'])
                 
         with open(ds_file, 'a', newline='', encoding='utf-8') as f:
-            csv.writer(f).writerow([d_str, t_str, ts, rec["anchor_id"], rec["device_mac"], rec["rssi"], raw_line])
+            csv.writer(f).writerow([d_str, t_str, ts, rec["anchor_id"], rec["device_mac"], rec["rssi"], provenance, raw_line])
             
         with open(log_file, 'a', encoding='utf-8') as f:
             f.write(raw_line + '\n')

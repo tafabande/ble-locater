@@ -1,10 +1,17 @@
 /*
- * ESP32 Wireless BLE Anchor Node Firmware
+ * ESP32 Wireless BLE Anchor Node Firmware — Autonomous RTLS Node
  *
- * Scans for the designated BLE target tag and transmits real-time telemetry
- * wirelessly over local Wi-Fi via UDP directly to the laptop Collector.
- *
- * Configurable dynamically via Serial UART or permanently saved in NVS Flash.
+ * Capabilities:
+ *  1. Dual-Role BLE:
+ *     - Simultaneously broadcasts anchor identity beacon (e.g. NODE_A, NODE_B, NODE_C, NODE_D)
+ *     - Continuously scans for the target asset tag MAC AND peer anchor beacons (Inter-Anchor Ranging)
+ *  2. Zero-Config UDP Auto-Discovery:
+ *     - Listens for laptop "COLLECTOR_ANNOUNCE" broadcasts on UDP port 5005
+ *     - Dynamically re-routes telemetry to the laptop even if laptop IP changes (DHCP / Hotspot)
+ *     - Fallback to Subnet Broadcast (255.255.255.255)
+ *  3. Persistent Configuration:
+ *     - Settings saved permanently in ESP32 NVS Flash (Node ID, Wi-Fi SSID/Pass, Target Tag)
+ *     - Full Serial UART configuration interface for automated provisioning
  */
 
 #include <WiFi.h>
@@ -12,6 +19,7 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
+#include <BLEAdvertising.h>
 #include <BLEAdvertisedDevice.h>
 #include <Preferences.h>
 
@@ -38,6 +46,7 @@ String g_device_mac = "";
 WiFiUDP g_udp;
 Preferences g_prefs;
 BLEScan* g_ble_scan = nullptr;
+BLEAdvertising* g_ble_advertising = nullptr;
 bool g_is_scanning = false;
 unsigned long g_last_heartbeat = 0;
 bool g_led_state = false;
@@ -48,34 +57,70 @@ void save_configuration();
 void setup_wifi();
 void setup_ble();
 void process_serial_commands();
+void process_incoming_udp();
 void send_udp_packet(const String& payload);
 void send_heartbeat();
 
+// BLE Scan Callback: Handles both Target Tag AND Peer Anchor beacons
 class AdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice advertisedDevice) override {
         String dev_mac = advertisedDevice.getAddress().toString().c_str();
         dev_mac.toUpperCase();
+        int rssi = advertisedDevice.getRSSI();
+        unsigned long timestamp_ms = millis();
+        String dev_name = advertisedDevice.getName().c_str();
 
+        // 1. Target Tracking Tag Detection
         if (dev_mac.equalsIgnoreCase(g_target_mac)) {
-            int rssi = advertisedDevice.getRSSI();
-            unsigned long timestamp_ms = millis();
-
-            // Toggle Status LED on valid packet capture
             g_led_state = !g_led_state;
             digitalWrite(STATUS_LED_PIN, g_led_state ? HIGH : LOW);
 
-            // Construct JSON Telemetry
-            String json_payload = "{\"type\":\"raw\",\"node\":\"" + g_anchor_id + "\","
+            String json_payload = "{\"type\":\"raw\","
+                                  "\"provenance\":\"HARDWARE_WIFI_UDP\","
+                                  "\"node\":\"" + g_anchor_id + "\","
                                   "\"mac\":\"" + g_device_mac + "\","
                                   "\"tag\":\"" + dev_mac + "\","
                                   "\"rssi\":" + String(rssi) + ","
                                   "\"timestamp\":" + String(timestamp_ms) + "}";
 
-            // Send via UDP over local Wi-Fi
             send_udp_packet(json_payload);
-
-            // Also echo over Serial for debugging/diagnostics
             Serial.println(json_payload);
+            return;
+        }
+
+        // 2. Peer Anchor Detection (Inter-Anchor Ranging for Mesh & Self-Calibration)
+        bool is_peer_anchor = false;
+        String peer_node_id = "";
+
+        if (dev_name.startsWith("NODE_") || dev_name.startsWith("ANCHOR_")) {
+            peer_node_id = dev_name;
+            if (!peer_node_id.equalsIgnoreCase(g_anchor_id)) {
+                is_peer_anchor = true;
+            }
+        } else if (advertisedDevice.haveManufacturerData()) {
+            std::string mfg = advertisedDevice.getManufacturerData();
+            // Custom RTLS Anchor Marker: [0x41, 0x4E, 0x43] ("ANC") + Node ID
+            if (mfg.length() >= 4 && (uint8_t)mfg[0] == 0x41 && (uint8_t)mfg[1] == 0x4E && (uint8_t)mfg[2] == 0x43) {
+                char node_char = mfg[3];
+                peer_node_id = String("NODE_") + String(node_char);
+                if (!peer_node_id.equalsIgnoreCase(g_anchor_id)) {
+                    is_peer_anchor = true;
+                }
+            }
+        }
+
+        if (is_peer_anchor) {
+            String peer_payload = "{\"type\":\"inter_anchor\","
+                                  "\"provenance\":\"HARDWARE_WIFI_UDP\","
+                                  "\"from_node\":\"" + g_anchor_id + "\","
+                                  "\"from_mac\":\"" + g_device_mac + "\","
+                                  "\"to_node\":\"" + peer_node_id + "\","
+                                  "\"to_mac\":\"" + dev_mac + "\","
+                                  "\"rssi\":" + String(rssi) + ","
+                                  "\"timestamp\":" + String(timestamp_ms) + "}";
+
+            send_udp_packet(peer_payload);
+            Serial.println(peer_payload);
         }
     }
 };
@@ -85,8 +130,8 @@ void setup() {
     pinMode(STATUS_LED_PIN, OUTPUT);
     digitalWrite(STATUS_LED_PIN, LOW);
 
-    delay(500);
-    Serial.println("\n--- ESP32 Wireless BLE Anchor Node Initializing ---");
+    delay(300);
+    Serial.println("\n--- ESP32 Autonomous Wireless Anchor Node Initializing ---");
 
     // Fetch hardware silicon MAC address
     g_device_mac = WiFi.macAddress();
@@ -100,29 +145,32 @@ void setup() {
     // Connect to local Wi-Fi network
     setup_wifi();
 
-    // Initialize BLE Scanner
+    // Initialize BLE Dual-Role (Advertising anchor ID + Scanning for tag & peers)
     setup_ble();
 
-    Serial.println("[SYSTEM] Anchor Ready. Listening for serial commands or target tags...");
+    Serial.println("[SYSTEM] Anchor Ready. Listening for serial commands, collector beacons, or target tags...");
 }
 
 void loop() {
     // 1. Process runtime UART configuration commands from setup tool
     process_serial_commands();
 
-    // 2. Periodic heartbeat over UDP (every 3000ms) to indicate online status
-    if (WiFi.status() == WL_CONNECTED && (millis() - g_last_heartbeat > 3000)) {
+    // 2. Process incoming UDP packets (dynamic laptop IP discovery)
+    process_incoming_udp();
+
+    // 3. Periodic heartbeat over UDP (every 2500ms) to indicate online status & Wi-Fi quality
+    if (WiFi.status() == WL_CONNECTED && (millis() - g_last_heartbeat > 2500)) {
         send_heartbeat();
         g_last_heartbeat = millis();
     }
 
-    // 3. Keep BLE scan active
+    // 4. Maintain continuous BLE scan
     if (!g_is_scanning && g_ble_scan != nullptr) {
         g_ble_scan->start(0, nullptr, false);
         g_is_scanning = true;
     }
 
-    delay(10);
+    delay(5);
 }
 
 void load_configuration() {
@@ -140,7 +188,7 @@ void load_configuration() {
     Serial.println("  • Node ID:    " + g_anchor_id);
     Serial.println("  • Target MAC: " + g_target_mac);
     Serial.println("  • Wi-Fi SSID: " + g_wifi_ssid);
-    Serial.println("  • Host IP:    " + g_host_ip + ":" + String(g_udp_port));
+    Serial.println("  • Host Target: " + g_host_ip + ":" + String(g_udp_port));
 }
 
 void save_configuration() {
@@ -167,7 +215,7 @@ void setup_wifi() {
 
     unsigned long start_attempt = millis();
     int blink = 0;
-    while (WiFi.status() != WL_CONNECTED && millis() - start_attempt < 10000) {
+    while (WiFi.status() != WL_CONNECTED && millis() - start_attempt < 12000) {
         delay(250);
         digitalWrite(STATUS_LED_PIN, (blink++ % 2 == 0) ? HIGH : LOW);
         Serial.print(".");
@@ -180,14 +228,38 @@ void setup_wifi() {
         digitalWrite(STATUS_LED_PIN, HIGH);
         g_udp.begin(g_udp_port);
     } else {
-        Serial.println("\n[WIFI] Connection Timeout! Check SSID/Password or AP availability.");
+        Serial.println("\n[WIFI] Connection Timeout! Check SSID/Password. Operating in serial-only mode.");
         digitalWrite(STATUS_LED_PIN, LOW);
     }
 }
 
 void setup_ble() {
-    Serial.println("[BLE] Initializing BLE Scanner...");
+    Serial.println("[BLE] Initializing Dual-Role BLE (Scan + Advertise)...");
     BLEDevice::init(g_anchor_id.c_str());
+
+    // 1. Setup BLE Advertising (So other anchors detect this node)
+    g_ble_advertising = BLEDevice::getAdvertising();
+    BLEAdvertisementData advData;
+    advData.setName(g_anchor_id.c_str());
+    advData.setCompleteServices(BLEUUID("180A")); // Device Information
+
+    // Manufacturer Data: "ANC" + Anchor Letter (e.g. 'A', 'B', 'C', 'D')
+    char node_char = 'A';
+    if (g_anchor_id.length() > 0) {
+        node_char = g_anchor_id.charAt(g_anchor_id.length() - 1);
+    }
+    std::string mfg_data = "ANC";
+    mfg_data += node_char;
+    advData.setManufacturerData(mfg_data);
+
+    g_ble_advertising->setAdvertisementData(advData);
+    g_ble_advertising->setScanResponse(true);
+    g_ble_advertising->setMinPreferred(0x06);
+    g_ble_advertising->setMinPreferred(0x12);
+    BLEDevice::startAdvertising();
+    Serial.println("[BLE] Advertising started as " + g_anchor_id);
+
+    // 2. Setup BLE Scanner (Listens for Target Tag + Peer Anchors)
     g_ble_scan = BLEDevice::getScan();
     g_ble_scan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks(), true);
     g_ble_scan->setActiveScan(true);
@@ -196,13 +268,46 @@ void setup_ble() {
     Serial.println("[BLE] Scanner Initialized and Listening.");
 }
 
+void process_incoming_udp() {
+    if (WiFi.status() != WL_CONNECTED) return;
+
+    int packetSize = g_udp.parsePacket();
+    if (packetSize > 0) {
+        char packetBuffer[512];
+        int len = g_udp.read(packetBuffer, 511);
+        if (len > 0) {
+            packetBuffer[len] = '\0';
+            String msg = String(packetBuffer);
+
+            // Zero-Config Discovery: Laptop broadcasts COLLECTOR_ANNOUNCE
+            if (msg.indexOf("COLLECTOR_ANNOUNCE") != -1) {
+                IPAddress remoteIP = g_udp.remoteIP();
+                String senderIP = remoteIP.toString();
+
+                if (g_host_ip != senderIP) {
+                    g_host_ip = senderIP;
+                    Serial.print("[AUTO-DISCOVERY] Dynamically updated Collector Laptop IP to: ");
+                    Serial.println(g_host_ip);
+                }
+
+                // Send immediate handshake confirmation back to laptop
+                String ack = "{\"type\":\"discovery_ack\","
+                             "\"provenance\":\"HARDWARE_WIFI_UDP\","
+                             "\"node\":\"" + g_anchor_id + "\","
+                             "\"mac\":\"" + g_device_mac + "\","
+                             "\"ip\":\"" + WiFi.localIP().toString() + "\","
+                             "\"wifi_rssi\":" + String(WiFi.RSSI()) + "}";
+                send_udp_packet(ack);
+            }
+        }
+    }
+}
+
 void send_udp_packet(const String& payload) {
     if (WiFi.status() != WL_CONNECTED) return;
 
     IPAddress targetIP;
-    if (g_host_ip == "255.255.255.255") {
-        targetIP = IPAddress(255, 255, 255, 255);
-    } else if (!targetIP.fromString(g_host_ip)) {
+    if (g_host_ip == "255.255.255.255" || !targetIP.fromString(g_host_ip)) {
         targetIP = IPAddress(255, 255, 255, 255);
     }
 
@@ -212,9 +317,12 @@ void send_udp_packet(const String& payload) {
 }
 
 void send_heartbeat() {
-    String hb = "{\"type\":\"heartbeat\",\"node\":\"" + g_anchor_id + "\","
+    String hb = "{\"type\":\"heartbeat\","
+                "\"provenance\":\"HARDWARE_WIFI_UDP\","
+                "\"node\":\"" + g_anchor_id + "\","
                 "\"mac\":\"" + g_device_mac + "\","
                 "\"ip\":\"" + WiFi.localIP().toString() + "\","
+                "\"collector_target\":\"" + g_host_ip + "\","
                 "\"wifi_rssi\":" + String(WiFi.RSSI()) + "}";
     send_udp_packet(hb);
 }
@@ -265,6 +373,16 @@ void process_serial_commands() {
     if (line.startsWith("SET_ANCHOR=")) {
         g_anchor_id = line.substring(11);
         save_configuration();
+        // Re-advertise with new name
+        if (g_ble_advertising) {
+            BLEAdvertisementData advData;
+            advData.setName(g_anchor_id.c_str());
+            char node_char = g_anchor_id.charAt(g_anchor_id.length() - 1);
+            std::string mfg_data = "ANC";
+            mfg_data += node_char;
+            advData.setManufacturerData(mfg_data);
+            g_ble_advertising->setAdvertisementData(advData);
+        }
         Serial.println("{\"status\":\"ok\",\"anchor_id\":\"" + g_anchor_id + "\"}");
         return;
     }
