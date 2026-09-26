@@ -115,3 +115,65 @@ def test_udp_recording_to_dataset():
             client.close()
         finally:
             engine.stop_all()
+
+
+def test_udp_ignores_collector_self_announce_loopback():
+    """The collector's own COLLECTOR_ANNOUNCE broadcast loops back on the local host
+    (Windows delivers 255.255.255.255 broadcasts to the sender) and must never be
+    ingested as anchor telemetry, otherwise NODE_A appears online with no board."""
+    packet_q = queue.Queue()
+    engine = RecordingEngine(packet_q)
+    try:
+        announce = json.dumps({
+            "cmd": "COLLECTOR_ANNOUNCE",
+            "host_ip": "192.168.1.50",
+            "port": 5005,
+            "timestamp": int(time.time() * 1000),
+        })
+        engine._process_incoming_wireless_packet(announce, "192.168.1.50")
+
+        # Typeless junk is not anchor telemetry either
+        engine._process_incoming_wireless_packet(json.dumps({"foo": "bar"}), "192.168.1.50")
+
+        status = engine.get_nodes_sync_status()
+        assert status["online_count"] == 0
+        assert status["nodes"]["NODE_A"]["online"] is False
+        assert engine.node_health["NODE_A"]["packets"] == 0
+        assert packet_q.empty()
+    finally:
+        engine.stop_all()
+
+
+def test_wireless_packets_attributed_by_hardware_mac_not_claimed_id(monkeypatch):
+    """A board whose silicon MAC is bound to NODE_A must be attributed to NODE_A
+    even when its firmware claims a different node ID (misprovisioned board)."""
+    packet_q = queue.Queue()
+    engine = RecordingEngine(packet_q)
+    try:
+        import collector.recording as rec
+        bound_mac = "AA:BB:CC:11:22:33"
+        monkeypatch.setattr(
+            rec, "get_node_by_mac",
+            lambda mac: ("NODE_A", {"anchor_id": "ANCHOR_01", "mac": mac}) if mac == bound_mac else None,
+        )
+
+        spoofed = json.dumps({
+            "type": "raw",
+            "node": "NODE_B",
+            "mac": bound_mac,
+            "tag": "52:06:26:03:01:DA",
+            "rssi": -70,
+            "timestamp": int(time.time() * 1000),
+        })
+        engine._process_incoming_wireless_packet(spoofed, "192.168.1.55")
+
+        assert engine.node_health["NODE_A"]["online"] is True
+        assert engine.node_health["NODE_A"]["packets"] == 1
+        assert engine.node_health["NODE_B"]["online"] is False
+        assert engine.node_identity_conflicts.get("NODE_A", 0) >= 1
+
+        pkt = packet_q.get_nowait()
+        assert pkt["node_key"] == "NODE_A"
+    finally:
+        engine.stop_all()
+

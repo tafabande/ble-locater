@@ -8,14 +8,20 @@ from __future__ import annotations
 import json
 import os
 import re
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = PROJECT_ROOT / "config"
 REGISTRY_FILE = CONFIG_DIR / "node_registry.json"
 METADATA_FILE = CONFIG_DIR / "anchors_metadata.json"
+AUDIT_LOG_FILENAME = "node_registry_audit.jsonl"
+
+# Read-through cache: identity resolution runs per telemetry packet, so the
+# registry is only re-read from disk when the file actually changes.
+_registry_cache: Dict[str, Any] = {"path": None, "mtime": None, "data": None}
 
 DEFAULT_REGISTRY: Dict[str, Dict[str, Any]] = {
     "NODE_A": {
@@ -69,28 +75,95 @@ def normalize_mac(mac: str) -> str:
     return mac.strip().upper()
 
 
+def _audit_event(
+    action: str,
+    node_key: str,
+    mac: str = "",
+    result: str = "ok",
+    details: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Append a registry event to the append-only audit log in config/.
+
+    Every bind, lock, unlock and rejected attempt is recorded so MAC
+    reassignments remain traceable after the fact.
+    """
+    event: Dict[str, Any] = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "action": action,
+        "node": node_key,
+        "mac": mac,
+        "result": result,
+    }
+    if details:
+        event["details"] = details
+    try:
+        audit_path = CONFIG_DIR / AUDIT_LOG_FILENAME
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(audit_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event) + "\n")
+    except Exception:
+        pass
+
+
+def load_audit_events(limit: int = 100) -> List[Dict[str, Any]]:
+    """Read the most recent registry audit events (oldest first, newest last)."""
+    audit_path = CONFIG_DIR / AUDIT_LOG_FILENAME
+    events: List[Dict[str, Any]] = []
+    try:
+        if audit_path.exists():
+            with open(audit_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            events.append(json.loads(line))
+                        except Exception:
+                            continue
+    except Exception:
+        return []
+    return events[-limit:]
+
+
 def load_node_registry() -> Dict[str, Dict[str, Any]]:
     """Load the persistent node registry from disk, creating default if missing."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    if REGISTRY_FILE.exists():
+    global _registry_cache
+
+    mtime: Optional[float] = None
+    try:
+        if REGISTRY_FILE.exists():
+            mtime = REGISTRY_FILE.stat().st_mtime
+    except OSError:
+        mtime = None
+
+    if (
+        _registry_cache["data"] is not None
+        and _registry_cache["path"] == str(REGISTRY_FILE)
+        and _registry_cache["mtime"] == mtime
+    ):
+        return deepcopy(_registry_cache["data"])
+
+    if REGISTRY_FILE.exists() and mtime is not None:
         try:
             with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 # Ensure all 4 canonical keys exist
                 for k, v in DEFAULT_REGISTRY.items():
                     if k not in data:
-                        data[k] = v.copy()
+                        data[k] = deepcopy(v)
+                _registry_cache = {"path": str(REGISTRY_FILE), "mtime": mtime, "data": deepcopy(data)}
                 return data
         except Exception:
             pass
 
     # Save and return default registry
     save_node_registry(DEFAULT_REGISTRY)
-    return DEFAULT_REGISTRY.copy()
+    return deepcopy(DEFAULT_REGISTRY)
 
 
 def save_node_registry(registry: Dict[str, Dict[str, Any]]) -> None:
     """Save the node registry to disk and update anchors_metadata companion."""
+    global _registry_cache
+    _registry_cache["data"] = None
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
         json.dump(registry, f, indent=2)

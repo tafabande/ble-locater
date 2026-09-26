@@ -61,6 +61,10 @@ class RecordingEngine:
         self.file_lock = threading.Lock()
         self.file_handle = None
         self.csv_writer = None
+        # The immutable primary record.  Parsed CSV rows are a compatibility
+        # view only; this stream is the exact payload sent by each node.
+        self.verbatim_file_handle = None
+        self.verbatim_file_path: Optional[Path] = None
 
         # Wireless UDP and 4-Corner Node Synchronization
         self.udp_port = 5005
@@ -79,6 +83,7 @@ class RecordingEngine:
         }
         self.announce_thread: Optional[threading.Thread] = None
         self.allow_synthetic: bool = False
+        self.node_identity_conflicts: Dict[str, int] = {}
 
     def start_stream(self, port: str = "Wireless Wi-Fi (UDP :5005)", baud_rate: int = 115200) -> None:
         """Start streaming live packets without recording to disk."""
@@ -131,6 +136,8 @@ class RecordingEngine:
 
             self.file_handle = open(session.target_file_path, "a", newline="", encoding="utf-8")
             self.csv_writer = csv.writer(self.file_handle)
+            self.verbatim_file_path = session.verbatim_capture_file_path
+            self.verbatim_file_handle = open(self.verbatim_file_path, "ab")
 
         self.start_stream(port)
 
@@ -166,6 +173,13 @@ class RecordingEngine:
                     pass
                 self.file_handle = None
                 self.csv_writer = None
+            if self.verbatim_file_handle:
+                try:
+                    self.verbatim_file_handle.flush()
+                    self.verbatim_file_handle.close()
+                except Exception:
+                    pass
+                self.verbatim_file_handle = None
 
         rate_hz = round(self.valid_samples_count / duration_sec, 2) if duration_sec > 0 else 0.0
         dist = self.active_session.distance_m if self.active_session else 1.0
@@ -217,6 +231,27 @@ class RecordingEngine:
                 except Exception:
                     pass
                 self.file_handle = None
+            if self.verbatim_file_handle:
+                try:
+                    self.verbatim_file_handle.flush()
+                    self.verbatim_file_handle.close()
+                except Exception:
+                    pass
+                self.verbatim_file_handle = None
+
+    def append_verbatim_payload(self, payload: bytes) -> None:
+        """Append a received node payload unchanged to the session's primary raw log."""
+        if not self.is_recording or self.is_paused:
+            return
+        with self.file_lock:
+            if self.verbatim_file_handle:
+                try:
+                    self.verbatim_file_handle.write(payload)
+                    if not payload.endswith(b"\n"):
+                        self.verbatim_file_handle.write(b"\n")
+                    self.verbatim_file_handle.flush()
+                except Exception:
+                    pass
 
     def get_inter_anchor_matrix(self) -> Dict[str, Dict[str, Any]]:
         """Return real-time peer anchor link quality and RSSI values."""
@@ -422,7 +457,10 @@ class RecordingEngine:
             while not self.stop_event.is_set():
                 try:
                     data, addr = sock.recvfrom(4096)
-                    line = data.decode("utf-8", errors="ignore").strip()
+                    # Persist first. Parsing below is only for live display and
+                    # secondary labels; it never decides what is saved.
+                    self.append_verbatim_payload(data)
+                    line = data.decode("utf-8", errors="replace")
                     if line:
                         self._process_incoming_wireless_packet(line, addr[0])
                 except socket.timeout:
@@ -449,6 +487,18 @@ class RecordingEngine:
             try:
                 data = json.loads(raw_line)
             except Exception:
+                return
+
+            # Guard: the collector's own announce beacon loops back on the
+            # local host (Windows delivers 255.255.255.255 broadcasts to the
+            # sender). Ingesting it would fabricate NODE_A observations.
+            if data.get("cmd") == "COLLECTOR_ANNOUNCE":
+                return
+
+            # Guard: every legitimate anchor packet declares a "type"
+            # (raw / heartbeat / inter_anchor / discovery_ack). Anything else
+            # is not ESP32 telemetry and must never touch node health.
+            if "type" not in data:
                 return
 
             msg_type = data.get("type", "raw")
@@ -483,6 +533,10 @@ class RecordingEngine:
             # Zero-Config Discovery Handshake Handling
             if msg_type == "discovery_ack":
                 node_k = data.get("node", "NODE_A")
+                if dev_mac:
+                    mac_res = get_node_by_mac(dev_mac)
+                    if mac_res:
+                        node_k = mac_res[0]
                 if node_k in self.node_health:
                     self.node_health[node_k]["online"] = True
                     self.node_health[node_k]["last_seen"] = now
@@ -490,13 +544,20 @@ class RecordingEngine:
                     self.node_health[node_k]["mac"] = data.get("mac", "")
                 return
 
-            # Resolve node in registry
+            # Resolve node identity. The hardware silicon MAC is the source of
+            # truth: a board whose MAC is bound in the registry is attributed
+            # to that node even if its firmware claims a different node ID.
             node_key = "NODE_A"
             anchor_id = "ANCHOR_01"
-            res = get_node_by_anchor_id(node_identifier) or (get_node_by_mac(dev_mac) if dev_mac else None)
+            claimed_res = get_node_by_anchor_id(node_identifier)
+            # Silicon MAC is the primary source of truth:
+            mac_res = get_node_by_mac(dev_mac) if dev_mac else None
+            res = mac_res or claimed_res
             if res:
                 node_key, info = res
-                anchor_id = info.get("anchor_id", "ANCHOR_01")
+                anchor_id = info.get("anchor_id", f"ANCHOR_{ord(node_key[-1]) - ord('A') + 1:02d}")
+                if dev_mac and claimed_res and claimed_res[0] != node_key:
+                    self.node_identity_conflicts[node_key] = self.node_identity_conflicts.get(node_key, 0) + 1
             elif node_identifier.upper() in ("NODE_A", "NODE_B", "NODE_C", "NODE_D"):
                 node_key = node_identifier.upper()
                 anchor_id = f"ANCHOR_{ord(node_key[-1]) - ord('A') + 1:02d}"

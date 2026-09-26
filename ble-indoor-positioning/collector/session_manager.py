@@ -86,11 +86,17 @@ class SessionConfig:
         """Full path to companion JSON metadata."""
         return self.raw_dir / f"{self.session_id}_info.json"
 
+    @property
+    def verbatim_capture_file_path(self) -> Path:
+        """Append-only byte-for-byte node payload capture for this session."""
+        return self.raw_dir / f"{self.session_id}.raw.log"
+
     def save_metadata(self, sample_count: int, duration_sec: float = 0.0, stats: Optional[Dict[str, Any]] = None) -> Path:
         """Save companion JSON metadata for the session including complete environment snapshot."""
         end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         metadata = {
             "session_filename": self.filename,
+            "verbatim_capture_filename": self.verbatim_capture_file_path.name,
             "session_name": self.session_name,
             "start_timestamp": self.created_at,
             "end_timestamp": end_time,

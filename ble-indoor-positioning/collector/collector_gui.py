@@ -135,6 +135,8 @@ class DataCollectorApp:
         self.tool_buttons: Dict[str, tk.Button] = {}
         self.stabilize_countdown = 0
         self._last_nodes_sync_time: float = 0.0
+        self.recording_overlay: Optional[tk.Frame] = None
+        self.recording_log_tree: Optional[ttk.Treeview] = None
 
         self._configure_styles()
         self._build_shell()
@@ -847,6 +849,76 @@ class DataCollectorApp:
         self.feed_tree.column("flag", width=120, anchor="w")
 
         self.feed_tree.pack(fill="x")
+
+    def _show_recording_overlay(self) -> None:
+        """Show the dedicated, full-workspace recording log until the session stops."""
+        if self.recording_overlay:
+            self.recording_overlay.destroy()
+
+        t = self.THEME
+        overlay = tk.Frame(self.root, bg=t["bg"])
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.lift()
+        self.recording_overlay = overlay
+
+        top = tk.Frame(overlay, bg=t["panel"], padx=20, pady=14)
+        top.pack(fill="x")
+        tk.Label(top, text="LIVE RECORDING LOG", bg=t["panel"], fg=t["text"], font=("Segoe UI", 16, "bold")).pack(side="left")
+        self.recording_overlay_summary = tk.Label(top, text="Waiting for observations…", bg=t["panel"], fg=t["subtext"], font=("Consolas", 10))
+        self.recording_overlay_summary.pack(side="left", padx=20)
+        tk.Button(top, text="⏸ PAUSE", bg=t["card"], fg=t["text"], font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=7, command=self._toggle_pause).pack(side="right", padx=(6, 0))
+        tk.Button(top, text="■ STOP & SAVE", bg=t["red"], fg="#FFFFFF", font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=7, command=self._stop_recording).pack(side="right")
+
+        table_card = tk.Frame(overlay, bg=t["panel"], padx=16, pady=16)
+        table_card.pack(fill="both", expand=True, padx=14, pady=14)
+        tk.Label(table_card, text="Every row is a live snapshot. Offline nodes remain visible as OFFLINE / — / MISSING.", bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w", pady=(0, 10))
+
+        header = tk.Frame(table_card, bg=t["panel"])
+        header.pack(fill="x")
+        header.columnconfigure(0, weight=2)
+        for column in range(1, 5):
+            header.columnconfigure(column, weight=3)
+        tk.Label(header, text="TIME", bg=t["card"], fg=t["text"], font=("Segoe UI", 9, "bold"), pady=7).grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(0, 2))
+        for column, node in enumerate(("NODE A", "NODE B", "NODE C", "NODE D"), start=1):
+            tk.Label(header, text=node, bg=t["card"], fg=t["text"], font=("Segoe UI", 9, "bold"), pady=4).grid(row=0, column=column, sticky="nsew", padx=1)
+            tk.Label(header, text="STATUS     RSSI     RECORDING", bg=t["panel"], fg=t["subtext"], font=("Consolas", 8), pady=4).grid(row=1, column=column, sticky="nsew", padx=1)
+
+        cols = ("time", "a_status", "a_rssi", "a_recording", "b_status", "b_rssi", "b_recording", "c_status", "c_rssi", "c_recording", "d_status", "d_rssi", "d_recording")
+        tree = ttk.Treeview(table_card, columns=cols, show="", height=22)
+        tree.column("time", width=110, anchor="center", stretch=True)
+        for node in "abcd":
+            tree.column(f"{node}_status", width=86, anchor="center", stretch=True)
+            tree.column(f"{node}_rssi", width=70, anchor="center", stretch=True)
+            tree.column(f"{node}_recording", width=100, anchor="center", stretch=True)
+        tree.pack(fill="both", expand=True)
+        self.recording_log_tree = tree
+
+    def _hide_recording_overlay(self) -> None:
+        if self.recording_overlay:
+            self.recording_overlay.destroy()
+        self.recording_overlay = None
+        self.recording_log_tree = None
+
+    def _append_recording_log_row(self, pkt: Dict[str, Any], elapsed_str: str, valid_cnt: int, target_max: int) -> None:
+        """Append a four-node snapshot using the Time | Node A | Node B | Node C | Node D guide."""
+        if not self.recording_log_tree:
+            return
+        sync = pkt.get("sync_status") or self.recording_engine.get_nodes_sync_status()
+        active_node = pkt.get("node_key") or f"NODE_{chr(ord('A') + int(pkt.get('anchor_id', 'ANCHOR_01')[-2:]) - 1)}"
+        values: List[str] = [datetime.datetime.now().strftime("%H:%M:%S")]
+        for node in ("NODE_A", "NODE_B", "NODE_C", "NODE_D"):
+            info = sync.get("nodes", {}).get(node, {})
+            online = bool(info.get("online", False))
+            status = "ONLINE" if online else "OFFLINE"
+            rssi = f"{info.get('rssi', -99)} dBm" if online else "—"
+            recording = "WRITING" if node == active_node else ("WATCHING" if online else "MISSING")
+            values.extend((status, rssi, recording))
+        self.recording_log_tree.insert("", 0, values=values)
+        children = self.recording_log_tree.get_children()
+        if len(children) > 250:
+            self.recording_log_tree.delete(children[-1])
+        if hasattr(self, "recording_overlay_summary"):
+            self.recording_overlay_summary.config(text=f"{valid_cnt:,} / {target_max:,} valid samples  ·  elapsed {elapsed_str}")
 
     # =========================================================================
     # VIEW 2: SESSIONS BROWSER & SAMPLE PREVIEW
@@ -1590,6 +1662,7 @@ class DataCollectorApp:
         self.rssi_history.clear()
 
         self.recording_engine.start_recording(session, port=self.port_var.get())
+        self._show_recording_overlay()
 
     def _toggle_pause(self) -> None:
         if self.recording_engine.is_recording:
@@ -1604,6 +1677,7 @@ class DataCollectorApp:
 
     def _stop_recording(self) -> None:
         summary = self.recording_engine.stop_recording()
+        self._hide_recording_overlay()
         self._freeze_form_parameters(False)
 
         self.btn_record.config(state="normal", text="▶  START RECORDING", bg=self.THEME["green"], fg="#FFFFFF")
@@ -1706,6 +1780,7 @@ class DataCollectorApp:
                 self.prog_text_lbl.config(
                     text=f"Valid Samples: {valid_cnt:,} / {target_max:,} ({pct}%) | Raw: {raw_cnt:,} | Rate: {rate} Hz | Elapsed: {elapsed_str}",
                 )
+                self._append_recording_log_row(pkt, elapsed_str, valid_cnt, target_max)
 
                 # Feed table
                 t_str = datetime.datetime.now().strftime("%H:%M:%S")
