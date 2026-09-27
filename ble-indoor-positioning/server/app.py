@@ -8,6 +8,8 @@ import asyncio
 import datetime
 import sqlite3
 import csv
+import socket
+import threading
 from contextlib import asynccontextmanager
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -34,6 +36,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger('BLE_SERVER')
 from core.config import DEFAULT_ANCHORS_CONFIG, load_anchor_config, load_anchor_metadata
 from core.positioning import resolve_room_name, resolve_room_name_with_hysteresis
+from collector.node_registry import get_node_by_mac, get_node_by_anchor_id
 
 class OnlineDistanceLearner:
 
@@ -278,10 +281,16 @@ def load_ml_assets():
         except Exception as e:
             logger.error(f'Failed to load zone classifier assets: {e}')
 
+# UDP port 5005 is owned exclusively by the Collector (recording.py).
+# The FastAPI server receives telemetry forwarded by the Collector via
+# POST /api/telemetry/ingest.  This eliminates port contention and
+# keeps the Collector fully independent — it works even if FastAPI is offline.
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_ml_assets()
     shared['online_learner'].load()
+    logger.info("📡 FastAPI server started. Telemetry is received from the Collector via POST /api/telemetry/ingest.")
     try:
         yield
     finally:
@@ -462,8 +471,6 @@ def perform_localization(tag: TagState):
         shared['position_db'].log_position(tag.tag_id, tag.last_position)
     except Exception as e:
         logger.error(f'Localization engine error for tag {tag.tag_id}: {e}')
-SYNTHETIC_DATA_PATH = os.path.join(PROJECT_ROOT, 'datasets', 'synthetic_observations.csv')
-
 @app.post('/api/observation')
 def add_raw_packet(packet: PacketData):
     try:
@@ -476,19 +483,6 @@ def add_raw_packet(packet: PacketData):
         if not tag_id:
             raise HTTPException(status_code=400, detail='Tag MAC cannot be empty.')
         tag = shared['tag_manager'].get_or_create(tag_id)
-        tx = getattr(packet, 'true_x', None)
-        ty = getattr(packet, 'true_y', None)
-        if tx is not None and ty is not None:
-            file_exists = os.path.exists(SYNTHETIC_DATA_PATH)
-            with open(SYNTHETIC_DATA_PATH, 'a', encoding='utf-8') as f:
-                if not file_exists:
-                    f.write('timestamp,anchor,mac,rssi,true_x,true_y\n')
-                f.write(f'{pkt_time},{anchor_id},{tag_id},{rssi_val},{tx:.3f},{ty:.3f}\n')
-            if anchor_id in shared['anchors_config']:
-                ax, ay = shared['anchors_config'][anchor_id]
-                true_dist = math.sqrt((tx - ax) ** 2 + (ty - ay) ** 2)
-                raw_est = tag.estimated_distances.get(anchor_id, true_dist)
-                shared['online_learner'].learn_sample(anchor_id, rssi_val, true_dist, raw_est)
         ah = shared.setdefault('anchor_health', {}).setdefault(anchor_id, {'packets': 0})
         ah['last_seen'] = time.time()
         ah['packets'] = ah.get('packets', 0) + 1
@@ -514,19 +508,6 @@ def add_raw_packets_batch(packets: List[PacketData]):
             if anchor_id and tag_id:
                 tag = shared['tag_manager'].get_or_create(tag_id)
                 affected_tags.add(tag_id)
-                tx = getattr(packet, 'true_x', None)
-                ty = getattr(packet, 'true_y', None)
-                if tx is not None and ty is not None:
-                    file_exists = os.path.exists(SYNTHETIC_DATA_PATH)
-                    with open(SYNTHETIC_DATA_PATH, 'a', encoding='utf-8') as f:
-                        if not file_exists:
-                            f.write('timestamp,anchor,mac,rssi,true_x,true_y\n')
-                        f.write(f'{pkt_time},{anchor_id},{tag_id},{rssi_val},{tx:.3f},{ty:.3f}\n')
-                    if anchor_id in shared['anchors_config']:
-                        ax, ay = shared['anchors_config'][anchor_id]
-                        true_dist = math.sqrt((tx - ax) ** 2 + (ty - ay) ** 2)
-                        raw_est = tag.estimated_distances.get(anchor_id, true_dist)
-                        shared['online_learner'].learn_sample(anchor_id, rssi_val, true_dist, raw_est)
                 tag.last_raw_packets[anchor_id].append((pkt_time, rssi_val))
         for tag_id in affected_tags:
             tag = shared['tag_manager'].tags[tag_id]
@@ -535,6 +516,10 @@ def add_raw_packets_batch(packets: List[PacketData]):
     except Exception as e:
         logger.error(f'Error processing batch: {e}')
         raise HTTPException(status_code=500, detail=f'Internal batch processing error: {e}')
+
+# The primary GET /api/nodes/health endpoint is defined below (L946+)
+# alongside GET /api/anchors/health.  It reads from shared['anchor_health']
+# which is populated by POST /api/telemetry/ingest from the Collector.
 
 class DirectLearningInput(BaseModel):
     anchor_id: str
@@ -872,7 +857,7 @@ async def get_nodes_health():
     for k in ("NODE_A", "NODE_B", "NODE_C", "NODE_D"):
         info = registry.get(k, {})
         aid = info.get("anchor_id", f"ANCHOR_0{ord(k[-1]) - ord('A') + 1}")
-        ah = shared.setdefault("anchor_health", {}).get(aid, {})
+        ah = shared.setdefault("anchor_health", {}).get(aid) or shared.setdefault("anchor_health", {}).get(k, {})
         last_seen = ah.get("last_seen", 0.0)
         is_online = (now - last_seen) < 7.0 if last_seen > 0 else False
         if is_online:
@@ -885,6 +870,7 @@ async def get_nodes_health():
             "display_name": info.get("display_name", k),
             "corner": info.get("corner", ""),
             "mac": mac_addr,
+            "ip": ah.get("ip", ""),
             "locked": bool(info.get("locked", False)),
             "configured": is_conf,
             "online": is_online,
@@ -993,8 +979,11 @@ class CollectorIngestPayload(BaseModel):
     provenance: Optional[str] = None
     raw_payload: Optional[str] = None
     line: Optional[str] = None
+    ip: Optional[str] = None
+    anchor_mac: Optional[str] = None
 
 @app.post('/api/collector/ingest')
+@app.post('/api/telemetry/ingest')
 async def ingest_collector_packet(payload: CollectorIngestPayload):
     now = datetime.datetime.now()
     d_str = payload.date or now.strftime('%Y-%m-%d')
@@ -1023,12 +1012,25 @@ async def ingest_collector_packet(payload: CollectorIngestPayload):
     
     aid = payload.anchor_id or 'Unknown'
     if aid and aid != 'Unknown':
-        ah = shared.setdefault('anchor_health', {}).setdefault(aid, {'packets': 0})
+        resolved_aid = aid
+        if resolved_aid in ('NODE_A', 'NODE_B', 'NODE_C', 'NODE_D'):
+            resolved_aid = f"ANCHOR_0{ord(resolved_aid[-1]) - ord('A') + 1}"
+        ah = shared.setdefault('anchor_health', {}).setdefault(resolved_aid, {'packets': 0})
         ah['last_seen'] = time.time()
         ah['packets'] = ah.get('packets', 0) + 1
+        if payload.ip:
+            ah['ip'] = payload.ip
+        if payload.anchor_mac:
+            ah['mac'] = payload.anchor_mac
         if payload.rssi is not None and payload.rssi != 'N/A':
             try:
-                ah['rssi'] = int(payload.rssi)
+                rssi_int = max(-120, min(0, int(float(payload.rssi))))
+                ah['rssi'] = rssi_int
+                device_mac = payload.device_mac
+                if device_mac and device_mac != 'Unknown':
+                    tag = shared['tag_manager'].get_or_create(device_mac)
+                    tag.last_raw_packets[resolved_aid].append((ts, rssi_int))
+                    perform_localization(tag)
             except Exception:
                 pass
 

@@ -1,17 +1,16 @@
-"""Indoor Positioning — Application Launcher & Control Centre.
+"""Indoor Positioning — Application Launcher & Research Operations Console (Project 1).
 
-A lightweight, dedicated launchpad for the indoor positioning ecosystem:
-  📍 Live Tracking Dashboard (Web / Browser)
-  🛠️ System Administrator & Telemetry (Standalone Python GUI)
-  📡 Data Collector (Standalone Python GUI)
-  🧠 Model Trainer (Standalone Python GUI)
+A lightweight, dedicated launchpad for the indoor positioning research ecosystem:
+  📡 Data Collector & Room Surveyor (controller.py)
+  🛠️ ESP32 Wireless Provisioner & Flasher (setup.py)
+  🧠 AI Model Studio & Trainer (trainer_gui.py)
+  📊 System Administrator & Telemetry (admin_gui.py)
 """
 from __future__ import annotations
 
 import json
 import os
 import queue
-import shutil
 import signal
 import subprocess
 import sys
@@ -22,26 +21,42 @@ from tkinter import messagebox, ttk
 import tkinter as tk
 from typing import Optional
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR / "ble-indoor-positioning"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.config import (
-    BACKEND_PORT, DASHBOARD_PORT, BACKEND_URL, DASHBOARD_URL,
-    PYTHON_EXE, NODE_BIN, MODELS_DIR, DATASETS_DIR, free_port, open_browser_url
+    BACKEND_PORT, BACKEND_URL,
+    PYTHON_EXE, MODELS_DIR, DATASETS_DIR, free_port
 )
 
-VITE_JS = BASE_DIR / "node_modules" / "vite" / "bin" / "vite.js"
-VITE_CMD = (
-    (NODE_BIN, str(VITE_JS), "--port", str(DASHBOARD_PORT), "--host", "0.0.0.0")
-    if VITE_JS.exists()
-    else ("npx", "vite", "--port", str(DASHBOARD_PORT), "--host", "0.0.0.0")
-)
+
+def wait_for_http_ready(url: str, timeout_sec: float = 15.0, check_interval: float = 0.5) -> bool:
+    """Poll an HTTP URL with retries until it returns HTTP < 500 or timeout expires."""
+    import urllib.request
+    t0 = time.time()
+    while time.time() - t0 < timeout_sec:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "ControlWatchdog"})
+            with urllib.request.urlopen(req, timeout=1.0) as resp:
+                if resp.status < 500:
+                    return True
+        except Exception:
+            pass
+        time.sleep(check_interval)
+    return False
 
 
 class ApplicationLauncher:
-    """Lightweight entry point and ecosystem launcher."""
+    """Lightweight entry point and ecosystem launcher for Project 1."""
 
     THEME = {
         "bg": "#121214",          # Deep Zinc background
@@ -61,17 +76,17 @@ class ApplicationLauncher:
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title("Indoor Positioning — Application Launcher")
-        self.root.geometry("1100x740")
-        self.root.minsize(960, 620)
+        self.root.title("Indoor Positioning — Research Operations Console")
+        self.root.geometry("1060x700")
+        self.root.minsize(920, 600)
         self.root.configure(bg=self.THEME["bg"])
 
         # Process management for background services
         self.processes: dict[str, subprocess.Popen[str] | None] = {
             "backend": None,
-            "dashboard": None,
-            "simulator": None,
         }
+        self.expected_services: set[str] = set()
+        self._service_restart_counts: dict[str, int] = {"backend": 0}
         self.proc_lock = threading.RLock()
         self.log_queue: queue.Queue[str] = queue.Queue()
         self.shutting_down = False
@@ -83,40 +98,44 @@ class ApplicationLauncher:
         threading.Thread(target=self._watchdog_loop, daemon=True).start()
         self.root.after(100, self._process_log_queue)
         self.root.after(300, self._check_ecosystem_readiness)
-        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # Handle CLI autostart flag
-        if "--autostart" in sys.argv or "-a" in sys.argv:
-            self._log("[LAUNCHER] Autostart mode enabled — launching full tracking stack...")
+        if "--autostart" in sys.argv:
             self.root.after(500, self.start_full_stack)
 
-    def _configure_styles(self) -> None:
-        style = ttk.Style(self.root)
-        style.theme_use("clam")
-        t = self.THEME
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        style.configure("TFrame", background=t["bg"])
-        style.configure("Panel.TFrame", background=t["panel"])
-        style.configure("Card.TFrame", background=t["card"])
-        style.configure("TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 9))
+    def _configure_styles(self) -> None:
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(".", background=self.THEME["bg"], foreground=self.THEME["text"])
+        style.configure("TProgressbar", thickness=6, background=self.THEME["green"], troughcolor=self.THEME["panel"], borderwidth=0)
 
     def _build_ui(self) -> None:
-        # Top Header
+        # Header Bar
         header = tk.Frame(self.root, bg=self.THEME["panel"], height=64)
-        header.pack(fill="x", side="top")
+        header.pack(fill="x")
+        header.pack_propagate(False)
 
         title_box = tk.Frame(header, bg=self.THEME["panel"])
         title_box.pack(side="left", padx=24, pady=12)
 
-        tk.Label(title_box, text="⚡ INDOOR POSITIONING", bg=self.THEME["panel"], fg=self.THEME["text"], font=("Segoe UI", 14, "bold")).pack(side="left")
-        tk.Label(title_box, text="· Application Control Centre", bg=self.THEME["panel"], fg=self.THEME["subtext"], font=("Segoe UI", 10)).pack(side="left", padx=10)
+        tk.Label(
+            title_box, text="⚡ INDOOR POSITIONING",
+            bg=self.THEME["panel"], fg=self.THEME["text"],
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w")
 
-        # Quick stack action buttons
+        tk.Label(
+            title_box, text="Research Platform · Physical ESP32 Hardware Ingestion · ML Tournament Studio",
+            bg=self.THEME["panel"], fg=self.THEME["subtext"],
+            font=("Segoe UI", 8)
+        ).pack(anchor="w")
+
         btn_box = tk.Frame(header, bg=self.THEME["panel"])
         btn_box.pack(side="right", padx=24, pady=12)
 
         self.btn_stack = tk.Button(
-            btn_box, text="▶  START FULL STACK",
+            btn_box, text="▶  START BACKEND ENGINE",
             bg=self.THEME["green"], fg="#FFFFFF", font=("Segoe UI", 9, "bold"),
             relief="flat", cursor="hand2", padx=14, pady=6,
             command=self.toggle_full_stack,
@@ -127,35 +146,15 @@ class ApplicationLauncher:
         main = tk.Frame(self.root, bg=self.THEME["bg"])
         main.pack(fill="both", expand=True, padx=24, pady=20)
 
-        # Grid of Application Cards
+        # 2x2 Grid of Application Cards
         apps_frame = tk.Frame(main, bg=self.THEME["bg"])
         apps_frame.pack(fill="x", pady=(0, 16))
         apps_frame.columnconfigure(0, weight=1, uniform="app")
         apps_frame.columnconfigure(1, weight=1, uniform="app")
 
-        # 1. Live Tracking Dashboard Card
-        self.card_dash = self._create_app_card(
-            apps_frame, row=0, col=0,
-            icon="📍", title="Live Tracking Dashboard",
-            desc="Focused 2D/3D indoor floor plan, live asset tracking, and tag telemetry.\nPrimary production user interface.",
-            status="Web (Port 3000)", status_color=self.THEME["accent"],
-            action_text="Launch Dashboard in Browser ↗",
-            action_cmd=self.launch_dashboard,
-        )
-
-        # 2. System Administrator & Telemetry Card
-        self.card_admin = self._create_app_card(
-            apps_frame, row=0, col=1,
-            icon="📊", title="System Administrator & Telemetry",
-            desc="Hardware node health, RSSI readings, packet stats, dropped packets,\nnetwork connections, and diagnostic logs.",
-            status="Python GUI", status_color=self.THEME["accent"],
-            action_text="Launch Admin Console",
-            action_cmd=self.launch_admin,
-        )
-
-        # 3. Experiment Controller & Data Collector Card
+        # 1. Experiment Controller & Data Collector Card (Row 0, Col 0)
         self.card_coll = self._create_app_card(
-            apps_frame, row=1, col=0,
+            apps_frame, row=0, col=0,
             icon="📡", title="Experiment Controller & Data Collector",
             desc="Remodeled collection console: Master Start/Pause/Stop ribbon,\n2D room layout, obstacle raycasting & wireless Wi-Fi UDP ingestion.",
             status="Python GUI", status_color=self.THEME["green"],
@@ -163,9 +162,9 @@ class ApplicationLauncher:
             action_cmd=self.launch_collector,
         )
 
-        # 4. ESP32 Wireless Provisioner & Flasher Card
+        # 2. ESP32 Wireless Provisioner & Flasher Card (Row 0, Col 1)
         self.card_setup = self._create_app_card(
-            apps_frame, row=1, col=1,
+            apps_frame, row=0, col=1,
             icon="🛠️", title="ESP32 Wireless Setup & Flasher",
             desc="Provision Wi-Fi credentials, bind hardware MAC to 4 corners\n(Node A, B, C, D), flash ESP32 ROM & serial debug monitor.",
             status="Python GUI", status_color=self.THEME["accent"],
@@ -173,14 +172,24 @@ class ApplicationLauncher:
             action_cmd=self.launch_setup,
         )
 
-        # 5. Model Trainer Card (Row 2 spanning or column 0)
+        # 3. Model Trainer Card (Row 1, Col 0)
         self.card_trainer = self._create_app_card(
-            apps_frame, row=2, col=0,
+            apps_frame, row=1, col=0,
             icon="🧠", title="AI Model Studio & Trainer",
             desc="Feature engineering (60 features), Super Learner ML tournament,\nMAE/RMSE evaluation metrics, and diagnostic plots.",
             status="Python GUI", status_color=self.THEME["amber"],
             action_text="Launch Trainer GUI",
             action_cmd=self.launch_trainer,
+        )
+
+        # 4. System Administrator & Telemetry Card (Row 1, Col 1)
+        self.card_admin = self._create_app_card(
+            apps_frame, row=1, col=1,
+            icon="📊", title="System Administrator & Telemetry",
+            desc="Hardware node health, RSSI readings, packet stats, dropped packets,\nnetwork connections, and diagnostic logs.",
+            status="Python GUI", status_color=self.THEME["accent"],
+            action_text="Launch Admin Console",
+            action_cmd=self.launch_admin,
         )
 
         # Lower Split: Service Controls & Console Log
@@ -194,11 +203,9 @@ class ApplicationLauncher:
         tk.Label(services_bar, text="CORE SERVICES:", bg=self.THEME["panel"], fg=self.THEME["text"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 12))
 
         self.btn_backend = self._create_service_button(services_bar, "Backend API (:8000)", "backend", self._toggle_backend)
-        self.btn_dashboard_srv = self._create_service_button(services_bar, "Vite Web Server (:3000)", "dashboard", self._toggle_dashboard)
-        self.btn_simulator = self._create_service_button(services_bar, "Motion Simulator", "simulator", self._toggle_simulator)
 
         # Readiness summary pill
-        self.readiness_pill = tk.Label(services_bar, text="Ecosystem: Nominal", bg=self.THEME["card"], fg=self.THEME["green"], font=("Segoe UI", 8, "bold"), padx=10, pady=3)
+        self.readiness_pill = tk.Label(services_bar, text="Ecosystem: Standby", bg=self.THEME["card"], fg=self.THEME["amber"], font=("Segoe UI", 8, "bold"), padx=10, pady=3)
         self.readiness_pill.pack(side="right")
 
         # Activity Log Box
@@ -282,17 +289,6 @@ class ApplicationLauncher:
         self.root.after(3000, self._check_ecosystem_readiness)
 
     # ── Application Launchers ────────────────────────────────────────────────
-    def launch_dashboard(self) -> None:
-        """Ensure backend and Vite server are running, then launch browser."""
-        self._log("Opening Live Tracking Dashboard in browser...")
-        if not self._is_service_running("backend"):
-            self._start_service("backend")
-        if not self._is_service_running("dashboard"):
-            self._start_service("dashboard")
-
-        # Launch browser after slight delay to allow Vite initialization
-        self.root.after(600, lambda: open_browser_url(DASHBOARD_URL))
-
     def launch_admin(self) -> None:
         """Launch the standalone System Administrator & Telemetry GUI."""
         self._log("Launching Standalone System Administrator GUI...")
@@ -317,26 +313,34 @@ class ApplicationLauncher:
         script = BASE_DIR / "trainer_gui.py"
         subprocess.Popen([PYTHON_EXE, str(script)], cwd=str(BASE_DIR))
 
-    # ── Full Stack Controls ──────────────────────────────────────────────────
+    # ── Backend Service Controls ─────────────────────────────────────────────
     def toggle_full_stack(self) -> None:
-        if any(self._is_service_running(k) for k in ("backend", "dashboard")):
+        if self._is_service_running("backend"):
             self.stop_full_stack()
         else:
             self.start_full_stack()
 
     def start_full_stack(self) -> None:
-        self._log("Starting full tracking stack (Backend, Web Server, Motion Simulator)...")
+        self._log("Starting Backend API engine (:8000)...")
+        self.expected_services.add("backend")
         self._start_service("backend")
-        self._start_service("dashboard")
-        self._start_service("simulator")
-        self.btn_stack.config(text="⏹  STOP FULL STACK", bg=self.THEME["red"])
+        self.btn_stack.config(text="⏹  STOP BACKEND ENGINE", bg=self.THEME["red"])
+
+        def _verify_readiness():
+            b_ready = wait_for_http_ready(f"{BACKEND_URL}/healthz", timeout_sec=18.0) or wait_for_http_ready(f"{BACKEND_URL}/api/health", timeout_sec=5.0)
+            if b_ready:
+                self._log("✔ Backend API (:8000) verified healthy and accepting telemetry.")
+                self.root.after(0, lambda: self.readiness_pill.config(text="Backend: Healthy", fg=self.THEME["green"]))
+
+        threading.Thread(target=_verify_readiness, daemon=True).start()
 
     def stop_full_stack(self) -> None:
-        self._log("Stopping all background services...")
-        self._stop_service("simulator")
-        self._stop_service("dashboard")
+        self._log("Stopping backend engine...")
+        self.expected_services.clear()
+        self._service_restart_counts = {"backend": 0}
         self._stop_service("backend")
-        self.btn_stack.config(text="▶  START FULL STACK", bg=self.THEME["green"])
+        self.btn_stack.config(text="▶  START BACKEND ENGINE", bg=self.THEME["green"])
+        self.readiness_pill.config(text="Backend: Stopped", fg=self.THEME["subtext"])
 
     # ── Service Process Management ───────────────────────────────────────────
     def _is_service_running(self, key: str) -> bool:
@@ -344,36 +348,49 @@ class ApplicationLauncher:
             proc = self.processes.get(key)
             return proc is not None and proc.poll() is None
 
-    def _start_service(self, key: str) -> None:
+    def _start_service(self, key: str, max_retries: int = 3) -> bool:
+        """Start a managed service with port pre-clearing and retry on failure."""
         with self.proc_lock:
             if self._is_service_running(key):
-                return
+                return True
 
-            if key == "backend":
-                free_port(BACKEND_PORT)
-                cmd = [PYTHON_EXE, str(PROJECT_ROOT / "server" / "app.py")]
-                cwd = str(PROJECT_ROOT / "server")
-            elif key == "dashboard":
-                free_port(DASHBOARD_PORT)
-                cmd = list(VITE_CMD)
-                cwd = str(BASE_DIR)
-            elif key == "simulator":
-                cmd = [PYTHON_EXE, str(PROJECT_ROOT / "simulate_demo.py")]
-                cwd = str(PROJECT_ROOT)
-            else:
-                return
+            for attempt in range(1, max_retries + 1):
+                if self.shutting_down:
+                    return False
 
-            try:
-                proc = subprocess.Popen(
-                    cmd, cwd=cwd,
-                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, bufsize=1,
-                )
-                self.processes[key] = proc
-                self._log(f"Started service [{key}] (PID: {proc.pid})")
-                threading.Thread(target=self._drain_proc_output, args=(key, proc), daemon=True).start()
-            except Exception as e:
-                self._log(f"[ERROR] Failed to start {key}: {e}")
+                if key == "backend":
+                    free_port(BACKEND_PORT)
+                    cmd = [PYTHON_EXE, str(PROJECT_ROOT / "server" / "app.py")]
+                    cwd = str(PROJECT_ROOT / "server")
+                else:
+                    return False
+
+                try:
+                    self._log(f"Starting [{key}] (attempt {attempt}/{max_retries})...")
+                    proc = subprocess.Popen(
+                        cmd, cwd=cwd,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, bufsize=1,
+                    )
+                    self.processes[key] = proc
+                    self._log(f"Started service [{key}] (PID: {proc.pid})")
+                    threading.Thread(target=self._drain_proc_output, args=(key, proc), daemon=True).start()
+
+                    time.sleep(0.8)
+                    if proc.poll() is None:
+                        return True
+                    else:
+                        exit_code = proc.poll()
+                        self._log(f"[WARN] [{key}] process exited with code {exit_code}. Retrying...")
+                        if key == "backend":
+                            free_port(BACKEND_PORT)
+                        time.sleep(1.0)
+                except Exception as e:
+                    self._log(f"[ERROR] Attempt {attempt} failed to start [{key}]: {e}")
+                    time.sleep(1.0)
+
+            self._log(f"✖ [FAILURE] Could not start service [{key}] after {max_retries} attempts.")
+            return False
 
     def _stop_service(self, key: str) -> None:
         with self.proc_lock:
@@ -398,60 +415,44 @@ class ApplicationLauncher:
                 break
             stripped = line.strip()
             if stripped:
-                # Log select messages
                 if any(kw in stripped.lower() for kw in ("ready", "error", "running", "listening", "started")):
                     self._log(f"[{key}] {stripped}")
 
     def _toggle_backend(self) -> None:
         if self._is_service_running("backend"):
+            self.expected_services.discard("backend")
             self._stop_service("backend")
         else:
+            self.expected_services.add("backend")
             self._start_service("backend")
 
-    def _toggle_dashboard(self) -> None:
-        if self._is_service_running("dashboard"):
-            self._stop_service("dashboard")
-        else:
-            self._start_service("dashboard")
-
-    def _toggle_simulator(self) -> None:
-        if self._is_service_running("simulator"):
-            self._stop_service("simulator")
-        else:
-            self._start_service("simulator")
-
     def _watchdog_loop(self) -> None:
-        """Watch service states and update button indicators."""
+        """Watch service states, auto-recover crashed services, and update button indicators."""
         while not self.shutting_down:
-            time.sleep(1.0)
+            time.sleep(1.5)
             if self.shutting_down:
                 break
 
             b_run = self._is_service_running("backend")
-            d_run = self._is_service_running("dashboard")
-            s_run = self._is_service_running("simulator")
 
-            self.root.after(0, lambda: self._update_service_indicators(b_run, d_run, s_run))
+            if not self.shutting_down:
+                if "backend" in self.expected_services and not b_run:
+                    retries = self._service_restart_counts.get("backend", 0)
+                    if retries < 3:
+                        self._service_restart_counts["backend"] = retries + 1
+                        self._log(f"🚨 [WATCHDOG] Backend API crashed unexpectedly! Auto-restarting (retry {retries + 1}/3)...")
+                        self._start_service("backend")
+                    else:
+                        self._log("✖ [WATCHDOG] Backend API crashed repeatedly. Manual check required.")
+                        self.expected_services.discard("backend")
 
-    def _update_service_indicators(self, b_run: bool, d_run: bool, s_run: bool) -> None:
+            self.root.after(0, lambda: self._update_service_indicators(b_run))
+
+    def _update_service_indicators(self, b_run: bool) -> None:
         self.btn_backend.config(
             text=f"{'🟢' if b_run else '○'} Backend API (:8000)",
             fg=self.THEME["green"] if b_run else self.THEME["subtext"],
         )
-        self.btn_dashboard_srv.config(
-            text=f"{'🟢' if d_run else '○'} Vite Web Server (:3000)",
-            fg=self.THEME["green"] if d_run else self.THEME["subtext"],
-        )
-        self.btn_simulator.config(
-            text=f"{'🟢' if s_run else '○'} Motion Simulator",
-            fg=self.THEME["green"] if s_run else self.THEME["subtext"],
-        )
-
-        # Update card status pill for Live Dashboard
-        if d_run and b_run:
-            self.card_dash["status"].config(text="Running (:3000)", fg=self.THEME["green"])
-        else:
-            self.card_dash["status"].config(text="Web (Port 3000)", fg=self.THEME["accent"])
 
     def _on_close(self) -> None:
         self.shutting_down = True
@@ -465,54 +466,141 @@ class ApplicationLauncher:
         self.root.destroy()
 
 
+# ── Headless Pipeline ────────────────────────────────────────────────────────
+def run_headless_pipeline() -> int:
+    """Run backend API service in headless daemon mode with watchdog."""
+    print("=" * 70)
+    print(" ⚡ INDOOR POSITIONING — HEADLESS BACKEND PIPELINE")
+    print("=" * 70)
+
+    stop_event = threading.Event()
+
+    def _sig_handler(signum, frame):
+        print("\n[SHUTDOWN] Intercepted interrupt signal. Halting backend...")
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, _sig_handler)
+    signal.signal(signal.SIGTERM, _sig_handler)
+
+    processes: dict[str, subprocess.Popen] = {}
+
+    def _start(name: str, cmd: list[str], cwd: str, port: int):
+        free_port(port)
+        p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        processes[name] = p
+        print(f"[{name.upper()}] Launched with PID {p.pid}")
+        return p
+
+    # Start Backend
+    backend_cmd = [PYTHON_EXE, str(PROJECT_ROOT / "server" / "app.py")]
+    _start("backend", backend_cmd, str(PROJECT_ROOT / "server"), BACKEND_PORT)
+    print("[BACKEND] Waiting for health status...")
+    if wait_for_http_ready(f"{BACKEND_URL}/healthz", timeout_sec=20.0) or wait_for_http_ready(f"{BACKEND_URL}/api/health", timeout_sec=5.0):
+        print("✔ [BACKEND READY] FastAPI server is healthy at http://127.0.0.1:8000")
+    else:
+        print("⚠️ [BACKEND WARN] Backend health check timed out. Continuing...")
+
+    print("\n[PIPELINE ACTIVE] Backend running. Press Ctrl+C to terminate.\n")
+
+    restart_counts = {"backend": 0}
+    while not stop_event.is_set():
+        time.sleep(2.0)
+        bp = processes.get("backend")
+        if bp and bp.poll() is not None and not stop_event.is_set():
+            rc = restart_counts["backend"]
+            if rc < 5:
+                restart_counts["backend"] += 1
+                print(f"🚨 [WATCHDOG] Backend process died (exit {bp.poll()}). Auto-restarting ({rc+1}/5)...")
+                _start("backend", backend_cmd, str(PROJECT_ROOT / "server"), BACKEND_PORT)
+                wait_for_http_ready(f"{BACKEND_URL}/healthz", timeout_sec=10.0)
+
+    for name, p in processes.items():
+        if p and p.poll() is None:
+            try:
+                p.terminate()
+                p.wait(timeout=2)
+            except Exception:
+                try:
+                    p.kill()
+                except Exception:
+                    pass
+    print("[SHUTDOWN] Backend stopped cleanly.")
+    return 0
+
+
+def run_pipeline_tests(max_retries: int = 2) -> int:
+    """Run automated pytest suite with retries on failure."""
+    print("=" * 70)
+    print(" ⚡ INDOOR POSITIONING — AUTOMATED TEST SUITE RUNNER")
+    print("=" * 70)
+    test_dir = str(PROJECT_ROOT / "tests")
+    cmd = [PYTHON_EXE, "-m", "pytest", test_dir, "-v"]
+
+    for attempt in range(1, max_retries + 1):
+        print(f"\n[TEST SUITE] Executing pytest (attempt {attempt}/{max_retries})...")
+        res = subprocess.run(cmd, cwd=str(PROJECT_ROOT))
+        if res.returncode == 0:
+            print(f"\n✔ [SUCCESS] All tests passed cleanly on attempt {attempt}.")
+            return 0
+        else:
+            print(f"\n⚠️ [TEST RETRY] Pytest exited with code {res.returncode}.")
+            if attempt < max_retries:
+                print("Freeing ports and retrying tests in 2 seconds...")
+                free_port(BACKEND_PORT)
+                free_port(5005)
+                time.sleep(2.0)
+
+    print(f"\n✖ [FAILURE] Tests failed after {max_retries} attempts.")
+    return 1
+
+
 def main() -> None:
     if "--help" in sys.argv or "-h" in sys.argv:
         print(
-            "Indoor Positioning System — Control Centre Launcher\n\n"
+            "Indoor Positioning System — Control Centre & Pipeline Launcher\n\n"
             "Usage:\n"
             "  python control.py                    Launch interactive Control Centre GUI\n"
-            "  python control.py --autostart        Launch Control Centre and immediately start services\n"
-            "  python control.py --app setup        Launch ESP32 Wireless Provisioner & Flasher GUI\n"
-            "  python control.py --app controller   Launch Visual Data Collector & Environment Controller GUI\n"
-            "  python control.py --app trainer      Launch AI Model Studio & Trainer GUI\n"
-            "  python control.py --app admin        Launch System Administrator & Telemetry GUI\n"
-            "  python control.py --app tracking     Launch Live Tracking Web Dashboard\n"
+            "  python control.py --autostart        Launch Control Centre and immediately start backend\n"
+            "  python control.py --headless         Run backend API in headless CLI mode\n"
+            "  python control.py --test             Run automated test suite with retries\n"
+            "  python control.py setup              Launch ESP32 Wireless Provisioner & Flasher GUI\n"
+            "  python control.py collector          Launch Visual Data Collector & Environment Controller GUI\n"
+            "  python control.py trainer            Launch AI Model Studio & Trainer GUI\n"
+            "  python control.py admin              Launch System Administrator & Telemetry GUI\n"
         )
         return
 
-    # CLI App Dispatcher
-    if "--app" in sys.argv:
-        idx = sys.argv.index("--app")
-        if idx + 1 < len(sys.argv):
-            target_app = sys.argv[idx + 1].lower()
-            if target_app == "admin":
-                import admin_gui
-                admin_gui.main()
-                return
-            elif target_app in ("controller", "collector", "collect"):
-                import controller
-                controller.main()
-                return
-            elif target_app in ("setup", "provision", "flasher"):
-                import setup
-                setup.main()
-                return
-            elif target_app in ("trainer", "train"):
-                import trainer_gui
-                trainer_gui.main()
-                return
-            elif target_app in ("tracking", "dashboard"):
-                open_browser_url(DASHBOARD_URL)
-                return
+    # Check for direct headless mode
+    if "--headless" in sys.argv or "headless" in sys.argv:
+        sys.exit(run_headless_pipeline())
+
+    # Check for direct test mode
+    if "--test" in sys.argv or "test" in sys.argv:
+        sys.exit(run_pipeline_tests())
+
+    # Direct App Dispatcher
+    cli_args = [a.lower() for a in sys.argv[1:]]
+    if "--setup" in cli_args or "setup" in cli_args or ("--app" in sys.argv and sys.argv[sys.argv.index("--app")+1].lower() in ("setup", "flasher")):
+        import setup
+        setup.main()
+        return
+    elif "--collector" in cli_args or "collector" in cli_args or "controller" in cli_args or ("--app" in sys.argv and sys.argv[sys.argv.index("--app")+1].lower() in ("controller", "collector")):
+        import controller
+        controller.main()
+        return
+    elif "--admin" in cli_args or "admin" in cli_args or ("--app" in sys.argv and sys.argv[sys.argv.index("--app")+1].lower() == "admin"):
+        import admin_gui
+        admin_gui.main()
+        return
+    elif "--trainer" in cli_args or "trainer" in cli_args or ("--app" in sys.argv and sys.argv[sys.argv.index("--app")+1].lower() in ("trainer", "train")):
+        import trainer_gui
+        trainer_gui.main()
+        return
 
     root = tk.Tk()
     app = ApplicationLauncher(root)
-    if "--autostart" in sys.argv:
-        root.after(500, app._toggle_backend)
-        root.after(1000, app._toggle_dashboard)
     root.mainloop()
 
 
 if __name__ == "__main__":
     main()
-

@@ -8,20 +8,20 @@
       0.2,
       0.2
     ],
-    "status": "provisioned",
+    "status": "configured",
     "locked": true,
-    "last_flashed": "2026-09-24 22:13:24"
+    "last_flashed": "2026-09-27 14:11:28"
   },
   "NODE_B": {
     "anchor_id": "ANCHOR_02",
     "display_name": "ESP32-B (Corner SE)",
     "corner": "SE",
-    "mac": "24:6F:28:1A:4C:02",
+    "mac": "D0:EF:76:58:F6:FC",
     "default_pos": [
       4.8,
       0.2
     ],
-    "status": "ready",
+    "status": "configured",
     "locked": false,
     "last_flashed": null
   },
@@ -42,13 +42,13 @@
     "anchor_id": "ANCHOR_04",
     "display_name": "ESP32-D (Corner NE)",
     "corner": "NE",
-    "mac": "24:6F:28:1A:4C:04",
+    "mac": "78:1C:3C:E5:B3:F4",
     "default_pos": [
       4.8,
       4.8
     ],
-    "status": "ready",
+    "status": "configured",
     "locked": false,
-    "last_flashed": null
+    "last_flashed": "2026-09-27 14:15:02"
   }
 }

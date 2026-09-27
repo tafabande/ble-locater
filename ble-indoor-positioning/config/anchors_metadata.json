@@ -11,7 +11,7 @@
     ]
   },
   "ANCHOR_02": {
-    "mac": "24:6F:28:1A:4C:02",
+    "mac": "D0:EF:76:58:F6:FC",
     "name": "ESP32-B (Corner SE)",
     "node_key": "NODE_B",
     "corner": "SE",
@@ -33,7 +33,7 @@
     ]
   },
   "ANCHOR_04": {
-    "mac": "24:6F:28:1A:4C:04",
+    "mac": "78:1C:3C:E5:B3:F4",
     "name": "ESP32-D (Corner NE)",
     "node_key": "NODE_D",
     "corner": "NE",

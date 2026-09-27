@@ -341,6 +341,7 @@ class DataCollectorApp:
             state="readonly", width=26,
         )
         self.cb_port.pack()
+        self.cb_port.bind("<<ComboboxSelected>>", self._on_port_changed)
 
         self.lbl_master_sync = tk.Label(
             right_group, text="● 4/4 Nodes In Sync",
@@ -1519,6 +1520,15 @@ class DataCollectorApp:
         self.cb_port["values"] = ports
         if self.port_var.get() not in ports:
             self.port_var.set("Wireless Wi-Fi (UDP :5005)")
+
+    def _on_port_changed(self, event=None) -> None:
+        """Dynamically switch stream port when user selects a different port from the combobox."""
+        new_port = self.port_var.get().strip()
+        if not new_port:
+            return
+        if not self.recording_engine.is_recording and not self.recording_engine.is_stabilizing:
+            self.recording_engine.stop_all()
+            self.recording_engine.start_stream(new_port)
 
     def _freeze_form_parameters(self, freeze: bool) -> None:
         """Lock experimental geometry and parameters during active collection."""

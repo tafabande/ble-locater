@@ -40,6 +40,113 @@ WS_URL = f"ws://{BACKEND_HOST}:{BACKEND_PORT}/ws"
 DASHBOARD_URL = f"http://{DASHBOARD_HOST}:{DASHBOARD_PORT}"
 
 
+# ── LAN & Wi-Fi Network Interface Detection (No Internet / 8.8.8.8 Trick) ─────
+def get_active_lan_interfaces() -> list[tuple[str, str]]:
+    """Enumerate real active local LAN / Wi-Fi network interfaces with IPv4 addresses.
+
+    Operates 100% offline without connecting to external internet IP (8.8.8.8).
+    Excludes loopback (127.0.0.1), link-local (169.254.x.x), and virtual/hyper-v adapters.
+    Prioritizes real physical Wi-Fi adapters first, then Ethernet.
+    Returns list of (interface_name, ipv4_address).
+    """
+    results: list[tuple[str, str]] = []
+    seen_ips: set[str] = set()
+
+    # 1. Try psutil if available in environment
+    try:
+        import psutil
+        import socket
+        for name, snics in psutil.net_if_addrs().items():
+            stats = psutil.net_if_stats().get(name)
+            if stats and not stats.isup:
+                continue
+            lower_name = name.lower()
+            if any(v in lower_name for v in ("vethernet", "virtualbox", "vmware", "hyper-v", "wsl", "loopback", "bluetooth")):
+                continue
+            for snic in snics:
+                if snic.family == socket.AF_INET:
+                    ip = snic.address
+                    if not ip.startswith(("127.", "169.254.")) and ip not in seen_ips:
+                        results.append((name, ip))
+                        seen_ips.add(ip)
+    except Exception:
+        pass
+
+    # 2. Fallback to native OS command if psutil is unavailable or returned empty
+    if not results and sys.platform == "win32":
+        try:
+            import re
+            out = subprocess.check_output("ipconfig", text=True, stderr=subprocess.DEVNULL)
+            current_adapter = "LAN"
+            for line in out.splitlines():
+                m_adapter = re.match(r"^[A-Za-z0-9].*adapter (.*):", line)
+                if m_adapter:
+                    current_adapter = m_adapter.group(1).strip()
+                m_ip = re.search(r"IPv4 Address[ .]*: ([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", line)
+                if m_ip:
+                    ip = m_ip.group(1).strip()
+                    lower_name = current_adapter.lower()
+                    if not any(v in lower_name for v in ("vethernet", "virtualbox", "vmware", "hyper-v", "wsl", "loopback", "bluetooth")):
+                        if not ip.startswith(("127.", "169.254.")) and ip not in seen_ips:
+                            results.append((current_adapter, ip))
+                            seen_ips.add(ip)
+        except Exception:
+            pass
+
+    # Rank Wi-Fi adapters first, then Ethernet, then other LAN
+    def _rank(item: tuple[str, str]) -> int:
+        n_lower = item[0].lower()
+        if any(w in n_lower for w in ("wi-fi", "wifi", "wlan", "wireless", "802.11")):
+            return 0
+        if any(e in n_lower for e in ("ethernet", "eth", "local area")):
+            return 1
+        return 2
+
+    results.sort(key=_rank)
+    return results
+
+
+def get_primary_lan_ip() -> str:
+    """Return the primary active local LAN or Wi-Fi IPv4 address of this machine."""
+    interfaces = get_active_lan_interfaces()
+    if interfaces:
+        return interfaces[0][1]
+    return "127.0.0.1"
+
+
+def get_hotspot_lan_interfaces() -> list[tuple[str, str]]:
+    """Return active Windows Mobile Hotspot / Wi-Fi Direct LAN interfaces.
+
+    The RTLS experiment uses the laptop as the access point. Its receiver
+    address must come from the hotspot-facing interface, not an unrelated
+    Internet-facing Wi-Fi or Ethernet connection.
+    """
+    candidates: list[tuple[str, str]] = []
+    for name, ip in get_active_lan_interfaces():
+        name_lower = name.lower()
+        is_hotspot_name = (
+            "local area connection*" in name_lower
+            or "wi-fi direct" in name_lower
+            or "wifi direct" in name_lower
+            or "mobile hotspot" in name_lower
+            or "hotspot" in name_lower
+        )
+        is_private_lan = ip.startswith((
+            "10.", "192.168.", "172.16.", "172.17.", "172.18.",
+            "172.19.", "172.2", "172.30.", "172.31.",
+        ))
+        if is_hotspot_name and is_private_lan:
+            candidates.append((name, ip))
+    return candidates
+
+
+def get_experiment_receiver_ip() -> str:
+    """Return the dedicated hotspot receiver IPv4 address, or empty if absent."""
+    hotspots = get_hotspot_lan_interfaces()
+    return hotspots[0][1] if hotspots else ""
+
+
+
 # ── Python Environment Detection ─────────────────────────────────────────────
 def get_python_executable() -> str:
     """Find the project virtual environment Python or fallback to current sys.executable."""
@@ -126,7 +233,7 @@ def load_anchor_metadata() -> Dict[str, Dict[str, Any]]:
 
 # ── System Utilities ─────────────────────────────────────────────────────────
 def free_port(port: int) -> None:
-    """Free a TCP port if an orphaned process is holding it on Windows."""
+    """Free a TCP or UDP port if an orphaned process is holding it on Windows."""
     if os.name != "nt":
         return
     try:
@@ -134,11 +241,13 @@ def free_port(port: int) -> None:
             ["netstat", "-aon"],
             capture_output=True, text=True, timeout=5,
         )
+        current_pid = os.getpid()
         for line in result.stdout.splitlines():
-            if f":{port}" in line and "LISTENING" in line:
-                parts = line.split()
+            clean = line.strip()
+            if f":{port}" in clean and ("LISTENING" in clean or clean.startswith("UDP")):
+                parts = clean.split()
                 pid = parts[-1]
-                if pid.isdigit() and int(pid) > 0:
+                if pid.isdigit() and int(pid) > 0 and int(pid) != current_pid:
                     subprocess.run(
                         ["taskkill", "/F", "/PID", pid],
                         stdout=subprocess.DEVNULL,

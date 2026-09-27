@@ -454,8 +454,13 @@ def test_recording_engine_uses_visual_geometry():
         engine.active_session = session
         engine.is_recording = True
 
-        # Generate a simulated packet for ANCHOR_01
-        engine._generate_simulated_packet()
+        # Feed a physical packet for ANCHOR_01
+        engine.feed_packet({
+            "anchor_id": "ANCHOR_01",
+            "device_mac": "AA:BB:CC:11:22:33",
+            "rssi": -68,
+            "provenance": "HARDWARE_WIFI_UDP",
+        })
 
         assert not pkt_queue.empty()
         pkt = pkt_queue.get_nowait()
@@ -479,8 +484,12 @@ def test_pre_recording_validation_logic():
     from collector.collector_gui import DataCollectorApp
     import tkinter as tk
 
-    root = tk.Tk()
-    root.withdraw()
+    try:
+        root = tk.Tk()
+        root.withdraw()
+    except (tk.TclError, Exception):
+        pytest.skip("Tkinter display/Tcl library unavailable in current environment")
+
     try:
         app = DataCollectorApp(root)
 
@@ -564,7 +573,11 @@ def test_phase_0_5_canvas_visibility_and_aspect_ratios():
     import tkinter as tk
     from collector.collector_gui import DataCollectorApp
 
-    root = tk.Tk()
+    try:
+        root = tk.Tk()
+    except (tk.TclError, Exception):
+        pytest.skip("Tkinter display/Tcl library unavailable in current environment")
+
     app = None
     try:
         app = DataCollectorApp(root)

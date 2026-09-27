@@ -26,6 +26,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.ble import list_serial_ports
+from core.config import (
+    get_active_lan_interfaces,
+    get_experiment_receiver_ip,
+    get_hotspot_lan_interfaces,
+)
 from collector.node_registry import (
     load_node_registry,
     save_node_registry,
@@ -46,16 +51,125 @@ except ImportError:
 
 
 def get_local_ip() -> str:
-    """Auto-detect the primary local LAN IP address of this machine."""
+    """Return the dedicated hotspot receiver IP, never the Internet-facing NIC."""
+    return get_experiment_receiver_ip()
+
+
+def verify_esp32_config(
+    config: Dict[str, Any], *, mac: str, node_key: str, tag_mac: str, host: str, udp_port: int
+) -> bool:
+    """Return True only when the ESP32 read-back matches every provisioned field."""
+    return (
+        normalize_mac(str(config.get("mac", ""))) == normalize_mac(mac)
+        and str(config.get("node", "")).upper() == node_key.upper()
+        and normalize_mac(str(config.get("tag", ""))) == normalize_mac(tag_mac)
+        and str(config.get("ssid", "")) != ""
+        and str(config.get("host", "")) == host
+        and int(config.get("port", -1)) == int(udp_port)
+    )
+
+
+def get_firmware_binaries() -> Dict[str, Optional[Path]]:
+    """Locate real compiled ESP-IDF firmware binaries for esp32_wifi_anchor."""
+    bin_dir = PROJECT_ROOT / "firmware" / "binaries"
+    build_dir = PROJECT_ROOT / "firmware" / "esp32_wifi_anchor" / "build"
+    anchor_build = PROJECT_ROOT / "firmware" / "esp32_anchor" / "build"
+
+    app_bin = None
+    bootloader_bin = None
+    partitions_bin = None
+
+    for cand in [
+        bin_dir / "esp32_wifi_anchor.bin",
+        build_dir / "esp32_wifi_anchor.bin",
+        bin_dir / "ble.bin",
+        anchor_build / "ble.bin",
+    ]:
+        if cand.exists():
+            app_bin = cand
+            break
+
+    for cand in [
+        bin_dir / "bootloader.bin",
+        build_dir / "bootloader" / "bootloader.bin",
+        anchor_build / "bootloader" / "bootloader.bin",
+    ]:
+        if cand.exists():
+            bootloader_bin = cand
+            break
+
+    for cand in [
+        bin_dir / "partition-table.bin",
+        build_dir / "partition_table" / "partition-table.bin",
+        anchor_build / "partition_table" / "partition-table.bin",
+        bin_dir / "partitions.bin",
+    ]:
+        if cand.exists():
+            partitions_bin = cand
+            break
+
+    return {
+        "app": app_bin,
+        "bootloader": bootloader_bin,
+        "partitions": partitions_bin,
+    }
+
+
+def build_esp_idf_firmware(log_cb=None) -> bool:
+    """Build esp32_wifi_anchor firmware project using the local ESP-IDF toolchain."""
+    ps_profile = Path(r"C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1")
+    project_dir = PROJECT_ROOT / "firmware" / "esp32_wifi_anchor"
+    if not project_dir.exists():
+        project_dir = PROJECT_ROOT / "firmware" / "esp32_anchor"
+
+    if log_cb:
+        log_cb("[BUILD] Initializing ESP-IDF compilation for esp32_wifi_anchor...")
+
+    if ps_profile.exists():
+        ps_cmd = f'. "{ps_profile}"; cd "{project_dir}"; idf.py build'
+        cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd]
+    else:
+        cmd = ["idf.py", "-C", str(project_dir), "build"]
+
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(0.2)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            cwd=str(PROJECT_ROOT),
+        )
+        for line in proc.stdout:
+            line_str = line.strip()
+            if line_str and log_cb:
+                log_cb(f"  [IDF] {line_str}")
+        proc.wait()
+        if proc.returncode == 0:
+            import shutil
+            bin_dir = PROJECT_ROOT / "firmware" / "binaries"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            b_dir = project_dir / "build"
+            app_b = b_dir / "esp32_wifi_anchor.bin"
+            boot_b = b_dir / "bootloader" / "bootloader.bin"
+            part_b = b_dir / "partition_table" / "partition-table.bin"
+            if app_b.exists():
+                shutil.copy2(app_b, bin_dir / "esp32_wifi_anchor.bin")
+            if boot_b.exists():
+                shutil.copy2(boot_b, bin_dir / "bootloader.bin")
+            if part_b.exists():
+                shutil.copy2(part_b, bin_dir / "partition-table.bin")
+            if log_cb:
+                log_cb("✔ [BUILD SUCCESS] Real ESP-IDF binaries compiled and placed in firmware/binaries!")
+            return True
+        else:
+            if log_cb:
+                log_cb(f"✖ [BUILD ERROR] idf.py build exited with code {proc.returncode}")
+            return False
+    except Exception as e:
+        if log_cb:
+            log_cb(f"✖ [BUILD EXCEPTION] {e}")
+        return False
 
 
 def get_esptool_cmd() -> Optional[List[str]]:
@@ -84,6 +198,7 @@ def get_esptool_cmd() -> Optional[List[str]]:
     if found:
         return [found]
     return None
+
 
 
 class SetupApp:
@@ -127,7 +242,9 @@ class SetupApp:
         self.wifi_pass_var = tk.StringVar(value=os.environ.get("BLE_WIFI_PASSWORD", ""))
         self.show_pass_var = tk.BooleanVar(value=False)
         self.host_ip_var = tk.StringVar(value=get_local_ip())
-        self.udp_port_var = tk.IntVar(value=5005)
+        self.hotspot_status_var = tk.StringVar()
+        # UDP port 5005 is owned exclusively by the Collector (recording.py).
+        # The Setup tool uses serial-only for provisioning and HTTP for health checks.
         self.target_tag_var = tk.StringVar(value="52:06:26:03:01:DA")
 
         # Hardware & Node Variables
@@ -143,9 +260,8 @@ class SetupApp:
             "NODE_C": {"online": False, "last_seen": 0.0, "packets": 0, "ip": "", "rssi": -99},
             "NODE_D": {"online": False, "last_seen": 0.0, "packets": 0, "ip": "", "rssi": -99},
         }
-        self.health_stop_event = threading.Event()
-        self.health_thread = threading.Thread(target=self._health_listener_worker, daemon=True)
-        self.health_thread.start()
+        # Health monitoring is HTTP-only (polls FastAPI backend at /api/nodes/health).
+        # No UDP listener thread — the Collector owns port 5005 exclusively.
 
         self._configure_styles()
         self._build_ui()
@@ -153,7 +269,7 @@ class SetupApp:
         self._refresh_ports()
         self._refresh_registry_table()
         self.root.after(100, self._process_log_queue)
-        self.root.after(1500, self._periodic_health_refresh)
+        self.root.after(3000, self._periodic_health_refresh)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _configure_styles(self) -> None:
@@ -287,7 +403,33 @@ class SetupApp:
         self.e_pass = ttk.Entry(card, textvariable=self.wifi_pass_var, show="*")
         self.e_pass.pack(fill="x", pady=(1, 6))
 
-        # Laptop Receiver IP & Port
+        # Network Interface & Laptop Receiver IP & Port.  The hotspot is the
+        # experimental LAN, so it is deliberately listed before Internet NICs.
+        hotspot_ifaces = get_hotspot_lan_interfaces()
+        all_ifaces = get_active_lan_interfaces()
+        net_ifaces = hotspot_ifaces + [item for item in all_ifaces if item not in hotspot_ifaces]
+        self.net_adapters = net_ifaces
+        self.adapter_names = [f"{name} ({ip})" for name, ip in net_ifaces]
+        self.adapter_var = tk.StringVar(value=self.adapter_names[0] if self.adapter_names else "")
+
+        tk.Label(card, text="Laptop Network Interface Adapter", bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 8)).pack(anchor="w")
+        self.cb_adapter = ttk.Combobox(card, textvariable=self.adapter_var, values=self.adapter_names, state="readonly")
+        self.cb_adapter.pack(fill="x", pady=(1, 4))
+        self.cb_adapter.bind("<<ComboboxSelected>>", self._on_adapter_selected)
+
+        if hotspot_ifaces:
+            self.hotspot_status_var.set(
+                f"Experimental hotspot detected: {hotspot_ifaces[0][0]} ({hotspot_ifaces[0][1]})"
+            )
+            hotspot_fg = t["green"]
+        else:
+            self.hotspot_status_var.set(
+                "Laptop hotspot not detected — enable Mobile Hotspot before provisioning"
+            )
+            hotspot_fg = t["amber"]
+        tk.Label(card, textvariable=self.hotspot_status_var, bg=t["panel"], fg=hotspot_fg,
+                 font=("Segoe UI", 8, "bold"), wraplength=360, justify="left").pack(anchor="w", pady=(0, 5))
+
         net_row = tk.Frame(card, bg=t["panel"])
         net_row.pack(fill="x", pady=(0, 4))
 
@@ -299,11 +441,11 @@ class SetupApp:
         port_box = tk.Frame(net_row, bg=t["panel"], width=90)
         port_box.pack(side="right")
         tk.Label(port_box, text="UDP Port", bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 8)).pack(anchor="w")
-        ttk.Entry(port_box, textvariable=self.udp_port_var, width=8).pack(fill="x")
+        tk.Label(port_box, text="5005", bg=t["card"], fg=t["text"], font=("Consolas", 9), anchor="w", padx=4).pack(fill="x")
 
         # Auto-detect IP button
         b_detect = tk.Button(
-            card, text="⟳ Auto-Detect Laptop Local IP", bg=t["card"], fg=t["text"],
+            card, text="⟳ Refresh & Auto-Detect Wi-Fi / LAN IP", bg=t["card"], fg=t["text"],
             font=("Segoe UI", 8), relief="flat", cursor="hand2", pady=3,
             command=self._auto_detect_ip,
         )
@@ -375,6 +517,14 @@ class SetupApp:
         card = tk.Frame(parent, bg=t["panel"], padx=14, pady=10, highlightthickness=1, highlightbackground=t["border"])
         card.pack(fill="x")
 
+        self.btn_quick_config = tk.Button(
+            card, text="📶 PUSH WI-FI / NVS CONFIG (QUICK OVER SERIAL — NO FLASH)",
+            bg="#2563EB", fg="#FFFFFF", font=("Segoe UI", 9, "bold"),
+            relief="flat", cursor="hand2", pady=7,
+            command=self._quick_update_wifi,
+        )
+        self.btn_quick_config.pack(fill="x", pady=(0, 4))
+
         self.btn_flash = tk.Button(
             card, text="⚡ FLASH FIRMWARE & PROVISION ROM",
             bg=t["accent"], fg="#FFFFFF", font=("Segoe UI", 10, "bold"),
@@ -383,9 +533,17 @@ class SetupApp:
         )
         self.btn_flash.pack(fill="x", pady=(0, 4))
 
+        self.btn_compile = tk.Button(
+            card, text="🔨 Compile Firmware (ESP-IDF v6.1)",
+            bg=t["card"], fg=t["text"], font=("Segoe UI", 8, "bold"),
+            relief="flat", cursor="hand2", pady=4,
+            command=self._compile_firmware_idf,
+        )
+        self.btn_compile.pack(fill="x", pady=(0, 4))
+
         self.btn_bind_only = tk.Button(
             card, text="💾 Save MAC Binding Only (Without Flashing)",
-            bg=t["card"], fg=t["text"], font=("Segoe UI", 8),
+            bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8),
             relief="flat", cursor="hand2", pady=4,
             command=self._save_binding_only,
         )
@@ -563,10 +721,57 @@ class SetupApp:
         else:
             self.e_pass.config(show="*")
 
+    def _on_adapter_selected(self, event=None) -> None:
+        sel = self.adapter_var.get()
+        for name, ip in getattr(self, "net_adapters", []):
+            if f"{name} ({ip})" == sel:
+                self.host_ip_var.set(ip)
+                self._log(f"[NETWORK] Selected adapter '{name}' with IP: {ip}")
+                break
+
     def _auto_detect_ip(self) -> None:
-        ip = get_local_ip()
+        hotspot_ifaces = get_hotspot_lan_interfaces()
+        all_ifaces = get_active_lan_interfaces()
+        net_ifaces = hotspot_ifaces + [item for item in all_ifaces if item not in hotspot_ifaces]
+        self.net_adapters = net_ifaces
+        self.adapter_names = [f"{name} ({ip})" for name, ip in net_ifaces]
+        if hasattr(self, "cb_adapter"):
+            self.cb_adapter["values"] = self.adapter_names
+            if hotspot_ifaces:
+                self.adapter_var.set(self.adapter_names[0])
+        ip = get_experiment_receiver_ip()
         self.host_ip_var.set(ip)
-        self._log(f"[NETWORK] Auto-detected local laptop IP address: {ip}")
+        if hotspot_ifaces:
+            self.hotspot_status_var.set(
+                f"Experimental hotspot detected: {hotspot_ifaces[0][0]} ({ip})"
+            )
+            self._log(f"[NETWORK] Experimental hotspot receiver detected: {ip}")
+        else:
+            self.hotspot_status_var.set(
+                "Laptop hotspot not detected — enable Mobile Hotspot before provisioning"
+            )
+            self._log("[NETWORK] No active Mobile Hotspot adapter detected; receiver IP intentionally left blank.")
+
+    def _compile_firmware_idf(self) -> None:
+        if getattr(self, "is_compiling", False):
+            return
+        self.is_compiling = True
+        self.btn_compile.config(state="disabled", text="⏳ Compiling (ESP-IDF)...")
+        threading.Thread(target=self._worker_compile_firmware, daemon=True).start()
+
+    def _worker_compile_firmware(self) -> None:
+        self._log("\n=======================================================")
+        self._log("🔨 INITIATING ESP-IDF v6.1 FIRMWARE COMPILATION")
+        self._log("=======================================================")
+        success = build_esp_idf_firmware(log_cb=self._log)
+        self.is_compiling = False
+        def _finish():
+            self.btn_compile.config(state="normal", text="🔨 Compile Firmware (ESP-IDF v6.1)")
+            if success:
+                messagebox.showinfo("Build Success", "ESP-IDF firmware successfully compiled and copied to firmware/binaries!")
+            else:
+                messagebox.showerror("Build Failed", "ESP-IDF compilation failed. Check the terminal log for compiler output.")
+        self.root.after(0, _finish)
 
     def _refresh_ports(self) -> None:
         ports = list_serial_ports()
@@ -609,27 +814,33 @@ class SetupApp:
         messagebox.showinfo("Node Unlocked", f"✔ {node_key} is now UNLOCKED.\nYou can now reassign or replace its hardware MAC address.")
 
     def _ping_nodes_health(self) -> None:
-        """Broadcast a UDP ping to all ESP32 nodes and poll backend for live health."""
-        self._log("[HEALTH] Broadcasting UDP discovery ping to all 4 ESP32 anchors...")
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            ping_pkt = json.dumps({
-                "cmd": "COLLECTOR_ANNOUNCE",
-                "host_ip": get_local_ip(),
-                "port": self.udp_port_var.get(),
-                "timestamp": int(time.time() * 1000),
-            }).encode("utf-8")
-            s.sendto(ping_pkt, ("255.255.255.255", self.udp_port_var.get()))
-            s.close()
-        except Exception as e:
-            self._log(f"[HEALTH-ERR] UDP ping failed: {e}")
-
-        # Also poll backend if running
+        """Poll the FastAPI backend for live node health (HTTP only, no UDP)."""
+        self._log("[HEALTH] Polling backend HTTP endpoint for live node health...")
         try:
             import urllib.request
             req = urllib.request.Request("http://127.0.0.1:8000/api/nodes/health", headers={"User-Agent": "SetupApp"})
-            with urllib.request.urlopen(req, timeout=0.8) as resp:
+            with urllib.request.urlopen(req, timeout=2.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for k, v in data.get("nodes", {}).items():
+                    if k in self.node_health_tracker and v.get("online"):
+                        nh = self.node_health_tracker[k]
+                        nh["online"] = True
+                        nh["last_seen"] = time.time() - (v.get("last_seen_sec", 0.0) if v.get("last_seen_sec", 0.0) >= 0 else 0.0)
+                        nh["packets"] = v.get("packets", nh.get("packets", 0))
+                        nh["rssi"] = v.get("last_rssi", -99)
+                        nh["ip"] = v.get("ip", nh.get("ip", ""))
+                self._log(f"[HEALTH] Backend responded — {sum(1 for nh in self.node_health_tracker.values() if nh.get('online'))} node(s) online.")
+        except Exception as e:
+            self._log(f"[HEALTH] Backend not reachable ({e}). Start the Collector or FastAPI server first.")
+
+        self._refresh_registry_table()
+
+    def _periodic_health_refresh(self) -> None:
+        """Periodic HTTP-only health poll from the FastAPI backend."""
+        try:
+            import urllib.request
+            req = urllib.request.Request("http://127.0.0.1:8000/api/nodes/health", headers={"User-Agent": "SetupApp"})
+            with urllib.request.urlopen(req, timeout=1.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 for k, v in data.get("nodes", {}).items():
                     if k in self.node_health_tracker and v.get("online"):
@@ -643,82 +854,10 @@ class SetupApp:
             pass
 
         self._refresh_registry_table()
-        self._log("[HEALTH] Node status & health matrix refreshed.")
+        self.root.after(5000, self._periodic_health_refresh)
 
-    def _periodic_health_refresh(self) -> None:
-        if not getattr(self, "health_stop_event", None) or not self.health_stop_event.is_set():
-            try:
-                import urllib.request
-                req = urllib.request.Request("http://127.0.0.1:8000/api/nodes/health", headers={"User-Agent": "SetupApp"})
-                with urllib.request.urlopen(req, timeout=0.6) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    for k, v in data.get("nodes", {}).items():
-                        if k in self.node_health_tracker and v.get("online"):
-                            nh = self.node_health_tracker[k]
-                            nh["online"] = True
-                            nh["last_seen"] = time.time() - (v.get("last_seen_sec", 0.0) if v.get("last_seen_sec", 0.0) >= 0 else 0.0)
-                            nh["packets"] = v.get("packets", nh.get("packets", 0))
-                            nh["rssi"] = v.get("last_rssi", -99)
-                            nh["ip"] = v.get("ip", nh.get("ip", ""))
-            except Exception:
-                pass
-
-            self._refresh_registry_table()
-            self.root.after(1500, self._periodic_health_refresh)
-
-    def _health_listener_worker(self) -> None:
-        """Background UDP listener tracking live telemetry & heartbeats from ESP32 anchors."""
-        sock = None
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                sock.bind(("0.0.0.0", 5005))
-            except Exception:
-                # Port in use by collector; backend HTTP poller will handle health updates
-                return
-            sock.settimeout(0.5)
-            while not self.health_stop_event.is_set():
-                try:
-                    data, addr = sock.recvfrom(2048)
-                    line = data.decode("utf-8", errors="ignore").strip()
-                    if not line:
-                        continue
-                    now = time.time()
-                    sender_ip = addr[0]
-                    try:
-                        d = json.loads(line)
-                        node_id = d.get("node") or d.get("anchor") or d.get("from_node")
-                        mac = d.get("mac", "")
-                        rssi = int(d.get("rssi", d.get("wifi_rssi", -99)))
-                        matched_key = None
-                        if node_id and node_id in self.node_health_tracker:
-                            matched_key = node_id
-                        elif mac:
-                            res = get_node_by_mac(mac)
-                            if res:
-                                matched_key = res[0]
-                        if matched_key:
-                            nh = self.node_health_tracker[matched_key]
-                            nh["online"] = True
-                            nh["last_seen"] = now
-                            nh["ip"] = sender_ip
-                            nh["rssi"] = rssi
-                            nh["packets"] = nh.get("packets", 0) + 1
-                    except Exception:
-                        pass
-                except socket.timeout:
-                    continue
-                except Exception:
-                    time.sleep(0.1)
-        except Exception:
-            pass
-        finally:
-            if sock:
-                try:
-                    sock.close()
-                except Exception:
-                    pass
+    # _health_listener_worker REMOVED — UDP port 5005 is owned exclusively
+    # by the Collector (recording.py). Setup tool uses HTTP-only health polling.
 
     def _refresh_registry_table(self) -> None:
         self.reg_tree.delete(*self.reg_tree.get_children())
@@ -738,13 +877,12 @@ class SetupApp:
                 ip_str = f" · {health.get('ip')}" if health.get("ip") else ""
                 status_str = f"🟢 ONLINE ({pkts} pkts{ip_str})"
             else:
-                persisted_st = info.get("status", "pending").upper()
                 if last_seen > 0:
                     status_str = f"⚪ OFFLINE ({int(now - last_seen)}s ago)"
-                elif persisted_st == "PROVISIONED":
-                    status_str = "🟡 PROVISIONED"
+                elif info.get("mac") and info.get("mac").upper() != "UNASSIGNED" and len(info.get("mac")) == 17:
+                    status_str = "⚪ OFFLINE (Configured)"
                 else:
-                    status_str = f"⚪ {persisted_st}"
+                    status_str = "⚪ UNCONFIGURED"
 
             self.reg_tree.insert("", "end", values=(
                 node_key,
@@ -774,7 +912,8 @@ class SetupApp:
                 # Interrogate chip type
                 cmd_chip = esptool_cmd + ["--port", port, "chip_id"]
                 self._log(f"[RUN] {' '.join(cmd_chip)}")
-                proc_chip = subprocess.run(cmd_chip, capture_output=True, text=True, timeout=10)
+                self._log("💡 If your board requires it: HOLD the BOOT button, then press EN/RESET. Release BOOT after 'Connecting...' appears.")
+                proc_chip = subprocess.run(cmd_chip, capture_output=True, text=True, timeout=30)
                 out_chip = proc_chip.stdout + proc_chip.stderr
                 m_chip = re.search(r"Chip is\s+([^\r\n]+)", out_chip)
                 if m_chip:
@@ -783,7 +922,8 @@ class SetupApp:
 
                 # Read hardware MAC
                 cmd_mac = esptool_cmd + ["--port", port, "read-mac"]
-                proc = subprocess.run(cmd_mac, capture_output=True, text=True, timeout=12)
+                self._log("💡 Hold BOOT + press EN if the board requires manual download-mode entry (30s timeout).")
+                proc = subprocess.run(cmd_mac, capture_output=True, text=True, timeout=30)
                 out = proc.stdout + proc.stderr
                 m = re.search(r"MAC:\s*([0-9a-fA-F:]{17})", out)
                 if m:
@@ -798,7 +938,7 @@ class SetupApp:
         # Fallback to serial query if application is already running
         if not mac_found and SERIAL_AVAILABLE:
             try:
-                ser = serial.Serial(port, 115200, timeout=1.2)
+                ser = serial.Serial(port, 115200, timeout=3.0)
                 time.sleep(0.3)
                 ser.write(b"GET_MAC\n")
                 time.sleep(0.3)
@@ -811,19 +951,20 @@ class SetupApp:
                 pass
 
         if mac_found:
-            self.detected_mac_var.set(mac_found)
+            self.root.after(0, lambda m=mac_found: self.detected_mac_var.set(m))
             self._log(f"✔ [MAC SUCCESS] Silicon Hardware MAC Detected: {mac_found} ({chip_info})")
 
             # Check if this MAC is already bound in registry
             found = get_node_by_mac(mac_found)
             if found:
                 node_key, info = found
-                self.node_key_var.set(node_key)
+                self.root.after(0, lambda nk=node_key: self.node_key_var.set(nk))
                 self._log(f"ℹ [REGISTRY MATCH] This device is already permanently registered to: {node_key} ({info.get('display_name')})")
+                self._log(f"  → Automatically selected target node radio: {node_key}")
             else:
                 self._log(f"ℹ [NEW DEVICE] Ready to assign MAC {mac_found} to: {self.node_key_var.get()}")
         else:
-            self.detected_mac_var.set("Failed to detect")
+            self.root.after(0, lambda: self.detected_mac_var.set("Failed to detect"))
             self._log("✖ [ERROR] Could not read MAC address. Hold the 'BOOT' button on the ESP32 while clicking 'Read MAC'.")
 
     def _save_binding_only(self) -> None:
@@ -868,6 +1009,224 @@ class SetupApp:
         except PermissionError as pe:
             messagebox.showerror("Lock Violation", str(pe))
 
+    def _quick_update_wifi(self) -> None:
+        """Push Wi-Fi credentials and NVS settings over Serial without flashing firmware binaries."""
+        if self.is_flashing:
+            return
+
+        port = self.port_var.get().strip()
+        if not port:
+            messagebox.showwarning("Select Port", "Please select a valid COM port.")
+            return
+
+        ssid = self.wifi_ssid_var.get().strip()
+        pwd = self.wifi_pass_var.get().strip()
+        host = self.host_ip_var.get().strip()
+        udp_port = 5005
+        node_key = self.node_key_var.get()
+        tag_mac = self.target_tag_var.get().strip()
+
+        if not ssid:
+            messagebox.showwarning("Missing SSID", "Please enter a Wi-Fi SSID.")
+            return
+        if not host or not get_hotspot_lan_interfaces():
+            messagebox.showwarning(
+                "Experimental Hotspot Required",
+                "Enable the laptop Mobile Hotspot first. The ESP32 receiver address must be the hotspot adapter IP, not the Internet Wi-Fi address.",
+            )
+            return
+
+        reg = load_node_registry()
+        raw_det = self.detected_mac_var.get().strip()
+        norm_det = normalize_mac(raw_det) if raw_det not in ("Not Queried", "Failed to detect", "") else None
+
+        # Lock validations
+        if reg.get(node_key, {}).get("locked", False):
+            curr_mac = reg[node_key].get("mac", "")
+            if norm_det and curr_mac and norm_det != curr_mac.upper():
+                messagebox.showerror(
+                    "Node Locked",
+                    f"⛔ Node {node_key} is LOCKED with MAC:\n{curr_mac}\n\n"
+                    f"Connected ESP32 has MAC: {norm_det}.\n\n"
+                    f"Unlock {node_key} first if you want to replace its hardware."
+                )
+                return
+
+        if not messagebox.askyesno(
+            "Confirm Quick Wi-Fi Update",
+            f"Push Wi-Fi & NVS configuration to {node_key} on {port}?\n\n"
+            f"• Wi-Fi SSID: {ssid}\n"
+            f"• Laptop Host: {host}:{udp_port}\n"
+            f"• Target Tag:  {tag_mac}\n\n"
+            f"(This quickly updates credentials in ESP32 NVS ROM over serial in ~2 seconds without re-flashing firmware.)"
+        ):
+            return
+
+        self.is_flashing = True
+        self.btn_quick_config.config(state="disabled", bg=self.THEME["card"])
+        self.btn_flash.config(state="disabled", bg=self.THEME["card"])
+        threading.Thread(
+            target=self._worker_quick_nvs_provision,
+            args=(port, node_key, ssid, pwd, host, udp_port, tag_mac),
+            daemon=True,
+        ).start()
+
+    def _worker_quick_nvs_provision(
+        self, port: str, node_key: str, ssid: str, pwd: str, host: str, udp_port: int, tag_mac: str
+    ) -> None:
+        self._log(f"\n=======================================================")
+        self._log(f"📶 QUICK NVS CONFIGURATION FOR {node_key} ON {port}")
+        self._log(f"=======================================================")
+
+        try:
+            if not SERIAL_AVAILABLE:
+                raise RuntimeError("pyserial is required for ESP32 UART communication.")
+
+            self._log(f"[STEP 1/3] Connecting to ESP32 on {port} (115200 baud)...")
+            ser = None
+            for attempt in range(1, 4):
+                try:
+                    ser = serial.Serial(port, 115200, timeout=1.5)
+                    break
+                except (serial.SerialException, PermissionError, OSError) as e:
+                    self._log(f"  [Attempt {attempt}/3] Port busy or opening: {e}")
+                    time.sleep(1.0)
+
+            if not ser or not ser.is_open:
+                raise RuntimeError(
+                    f"Could not open serial port {port}.\n"
+                    f"If the Collector or a serial monitor is currently reading from {port}, change the Collector's stream input or close it temporarily."
+                )
+
+            self._log("[STEP 2/3] Writing NVS parameters over UART...")
+            time.sleep(0.4)
+            ser.write(b"\n")
+            time.sleep(0.2)
+            try:
+                ser.read_all()
+            except Exception:
+                pass
+
+            commands = [
+                f"SET_ANCHOR={node_key}\n",
+                f"SET_TAG={tag_mac}\n",
+                f"SET_WIFI={ssid},{pwd}\n",
+                f"SET_HOST={host}\n",
+                f"SET_PORT={udp_port}\n",
+                "SAVE_CONFIG\n",
+                "RECONNECT_WIFI\n",
+            ]
+            for cmd in commands:
+                cmd_name = cmd.strip().split('=')[0]
+                self._log(f"  → Sending: {cmd_name}")
+                ser.write(cmd.encode("utf-8"))
+                time.sleep(0.3)
+                reply = ser.read_all().decode("utf-8", errors="ignore").strip()
+                if reply:
+                    for r_line in reply.splitlines():
+                        if r_line.strip():
+                            self._log(f"    ← Reply: {r_line.strip()}")
+
+            self._log("  → Verifying NVS parameters via GET_CONFIG...")
+            ser.write(b"GET_CONFIG\n")
+            time.sleep(0.5)
+            verify_res = ser.read_all().decode("utf-8", errors="ignore").strip()
+
+            ser.write(b"GET_MAC\n")
+            time.sleep(0.3)
+            mac_res = ser.read_all().decode("utf-8", errors="ignore").strip()
+            ser.close()
+
+            detected_mac = None
+            m = re.search(r'"mac":\s*"([^"]+)"', mac_res)
+            if m:
+                detected_mac = normalize_mac(m.group(1))
+
+            if not detected_mac:
+                raw_mac = self.detected_mac_var.get().strip()
+                if raw_mac not in ("Not Queried", "Failed to detect", ""):
+                    detected_mac = normalize_mac(raw_mac)
+
+            if not detected_mac:
+                raise RuntimeError("Could not verify the ESP32 silicon MAC after NVS provisioning.")
+
+            verified_config = False
+            for line in verify_res.splitlines():
+                clean = line.strip()
+                if clean.startswith("{") and clean.endswith("}"):
+                    try:
+                        verified_config = verify_esp32_config(
+                            json.loads(clean), mac=detected_mac, node_key=node_key,
+                            tag_mac=tag_mac, host=host, udp_port=udp_port,
+                        )
+                        if verified_config:
+                            break
+                    except Exception:
+                        pass
+            if not verified_config:
+                raise RuntimeError(
+                    "ESP32 NVS read-back did not match the requested MAC, node, tag, host, and UDP port. "
+                    "Registry was not updated."
+                )
+
+            bind_mac_to_node(node_key, detected_mac, status="provisioned")
+            self.root.after(0, self._refresh_registry_table)
+
+            self._log("✔ NVS configuration written & saved to ROM. ESP32 Wi-Fi reconnecting...")
+
+            # Step 3: Check health via backend
+            self._log("[STEP 3/3] Checking node heartbeat via backend HTTP API (15s)...")
+            heartbeat_received = False
+            start_wait = time.time()
+            while (time.time() - start_wait) < 15.0:
+                try:
+                    import urllib.request
+                    req = urllib.request.Request("http://127.0.0.1:8000/api/nodes/health", headers={"User-Agent": "SetupApp"})
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        node_data = data.get("nodes", {}).get(node_key, {})
+                        if node_data.get("online"):
+                            heartbeat_received = True
+                            nh = self.node_health_tracker[node_key]
+                            nh["online"] = True
+                            nh["last_seen"] = time.time()
+                            nh["ip"] = node_data.get("ip", "")
+                            nh["packets"] = node_data.get("packets", 0)
+                            nh["rssi"] = node_data.get("last_rssi", -99)
+                            break
+                except Exception:
+                    pass
+                time.sleep(2.0)
+
+            if heartbeat_received:
+                self._log(f"🟢 [VERIFIED ONLINE] Physical UDP heartbeat received from {node_key}!")
+                if detected_mac:
+                    bind_mac_to_node(node_key, detected_mac, status="online")
+                self.root.after(0, self._refresh_registry_table)
+                messagebox.showinfo(
+                    "Quick Update Complete",
+                    f"✔ Wi-Fi credentials updated successfully!\n\n"
+                    f"Node {node_key} is VERIFIED ONLINE receiving UDP heartbeats.\n"
+                    f"• SSID: {ssid}\n"
+                    f"• Host: {host}:{udp_port}"
+                )
+            else:
+                self._log("🟡 [PROVISIONED] Credentials written to NVS. Waiting for router connection.")
+                messagebox.showinfo(
+                    "Configuration Saved",
+                    f"✔ Wi-Fi credentials sent to {node_key} and saved to NVS ROM!\n\n"
+                    f"• SSID: {ssid}\n"
+                    f"• Host: {host}:{udp_port}\n\n"
+                    f"ESP32 is reconnecting to Wi-Fi. Check Collector or ping health in a few moments."
+                )
+        except Exception as err:
+            self._log(f"✖ [ERROR DURING QUICK PROVISION] {err}")
+            messagebox.showerror("Configuration Failed", f"Encountered error: {err}")
+        finally:
+            self.is_flashing = False
+            self.root.after(0, lambda: self.btn_quick_config.config(state="normal", bg="#2563EB"))
+            self.root.after(0, lambda: self.btn_flash.config(state="normal", bg=self.THEME["accent"]))
+
     def _flash_and_provision(self) -> None:
         if self.is_flashing:
             return
@@ -880,12 +1239,18 @@ class SetupApp:
         ssid = self.wifi_ssid_var.get().strip()
         pwd = self.wifi_pass_var.get().strip()
         host = self.host_ip_var.get().strip()
-        port_udp = self.udp_port_var.get()
+        udp_port = 5005  # Fixed — Collector owns UDP 5005 exclusively
         node_key = self.node_key_var.get()
         tag_mac = self.target_tag_var.get().strip()
 
         if not ssid:
             messagebox.showwarning("Missing SSID", "Please enter a Wi-Fi SSID.")
+            return
+        if not host or not get_hotspot_lan_interfaces():
+            messagebox.showwarning(
+                "Experimental Hotspot Required",
+                "Enable the laptop Mobile Hotspot first. The ESP32 receiver address must be the hotspot adapter IP, not the Internet Wi-Fi address.",
+            )
             return
 
         reg = load_node_registry()
@@ -922,7 +1287,7 @@ class SetupApp:
             "Confirm Provisioning",
             f"Flash & Provision {node_key} on {port} with:\n\n"
             f"• Wi-Fi SSID: {ssid}\n"
-            f"• Laptop Host: {host}:{port_udp}\n"
+            f"• Laptop Host: {host}:{udp_port}\n"
             f"• Target Tag:  {tag_mac}\n\n"
             f"Proceed?"
         ):
@@ -930,9 +1295,11 @@ class SetupApp:
 
         self.is_flashing = True
         self.btn_flash.config(state="disabled", bg=self.THEME["card"])
+        if hasattr(self, "btn_quick_config"):
+            self.btn_quick_config.config(state="disabled", bg=self.THEME["card"])
         threading.Thread(
             target=self._worker_provision,
-            args=(port, node_key, ssid, pwd, host, port_udp, tag_mac),
+            args=(port, node_key, ssid, pwd, host, udp_port, tag_mac),
             daemon=True,
         ).start()
 
@@ -952,8 +1319,10 @@ class SetupApp:
 
             if esptool_cmd:
                 try:
+                    self._log("💡 If your board requires it: HOLD the BOOT button, then press EN/RESET.")
+                    self._log("   Release BOOT after 'Connecting...' appears. (30s timeout)")
                     cmd_chip = esptool_cmd + ["--port", port, "chip_id"]
-                    proc_chip = subprocess.run(cmd_chip, capture_output=True, text=True, timeout=10)
+                    proc_chip = subprocess.run(cmd_chip, capture_output=True, text=True, timeout=30)
                     out_chip = proc_chip.stdout + proc_chip.stderr
                     m_chip = re.search(r"Chip is\s+([^\r\n]+)", out_chip)
                     if m_chip:
@@ -961,10 +1330,12 @@ class SetupApp:
                         self._log(f"✔ Detected Chip: {chip_type}")
 
                     cmd_mac = esptool_cmd + ["--port", port, "read-mac"]
-                    proc = subprocess.run(cmd_mac, capture_output=True, text=True, timeout=12)
+                    proc = subprocess.run(cmd_mac, capture_output=True, text=True, timeout=30)
                     m = re.search(r"MAC:\s*([0-9a-fA-F:]{17})", proc.stdout + proc.stderr)
                     if m:
                         mac = m.group(1).upper()
+                except subprocess.TimeoutExpired:
+                    self._log("⏰ [TIMEOUT] esptool timed out after 30s. Hold BOOT + press EN and retry.")
                 except Exception as e:
                     self._log(f"[INFO] Hardware scan note: {e}")
 
@@ -975,7 +1346,7 @@ class SetupApp:
 
             if not mac and SERIAL_AVAILABLE:
                 try:
-                    ser = serial.Serial(port, 115200, timeout=1.0)
+                    ser = serial.Serial(port, 115200, timeout=3.0)
                     time.sleep(0.3)
                     ser.write(b"GET_MAC\n")
                     time.sleep(0.3)
@@ -991,45 +1362,102 @@ class SetupApp:
                 raise RuntimeError("Could not interrogate real silicon MAC address. Hold the BOOT button on the ESP32 and try again.")
 
             self._log(f"✔ Silicon Hardware MAC: {mac}")
-            try:
-                bind_mac_to_node(node_key, mac, status="provisioned")
-            except PermissionError as pe:
-                self._log(f"⛔ [LOCK REJECTION] {pe}")
-                self.is_flashing = False
-                self.root.after(0, lambda err=str(pe): messagebox.showerror("Lock Violation", err))
-                self.root.after(0, lambda: self.btn_flash.config(state="normal", bg=self.THEME["accent"]))
-                return
-            self.root.after(0, self._refresh_registry_table)
 
-            # 2. Check for Precompiled Binary to Flash directly
-            self._log("[STEP 2/4] Checking Firmware Binary Flasher...")
-            bin_dir = PROJECT_ROOT / "firmware" / "binaries"
-            bin_file = None
-            if bin_dir.exists():
-                candidates = list(bin_dir.glob("*.bin"))
-                if candidates:
-                    bin_file = candidates[0]
+            # 2. Flash ESP-IDF Firmware Binaries (bootloader @ 0x1000, partition-table @ 0x8000, app @ 0x10000)
+            self._log("[STEP 2/5] Locating and Flashing ESP-IDF Firmware Binaries...")
+            bins = get_firmware_binaries()
+            app_bin = bins.get("app")
+            boot_bin = bins.get("bootloader")
+            part_bin = bins.get("partitions")
 
-            if bin_file and esptool_cmd:
-                self._log(f"⚡ Flashing precompiled binary image: {bin_file.name} to ESP32 ROM...")
-                flash_cmd = esptool_cmd + ["--port", port, "--baud", "460800", "write_flash", "0x10000", str(bin_file)]
-                self._log(f"[RUN] {' '.join(flash_cmd)}")
-                p_flash = subprocess.run(flash_cmd, capture_output=True, text=True, timeout=60)
-                if p_flash.returncode == 0:
-                    self._log("✔ Flash write successful! Rebooting chip...")
-                    time.sleep(1.5)
-                else:
-                    self._log(f"[WARNING] Flash write finished with note: {p_flash.stderr[:200]}")
-            else:
-                self._log("ℹ Ready for NVS ROM parameter injection & verification.")
+            if not esptool_cmd:
+                raise RuntimeError("esptool is required for flashing ESP32 hardware.")
 
-            # 3. Transmit NVS parameters over UART with Read-Back Verification
-            self._log("[STEP 3/4] Writing Wi-Fi credentials & Node identity into NVS Flash...")
+            if not app_bin or not app_bin.exists():
+                self._log("⚠️ Compiled app binary not found. Triggering automated ESP-IDF build...")
+                built = build_esp_idf_firmware(log_cb=self._log)
+                if not built:
+                    raise RuntimeError("Failed to build firmware using ESP-IDF. Please check the build log.")
+                bins = get_firmware_binaries()
+                app_bin = bins.get("app")
+                boot_bin = bins.get("bootloader")
+                part_bin = bins.get("partitions")
+
+            if not app_bin or not app_bin.exists():
+                raise RuntimeError("esp32_wifi_anchor.bin not found after build.")
+
+            flash_args = [
+                "--port", port,
+                "--baud", "460800",
+                "write_flash",
+                "-z",
+                "--flash_mode", "dio",
+                "--flash_freq", "40m",
+                "--flash_size", "2MB",
+            ]
+            if boot_bin and boot_bin.exists():
+                flash_args.extend(["0x1000", str(boot_bin)])
+            if part_bin and part_bin.exists():
+                flash_args.extend(["0x8000", str(part_bin)])
+            flash_args.extend(["0x10000", str(app_bin)])
+
+            flash_cmd = esptool_cmd + flash_args
+            self._log(f"⚡ Flashing ESP-IDF firmware to {port}...")
+            self._log("💡 Hold BOOT + press EN if required. Flashing can take up to 2 minutes.")
+            self._log(f"[RUN] {' '.join(flash_cmd)}")
+            p_flash = subprocess.run(flash_cmd, capture_output=True, text=True, timeout=120)
+            if p_flash.returncode != 0:
+                raise RuntimeError(f"esptool write_flash failed: {p_flash.stderr or p_flash.stdout}")
+            self._log("✔ Flash write successful! Waiting for Windows COM driver release & chip reboot...")
+            time.sleep(3.5)
+
+            # 3. Verify Serial Boot & UART Communication
+            self._log("[STEP 3/5] Verifying Serial Boot & Handshake...")
             if not SERIAL_AVAILABLE:
-                raise RuntimeError("pyserial is required for ESP32 configuration injection.")
+                raise RuntimeError("pyserial is required for ESP32 UART communication.")
 
-            ser = serial.Serial(port, 115200, timeout=1.5)
-            time.sleep(0.6)
+            ser = None
+            boot_ok = False
+            for attempt in range(1, 6):
+                try:
+                    ser = serial.Serial(port, 115200, timeout=1.5)
+                    time.sleep(0.4)
+                    ser.write(b"\nGET_MAC\n")
+                    time.sleep(0.4)
+                    res = ser.read_all().decode("utf-8", errors="ignore")
+                    if "mac" in res.lower() or "{" in res or "anchor" in res.lower():
+                        boot_ok = True
+                        self._log(f"✔ [BOOT HANDSHAKE] ESP32 firmware responded on {port} (Attempt {attempt})")
+                        break
+                    else:
+                        # Firmware is running, received characters or prompt
+                        boot_ok = True
+                        self._log(f"✔ [PORT READY] Serial port {port} opened successfully on attempt {attempt}")
+                        break
+                except (serial.SerialException, PermissionError, OSError) as e:
+                    self._log(f"  [Attempt {attempt}/5] Waiting for Windows to release {port}... ({e})")
+                    if ser:
+                        try:
+                            ser.close()
+                        except Exception:
+                            pass
+                    ser = None
+                    time.sleep(1.5)
+
+            if not ser or not ser.is_open:
+                raise RuntimeError(
+                    f"Could not open serial port {port} after 5 attempts (Access Denied / Driver Lock).\n"
+                    f"Ensure no other serial monitor (Arduino IDE, VS Code, PuTTY) or process is using {port}."
+                )
+
+            # 4. Transmit NVS parameters over UART with Read-Back Verification
+            self._log("[STEP 4/5] Writing Wi-Fi credentials & Node identity into NVS Flash...")
+
+            # Drain any boot spam from buffer
+            try:
+                ser.read_all()
+            except Exception:
+                pass
 
             commands = [
                 f"SET_ANCHOR={node_key}\n",
@@ -1041,46 +1469,100 @@ class SetupApp:
                 "RECONNECT_WIFI\n",
             ]
             for cmd in commands:
-                self._log(f"  → Sending: {cmd.strip().split('=')[0]}")
+                cmd_name = cmd.strip().split('=')[0]
+                self._log(f"  → Sending: {cmd_name}")
                 ser.write(cmd.encode("utf-8"))
-                time.sleep(0.2)
+                time.sleep(0.3)
                 reply = ser.read_all().decode("utf-8", errors="ignore").strip()
                 if reply:
-                    self._log(f"    ← Reply: {reply}")
+                    for r_line in reply.splitlines():
+                        if r_line.strip():
+                            self._log(f"    ← Reply: {r_line.strip()}")
 
-            # 4. Strict Read-Back Verification
-            self._log("[STEP 4/4] Verifying Configuration Read-Back from NVS...")
+            # Strict Read-Back Verification
+            self._log("  → Verifying NVS parameters via GET_CONFIG...")
             ser.write(b"GET_CONFIG\n")
-            time.sleep(0.3)
+            time.sleep(0.5)
             verify_res = ser.read_all().decode("utf-8", errors="ignore").strip()
-            ser.close()
+            try:
+                ser.close()
+            except Exception:
+                pass
 
             verified = False
-            if verify_res and "{" in verify_res:
-                try:
-                    for line in verify_res.splitlines():
-                        if line.strip().startswith("{") and line.strip().endswith("}"):
-                            cfg_data = json.loads(line.strip())
-                            if cfg_data.get("node") == node_key or cfg_data.get("tag") == tag_mac:
+            if verify_res:
+                for line in verify_res.splitlines():
+                    clean = line.strip()
+                    if clean.startswith("{") and clean.endswith("}"):
+                        try:
+                            cfg_data = json.loads(clean)
+                            if verify_esp32_config(
+                                cfg_data, mac=mac, node_key=node_key, tag_mac=tag_mac,
+                                host=host, udp_port=udp_port,
+                            ):
                                 verified = True
+                                self._log(f"    ← NVS Verified: Node={cfg_data.get('node')}, Tag={cfg_data.get('tag')}, SSID={cfg_data.get('ssid')}")
                                 break
+                        except Exception:
+                            pass
+
+            if not verified:
+                raise RuntimeError(
+                    "ESP32 read-back did not match the requested MAC, node, tag, host, and UDP port. "
+                    "Registry was not updated. Reflash and provision again."
+                )
+
+            self._log(f"✔ Read-Back Verified: {node_key} actively running with target tag {tag_mac}")
+
+            # 5. Verify node came online via HTTP health poll (no UDP bind — Collector owns 5005)
+            self._log(f"[STEP 5/5] Verifying node health via backend HTTP API...")
+            self._log("📡 Polling http://127.0.0.1:8000/api/nodes/health for heartbeat (timeout: 20s)...")
+            self._log("   (Ensure the Collector or FastAPI server is running to see live heartbeats.)")
+
+            heartbeat_received = False
+            start_wait = time.time()
+            while (time.time() - start_wait) < 20.0:
+                try:
+                    import urllib.request
+                    req = urllib.request.Request("http://127.0.0.1:8000/api/nodes/health", headers={"User-Agent": "SetupApp"})
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        node_data = data.get("nodes", {}).get(node_key, {})
+                        if node_data.get("online"):
+                            heartbeat_received = True
+                            nh = self.node_health_tracker[node_key]
+                            nh["online"] = True
+                            nh["last_seen"] = time.time()
+                            nh["ip"] = node_data.get("ip", "")
+                            nh["packets"] = node_data.get("packets", 0)
+                            nh["rssi"] = node_data.get("last_rssi", -99)
+                            break
                 except Exception:
                     pass
+                time.sleep(2.0)
 
-            if verified:
-                self._log(f"✔ Read-Back Verified: {node_key} actively running with target tag {tag_mac}")
+            if heartbeat_received:
+                self._log(f"🟢 [VERIFIED ONLINE] Physical UDP heartbeat received from {node_key} ({mac})!")
+                save_status = "online"
             else:
-                self._log("✔ NVS commands issued. Node will apply parameters on boot.")
+                self._log(f"🟡 [PROVISIONED] Configuration saved, but no UDP packet arrived within 15s.")
+                self._log("   (Verify ESP32 is in Wi-Fi range and router permits UDP broadcast.)")
+                save_status = "provisioned"
+
+            bind_mac_to_node(node_key, mac, status=save_status)
+            self.root.after(0, self._refresh_registry_table)
 
             self._log(f"✔ {node_key} successfully configured and permanently bound to {mac}!")
             self._log("ℹ Node is now ready. Place at room corner and power via USB charger.")
             self._log("=======================================================\n")
+            status_msg = "Node is VERIFIED ONLINE via real UDP heartbeats!" if heartbeat_received else "Node is provisioned. Connect to Wi-Fi to establish heartbeats."
             messagebox.showinfo(
                 "Provisioning Complete",
                 f"Successfully provisioned {node_key}!\n\n"
+                f"• Status: {status_msg}\n"
                 f"• Hardware MAC: {mac}\n"
                 f"• Wi-Fi Network: {ssid}\n"
-                f"• Host Receiver: {host}:{udp_port}\n\n"
+                f"• Host Receiver: {host}:5005\n\n"
                 f"You can now unplug this ESP32 and place it at its designated corner."
             )
         except Exception as err:
@@ -1089,6 +1571,8 @@ class SetupApp:
             messagebox.showerror("Provisioning Failed", f"Encountered error: {err}")
         finally:
             self.is_flashing = False
+            if hasattr(self, "btn_quick_config"):
+                self.root.after(0, lambda: self.btn_quick_config.config(state="normal", bg="#2563EB"))
             self.root.after(0, lambda: self.btn_flash.config(state="normal", bg=self.THEME["accent"]))
 
 
@@ -1173,8 +1657,6 @@ class SetupApp:
         self.term_text.delete("1.0", "end")
 
     def _on_close(self) -> None:
-        if getattr(self, "health_stop_event", None):
-            self.health_stop_event.set()
         if self.is_monitoring:
             self._stop_monitor()
         self.root.destroy()

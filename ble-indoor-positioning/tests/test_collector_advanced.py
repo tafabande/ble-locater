@@ -207,7 +207,7 @@ def test_data_quality_validator_multi_anchor():
     assert v_att.quality_flag == "ATTENUATION_ANOMALY"
 
 
-def test_recording_engine_4_anchor_simulation():
+def test_recording_engine_hardware_ingestion():
     q = queue.Queue()
     engine = RecordingEngine(packet_queue=q)
 
@@ -215,7 +215,7 @@ def test_recording_engine_4_anchor_simulation():
         raw_dir = Path(tmpdir)
         mgr = SessionManager(raw_dir=raw_dir)
         ok, _, session = mgr.create_session(
-            name="sim_test",
+            name="hw_test",
             mac="52:06:26:03:01:DA",
             distance_m=2.0,
             anchor_id="ALL_ANCHORS",
@@ -223,9 +223,15 @@ def test_recording_engine_4_anchor_simulation():
         )
         assert ok is True
 
-        # Start simulated acquisition
-        engine.start_recording(session, port="Simulated Stream")
-        time.sleep(0.8)  # Let worker produce packets
+        # Start hardware recording
+        engine.start_recording(session, port="Wireless Wi-Fi (UDP :5005)")
+        for i in range(5):
+            engine.feed_packet({
+                "anchor_id": f"ANCHOR_0{(i % 4) + 1}",
+                "rssi": -65 - i,
+                "device_mac": "52:06:26:03:01:DA",
+                "provenance": "HARDWARE_WIFI_UDP",
+            })
 
         # Verify packets in queue
         assert not q.empty()
@@ -237,9 +243,18 @@ def test_recording_engine_4_anchor_simulation():
         # Test pause and resume
         engine.pause_recording()
         assert engine.is_paused is True
-        time.sleep(0.3)
+        time.sleep(0.1)
         engine.resume_recording()
         assert engine.is_paused is False
+
+        # Feed additional packets after resume
+        for i in range(5):
+            engine.feed_packet({
+                "anchor_id": f"ANCHOR_0{(i % 4) + 1}",
+                "rssi": -67 - i,
+                "device_mac": "52:06:26:03:01:DA",
+                "provenance": "HARDWARE_WIFI_UDP",
+            })
 
         # Stop recording
         summary = engine.stop_recording()

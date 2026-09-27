@@ -1,7 +1,8 @@
 """Indoor Positioning — Data Recording Worker Engine.
 
-Manages background packet ingestion from serial ports or simulated 4-anchor beacon generators,
-streaming observations to canonical raw CSV datasets and forwarding telemetry to the UI queue.
+Manages background packet ingestion from real physical ESP32 nodes via wireless Wi-Fi UDP
+and serial COM ports, streaming observations to canonical raw CSV datasets and forwarding
+telemetry to the UI queue. Strictly real hardware data with zero synthetic simulation.
 Supports 4-anchor multi-receiver acquisition, stabilization, pause/resume, and safe flushing.
 """
 from __future__ import annotations
@@ -23,7 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.ble import parse_stream_line
-from core.config import load_anchor_config
+from core.config import get_experiment_receiver_ip, load_anchor_config
 from collector.session_manager import SessionConfig, CANONICAL_RAW_HEADERS
 from collector.validation import DataQualityValidator, QualityVerdict
 from collector.node_registry import get_node_by_mac, get_node_by_anchor_id, load_node_registry
@@ -69,6 +70,7 @@ class RecordingEngine:
         # Wireless UDP and 4-Corner Node Synchronization
         self.udp_port = 5005
         self.udp_socket: Optional[socket.socket] = None
+        self.experiment_receiver_ip: str = ""
         self.node_health: Dict[str, Dict[str, Any]] = {
             "NODE_A": {"online": False, "last_seen": 0.0, "rssi": -99, "packets": 0, "ip": ""},
             "NODE_B": {"online": False, "last_seen": 0.0, "rssi": -99, "packets": 0, "ip": ""},
@@ -82,13 +84,55 @@ class RecordingEngine:
             "NODE_D": {},
         }
         self.announce_thread: Optional[threading.Thread] = None
-        self.allow_synthetic: bool = False
         self.node_identity_conflicts: Dict[str, int] = {}
+
+        # Decoupled HTTP telemetry forwarder to FastAPI backend
+        self._http_forward_queue: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1000)
+        self._http_forward_url: str = "http://127.0.0.1:8000/api/telemetry/ingest"
+        self._http_forward_thread: Optional[threading.Thread] = None
+
+    def _start_http_forwarder(self) -> None:
+        """Start the background forwarder worker if not already running."""
+        if self._http_forward_thread is None or not self._http_forward_thread.is_alive():
+            self._http_forward_thread = threading.Thread(target=self._http_forward_worker, daemon=True)
+            self._http_forward_thread.start()
+
+    def _http_forward_worker(self) -> None:
+        """Asynchronously push telemetry to FastAPI without blocking local recording.
+        Completely decoupled: failure or offline status of FastAPI never impacts data collection.
+        """
+        import urllib.request
+        while not self.stop_event.is_set():
+            try:
+                payload = self._http_forward_queue.get(timeout=0.5)
+            except Exception:
+                continue
+            try:
+                data_bytes = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(
+                    self._http_forward_url,
+                    data=data_bytes,
+                    headers={"Content-Type": "application/json", "User-Agent": "CollectorEngine"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=1.0) as _:
+                    pass
+            except Exception:
+                # FastAPI server down or unreachable — silently ignore
+                pass
+
+    def _enqueue_http_forward(self, payload: Dict[str, Any]) -> None:
+        """Non-blocking fire-and-forget enqueue of telemetry payload."""
+        try:
+            self._http_forward_queue.put_nowait(payload)
+        except Exception:
+            pass
 
     def start_stream(self, port: str = "Wireless Wi-Fi (UDP :5005)", baud_rate: int = 115200) -> None:
         """Start streaming live packets without recording to disk."""
         self.port = port
         self.baud_rate = baud_rate
+        self._start_http_forwarder()
         if not self.is_streaming:
             self.is_streaming = True
             self.stop_event.clear()
@@ -310,13 +354,17 @@ class RecordingEngine:
         }
 
     def feed_packet(self, data: Dict[str, Any]) -> None:
-        """Feed external or simulated packet through API into active recording session on demand."""
+        """Feed external physical hardware packet into active recording session on demand."""
+        provenance = str(data.get("provenance", "HARDWARE_WIFI_UDP"))
+        if "simulat" in provenance.lower() or "synthetic" in provenance.lower():
+            # Refuse synthetic or simulated packets to maintain strict physical dataset integrity
+            return
+
         now = time.time()
         ts_ms = data.get("timestamp") or int(now * 1000)
         anchor_id = data.get("anchor_id") or data.get("anchor", "ANCHOR_01")
         target_mac = data.get("device_mac") or data.get("mac", "Unknown")
         rssi = int(data.get("rssi", -70))
-        provenance = data.get("provenance", "EXTERNAL_API_FEED")
 
         dist = self.active_session.distance_m if self.active_session else 1.0
         cond = self.active_session.condition if self.active_session else "Line-of-Sight (LOS)"
@@ -324,6 +372,27 @@ class RecordingEngine:
         obs_type = self.active_session.obstacle_type if self.active_session else "None"
         motion = self.active_session.motion if self.active_session else "stationary"
         height = self.active_session.tag_height_m if self.active_session else 0.96
+
+        if self.active_session and self.active_session.environment_layout:
+            try:
+                from collector.environment import EnvironmentLayout
+                layout = EnvironmentLayout.from_dict(self.active_session.environment_layout)
+                distances = layout.get_anchor_distances()
+                if anchor_id in distances:
+                    dist = round(distances[anchor_id], 3)
+                los_status = layout.get_anchor_los_status()
+                if anchor_id in los_status:
+                    is_los, blocker = los_status[anchor_id]
+                    if not is_los and blocker:
+                        cond = "Non-Line-of-Sight (NLOS)"
+                        obs = "Yes"
+                        obs_type = blocker
+                    else:
+                        cond = "Line-of-Sight (LOS)"
+                        obs = "No"
+                        obs_type = "None"
+            except Exception:
+                pass
 
         self.validator.add_sample(rssi, now, anchor_id=anchor_id)
         verdict = self.validator.evaluate(dist, anchor_id=anchor_id)
@@ -375,80 +444,94 @@ class RecordingEngine:
         self.packet_queue.put(pkt)
 
     def _run_stream(self) -> None:
-        """Main background ingestion worker."""
+        """Main background ingestion worker for physical hardware.
+        Always runs UDP port 5005 listener in background so wireless packets are never missed,
+        and runs serial COM reader in parallel if a physical COM port is selected.
+        """
         port_lower = self.port.lower()
         if "simulat" in port_lower:
-            # Synthetic generation is unplugged from live system.
-            # Only enabled if explicitly permitted via allow_synthetic (e.g. test harness or API feed).
-            if getattr(self, "allow_synthetic", False) or "pytest" in sys.modules:
-                while not self.stop_event.is_set():
-                    self._generate_simulated_packet()
-                    time.sleep(0.18)
-            else:
-                print("[COLLECTOR] Synthetic generator unplugged. Telemetry must be fed via Hardware (UDP/Serial) or Ingestion API.")
-                while not self.stop_event.is_set():
-                    time.sleep(0.5)
-        elif "udp" in port_lower or "wireless" in port_lower:
-            self._run_udp_stream()
-        else:
+            print("[COLLECTOR ERROR] Simulation sources are permanently removed. Physical ESP32 hardware must be connected via UDP (port 5005) or Serial COM port.")
+            self.stop_event.set()
+            return
+
+        # Always start wireless UDP 5005 ingestion worker thread
+        self.udp_thread = threading.Thread(target=self._run_udp_stream, daemon=True)
+        self.udp_thread.start()
+
+        # If a physical COM port is chosen, run serial stream in this worker
+        if "udp" not in port_lower and "wireless" not in port_lower:
             while not self.stop_event.is_set():
                 self._run_serial_stream()
+        else:
+            # Pure wireless mode: wait on stop event
+            while not self.stop_event.is_set():
+                time.sleep(0.5)
 
     def _collector_announce_worker(self) -> None:
-        """Periodically broadcast UDP announce so ESP32 anchors auto-discover laptop IP dynamically."""
-        sock = None
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            while not self.stop_event.is_set():
-                try:
-                    # Detect current host IP
-                    s_tmp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    s_tmp.settimeout(0.1)
-                    s_tmp.connect(("8.8.8.8", 80))
-                    current_ip = s_tmp.getsockname()[0]
-                    s_tmp.close()
-                except Exception:
-                    current_ip = "127.0.0.1"
+        """Advertise only on the laptop's dedicated experimental hotspot LAN.
 
-                payload = json.dumps({
-                    "cmd": "COLLECTOR_ANNOUNCE",
-                    "host_ip": current_ip,
-                    "port": self.udp_port,
-                    "timestamp": int(time.time() * 1000),
-                }).encode("utf-8")
+        Binding each announce socket to the hotspot address prevents Windows
+        from routing a broadcast through a concurrently connected Internet
+        Wi-Fi network. ESP32s therefore always learn the hotspot receiver IP.
+        """
+        hotspot_missing_reported = False
+        while not self.stop_event.is_set():
+            host_ip = get_experiment_receiver_ip()
+            self.experiment_receiver_ip = host_ip
+            if not host_ip:
+                if not hotspot_missing_reported:
+                    print("[COLLECTOR NETWORK] Mobile Hotspot is not active; waiting for the experimental LAN.")
+                    hotspot_missing_reported = True
+                self.stop_event.wait(2.5)
+                continue
 
-                try:
-                    sock.sendto(payload, ("255.255.255.255", self.udp_port))
-                except Exception:
-                    pass
+            hotspot_missing_reported = False
+            payload = json.dumps({
+                "cmd": "COLLECTOR_ANNOUNCE",
+                "host_ip": host_ip,
+                "port": self.udp_port,
+                "timestamp": int(time.time() * 1000),
+            }).encode("utf-8")
+            broadcast_ip = f"{host_ip.rsplit('.', 1)[0]}.255"
 
-                for _ in range(25):
-                    if self.stop_event.is_set():
-                        break
-                    time.sleep(0.1)
-        except Exception:
-            pass
-        finally:
-            if sock:
-                try:
+            sock = None
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                sock.bind((host_ip, 0))
+                sock.sendto(payload, (broadcast_ip, self.udp_port))
+            except OSError as exc:
+                print(f"[COLLECTOR NETWORK] Hotspot discovery announcement failed: {exc}")
+            finally:
+                if sock:
                     sock.close()
-                except Exception:
-                    pass
+
+            self.stop_event.wait(2.5)
 
     def _run_udp_stream(self) -> None:
-        """Ingest real-time wireless packets over local Wi-Fi from all 4 ESP32 nodes via UDP."""
+        """Ingest ESP32 UDP telemetry from the dedicated hotspot LAN on port 5005."""
         sock = None
         try:
+            self.experiment_receiver_ip = get_experiment_receiver_ip()
+            bind_ip = self.experiment_receiver_ip or "0.0.0.0"
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Do not enable SO_REUSEADDR here. On Windows, sharing a UDP port
+            # can make datagram delivery non-deterministic; Collector must be
+            # the one exclusive receiver for the experimental port.
             try:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             except Exception:
                 pass
-            sock.bind(("0.0.0.0", self.udp_port))
+            # Bind directly to the Mobile Hotspot interface when it is active.
+            # On a multi-homed Windows laptop this avoids packets being
+            # associated with the Internet-facing Wi-Fi adapter instead.
+            sock.bind((bind_ip, self.udp_port))
             sock.settimeout(0.2)
             self.udp_socket = sock
+            if not self.experiment_receiver_ip:
+                print("[COLLECTOR NETWORK] No Mobile Hotspot adapter detected; UDP listener is idle until it is enabled.")
+            else:
+                print(f"[COLLECTOR NETWORK] Listening for ESP32 telemetry on {bind_ip}:{self.udp_port}")
 
             # Start Dynamic Laptop IP Announcement Beacon in background
             self.announce_thread = threading.Thread(target=self._collector_announce_worker, daemon=True)
@@ -457,8 +540,6 @@ class RecordingEngine:
             while not self.stop_event.is_set():
                 try:
                     data, addr = sock.recvfrom(4096)
-                    # Persist first. Parsing below is only for live display and
-                    # secondary labels; it never decides what is saved.
                     self.append_verbatim_payload(data)
                     line = data.decode("utf-8", errors="replace")
                     if line:
@@ -479,15 +560,16 @@ class RecordingEngine:
 
     def _process_incoming_wireless_packet(self, raw_line: str, sender_ip: str) -> None:
         """Process a raw JSON or CSV packet arriving wirelessly over Wi-Fi UDP."""
-        now = time.time()
-        ts_ms = int(now * 1000)
+        try:
+            now = time.time()
+            ts_ms = int(now * 1000)
 
-        # 1. Parse JSON telemetry
-        if raw_line.startswith("{") and raw_line.endswith("}"):
-            try:
-                data = json.loads(raw_line)
-            except Exception:
-                return
+            # 1. Parse JSON telemetry
+            if raw_line.startswith("{") and raw_line.endswith("}"):
+                try:
+                    data = json.loads(raw_line)
+                except Exception:
+                    return
 
             # Guard: the collector's own announce beacon loops back on the
             # local host (Windows delivers 255.255.255.255 broadcasts to the
@@ -495,13 +577,11 @@ class RecordingEngine:
             if data.get("cmd") == "COLLECTOR_ANNOUNCE":
                 return
 
-            # Guard: every legitimate anchor packet declares a "type"
-            # (raw / heartbeat / inter_anchor / discovery_ack). Anything else
-            # is not ESP32 telemetry and must never touch node health.
-            if "type" not in data:
+            # Message type resolution (fallback to 'raw' if node/anchor identifier is present)
+            msg_type = data.get("type", "raw" if ("node" in data or "anchor" in data or "anchor_id" in data) else None)
+            if not msg_type:
                 return
 
-            msg_type = data.get("type", "raw")
             provenance = data.get("provenance", "HARDWARE_WIFI_UDP")
             node_identifier = data.get("node") or data.get("anchor") or data.get("anchor_id", "NODE_A")
             dev_mac = data.get("mac", "")
@@ -569,10 +649,32 @@ class RecordingEngine:
                     self.node_health[node_key]["last_seen"] = now
                     self.node_health[node_key]["ip"] = sender_ip
                     self.node_health[node_key]["mac"] = dev_mac
+                # Forward to FastAPI backend (fire-and-forget, decoupled)
+                self._enqueue_http_forward({
+                    "timestamp": ts_ms,
+                    "anchor_id": anchor_id,
+                    "device_mac": "None",
+                    "rssi": -50,
+                    "provenance": "HARDWARE_HEARTBEAT",
+                    "raw_payload": f"HEARTBEAT {node_key}",
+                    "ip": sender_ip,
+                    "anchor_mac": dev_mac,
+                })
+                # Immediately inform Collector GUI of heartbeat
+                pkt = {
+                    "packet_type": "heartbeat",
+                    "provenance": provenance,
+                    "timestamp": ts_ms,
+                    "anchor_id": anchor_id,
+                    "node_key": node_key,
+                    "anchor_mac": dev_mac or self.node_health.get(node_key, {}).get("mac", ""),
+                    "sync_status": self.get_nodes_sync_status(),
+                }
+                self.packet_queue.put(pkt)
                 return
 
             # Observation handling
-            rssi = int(data.get("rssi", -75))
+            rssi = int(data.get("rssi") or data.get("rssi_mean") or data.get("wifi_rssi") or -75)
             target_mac = data.get("tag") or data.get("device_mac") or (self.active_session.target_mac if self.active_session else "Unknown")
 
             # Update node health
@@ -582,6 +684,8 @@ class RecordingEngine:
                 self.node_health[node_key]["rssi"] = rssi
                 self.node_health[node_key]["packets"] = self.node_health[node_key].get("packets", 0) + 1
                 self.node_health[node_key]["ip"] = sender_ip
+                if dev_mac:
+                    self.node_health[node_key]["mac"] = dev_mac
 
             dist = self.active_session.distance_m if self.active_session else 1.0
             cond = self.active_session.condition if self.active_session else "Line-of-Sight (LOS)"
@@ -664,121 +768,21 @@ class RecordingEngine:
             }
             self.packet_queue.put(pkt)
 
-    def _generate_simulated_packet(self) -> None:
-        """Simulate realistic 4-anchor BLE physics with log-normal path loss and shadowing."""
-        now = time.time()
-        ts_ms = int(now * 1000)
+            # Forward wireless observation to FastAPI backend (fire-and-forget)
+            self._enqueue_http_forward({
+                "timestamp": ts_ms,
+                "anchor_id": anchor_id,
+                "device_mac": target_mac,
+                "rssi": rssi,
+                "provenance": provenance,
+                "raw_payload": raw_line[:128],
+                "ip": sender_ip,
+                "anchor_mac": dev_mac or self.node_health.get(node_key, {}).get("mac", ""),
+            })
+        except Exception:
+            pass
 
-        dist = self.active_session.distance_m if self.active_session else 1.0
-        target_mac = self.active_session.target_mac if self.active_session else "52:06:26:03:01:DA"
-        cond = self.active_session.condition if self.active_session else "Line-of-Sight (LOS)"
-        obs = self.active_session.obstacle if self.active_session else "No"
-        obs_type = self.active_session.obstacle_type if self.active_session else "None"
-        motion = self.active_session.motion if self.active_session else "stationary"
-        height = self.active_session.tag_height_m if self.active_session else 0.96
 
-        # Pick anchor (respect single-anchor filter if chosen)
-        anchors = ["ANCHOR_01", "ANCHOR_02", "ANCHOR_03", "ANCHOR_04"]
-        if self.active_session and self.active_session.anchor_id in anchors:
-            anchor_id = self.active_session.anchor_id
-        else:
-            anchor_id = random.choice(anchors)
-
-        # Check if active session includes an environment layout for dynamic ground-truth
-        if self.active_session and self.active_session.environment_layout:
-            try:
-                from collector.environment import EnvironmentLayout
-                layout = EnvironmentLayout.from_dict(self.active_session.environment_layout)
-                distances = layout.get_anchor_distances()
-                if anchor_id in distances:
-                    dist = round(distances[anchor_id], 3)
-                los_status = layout.get_anchor_los_status()
-                if anchor_id in los_status:
-                    is_los, blocker = los_status[anchor_id]
-                    if not is_los and blocker:
-                        cond = "Non-Line-of-Sight (NLOS)"
-                        obs = "Yes"
-                        obs_type = blocker
-                    else:
-                        cond = "Line-of-Sight (LOS)"
-                        obs = "No"
-                        obs_type = "None"
-            except Exception:
-                pass
-
-        # Environmental attenuation offsets
-        attenuation = 0.0
-        if "NLOS" in cond:
-            attenuation -= 5.0
-        if obs_type == "Human body":
-            attenuation -= 6.5
-        elif obs_type == "Door":
-            attenuation -= 4.0
-        elif obs_type == "Concrete wall":
-            attenuation -= 12.0
-        elif obs_type == "Cloth":
-            attenuation -= 1.5
-
-        # Path loss formula with multipath noise
-        # RSSI = A - 10*n*log10(d) + attenuation + Gaussian noise
-        path_loss_exp = 2.7
-        ref_rssi = -59.0
-        expected_rssi = ref_rssi - (10.0 * path_loss_exp * math.log10(max(0.1, dist))) + attenuation
-        sim_rssi = int(round(expected_rssi + random.gauss(0, 1.8)))
-        sim_rssi = max(-98, min(-35, sim_rssi))
-
-        # Check quality
-        self.validator.add_sample(sim_rssi, now, anchor_id=anchor_id)
-        verdict = self.validator.evaluate(dist, anchor_id=anchor_id)
-
-        self.raw_packets_count += 1
-
-        # Incremental write to CSV if recording and not paused
-        if self.is_recording and not self.is_paused and self.active_session:
-            if verdict.is_acceptable:
-                self.valid_samples_count += 1
-            else:
-                self.flagged_samples_count += 1
-
-            self.anchor_sample_counts[anchor_id] = self.anchor_sample_counts.get(anchor_id, 0) + 1
-
-            row = [
-                ts_ms,
-                anchor_id,
-                target_mac,
-                sim_rssi,
-                f"MFG_4C000215_{target_mac.replace(':', '')}",
-                dist,
-                obs,
-                obs_type,
-                height,
-                motion,
-            ]
-            with self.file_lock:
-                if self.csv_writer:
-                    try:
-                        self.csv_writer.writerow(row)
-                        self.file_handle.flush()
-                    except Exception:
-                        pass
-
-        # Forward to GUI queue
-        pkt = {
-            "timestamp": ts_ms,
-            "provenance": "SYNTHETIC_SIMULATOR",
-            "anchor_id": anchor_id,
-            "device_mac": target_mac,
-            "rssi": sim_rssi,
-            "distance_m": dist,
-            "condition": cond,
-            "obstacle_type": obs_type,
-            "quality_verdict": verdict,
-            "raw_packets": self.raw_packets_count,
-            "valid_samples": self.valid_samples_count,
-            "flagged_samples": self.flagged_samples_count,
-            "anchor_counts": dict(self.anchor_sample_counts),
-        }
-        self.packet_queue.put(pkt)
 
     def _run_serial_stream(self) -> None:
         """Ingest from physical serial hardware COM port."""
@@ -892,5 +896,17 @@ class RecordingEngine:
                         "sync_status": self.get_nodes_sync_status(),
                     }
                     self.packet_queue.put(pkt)
+
+                    # Forward serial observation to FastAPI backend (fire-and-forget)
+                    self._enqueue_http_forward({
+                        "timestamp": ts_ms,
+                        "anchor_id": anchor_id,
+                        "device_mac": target_mac,
+                        "rssi": rssi,
+                        "provenance": "HARDWARE_SERIAL_COM",
+                        "raw_payload": raw_line[:128],
+                        "ip": "127.0.0.1",
+                        "anchor_mac": self.node_health.get(node_key, {}).get("mac", ""),
+                    })
         except Exception:
             time.sleep(1.0)
