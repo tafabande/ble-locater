@@ -62,6 +62,10 @@ if /i "%TARGET_CMD%"=="trainer" goto do_trainer
 if /i "%TARGET_CMD%"=="--trainer" goto do_trainer
 if /i "%TARGET_CMD%"=="train" goto do_trainer
 
+if /i "%TARGET_CMD%"=="benchmark" goto do_benchmark
+if /i "%TARGET_CMD%"=="--benchmark" goto do_benchmark
+if /i "%TARGET_CMD%"=="tournament" goto do_benchmark
+
 if /i "%TARGET_CMD%"=="test" goto do_test
 if /i "%TARGET_CMD%"=="--test" goto do_test
 if /i "%TARGET_CMD%"=="tests" goto do_test
@@ -96,6 +100,11 @@ echo [PIPELINE] Launching AI Model Studio and Trainer GUI...
 "!PY_EXE!" trainer_gui.py
 goto handle_exit
 
+:do_benchmark
+echo [PIPELINE] Launching Model Tournament Benchmark and Performance Studio...
+"!PY_EXE!" benchmark_gui.py
+goto handle_exit
+
 :do_test
 echo [PIPELINE] Running automated test suite with retry recovery...
 "!PY_EXE!" control.py --test
@@ -117,12 +126,14 @@ echo   launch.bat setup              Launch ESP32 Wireless Provisioner and Flash
 echo   launch.bat collector          Launch Experiment Controller and Collector GUI
 echo   launch.bat admin              Launch System Administrator and Telemetry GUI
 echo   launch.bat trainer            Launch AI Model Studio and Trainer GUI
+echo   launch.bat benchmark          Launch Model Tournament Benchmark & Studio
 echo   launch.bat test               Run automated test suite with retries
 echo   launch.bat headless           Run backend API in headless CLI mode
 echo   launch.bat help               Display this help guide
 echo ======================================================================
 echo.
 exit /b 0
+
 
 REM ---------------------------------------------------------------------
 REM 4. Robust Exit & Retry Handling

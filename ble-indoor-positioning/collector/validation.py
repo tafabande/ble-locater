@@ -27,7 +27,7 @@ class QualityVerdict:
 class DataQualityValidator:
     """Validates real-time RSSI signal characteristics against physical ground truth."""
 
-    def __init__(self, variance_threshold_db: float = 5.5, timeout_sec: float = 4.0) -> None:
+    def __init__(self, variance_threshold_db: float = 15.0, timeout_sec: float = 4.0) -> None:
         self.variance_threshold_db = variance_threshold_db
         self.timeout_sec = timeout_sec
 

@@ -8,7 +8,7 @@ START_TIME = time.time()
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)
 from feature_engineering.engineer import process_all_raw_csvs
-from training.train import load_dataset, train_model, train_zone_classifier, save_model, generate_plots
+from training.train import load_dataset, train_model, train_zone_classifier, save_model, generate_plots, filter_dataset, validate_existing_dataset
 
 def progress(stage: str, percent: int, metrics: dict=None):
     event = {'type': 'progress', 'stage': stage, 'percent': percent, 'elapsed': round(time.time() - START_TIME, 1)}
@@ -35,7 +35,37 @@ def main():
     parser.add_argument('--mode', type=str, choices=['regression', 'classification', 'both'], default='both', help='Training mode: regression, classification (zones), or both (default)')
     parser.add_argument('--drop-duplicates', action='store_true', help='Drop packets flagged as duplicate_candidate in raw CSVs')
     parser.add_argument('--eval-mode', type=str, choices=['balanced_session', 'strict_session', 'random'], default='balanced_session', help='Evaluation mode for train/test split')
+
+    # ── New: Data selection / filtering parameters ────────────────────────────
+    parser.add_argument('--anchors', type=str, default=None, help='Comma-separated anchor IDs to include (e.g. ANCHOR_01,ANCHOR_02)')
+    parser.add_argument('--min-anchors', type=int, default=None, help='Minimum number of anchors required per observation window')
+    parser.add_argument('--distance-min', type=float, default=None, help='Minimum distance (m) to include')
+    parser.add_argument('--distance-max', type=float, default=None, help='Maximum distance (m) to include')
+    parser.add_argument('--rssi-min', type=float, default=None, help='Minimum RSSI (dBm) to include')
+    parser.add_argument('--rssi-max', type=float, default=None, help='Maximum RSSI (dBm) to include')
+    parser.add_argument('--motion', type=str, default=None, help='Comma-separated motion modes to include (e.g. stationary,moving)')
+    parser.add_argument('--obstacle', type=str, default=None, help='Comma-separated obstacle types to include (e.g. None,Human body)')
+
+    # ── New: Window / aggregation parameters ──────────────────────────────────
+    parser.add_argument('--window-size', type=int, default=None, help='Feature engineering window size in MILLISECONDS (default 1000). Raw timestamps are epoch-ms, so this is time-based.')
+    parser.add_argument('--stride', type=int, default=None, help='Feature engineering window stride in MILLISECONDS (default = window-size). Time-based.')
+
+    # ── New: Data handling parameters ─────────────────────────────────────────
+    parser.add_argument('--outlier-method', type=str, choices=['isolation_forest', 'iqr', 'zscore', 'mad', 'none'], default=None, help='Outlier detection method')
+    parser.add_argument('--missing-data', type=str, choices=['drop', 'interpolate', 'fill'], default=None, help='Missing data handling strategy')
+    parser.add_argument('--feature-source', type=str, choices=['raw', 'existing'], default=None, help='Data source: raw observations (re-engineer) or existing engineered features')
+
     args = parser.parse_args()
+
+    def _parse_list(val):
+        if not val:
+            return None
+        return [x.strip() for x in val.split(',') if x.strip()]
+
+    anchors = _parse_list(args.anchors)
+    motion_modes = _parse_list(args.motion)
+    obstacle_types = _parse_list(args.obstacle)
+
     if args.raw_dir is None:
         raw_datasets_dir = os.path.join(PROJECT_ROOT, 'datasets', 'raw')
         raw_collector_dir = os.path.join(PROJECT_ROOT, 'collector', 'data', 'raw')
@@ -52,19 +82,66 @@ def main():
     print('=' * 70)
     print('  STEP 1: FEATURE ENGINEERING (60 Features)')
     print('=' * 70)
-    try:
-        df = process_all_raw_csvs(args.raw_dir, dataset_path, target_mac=args.target_mac, drop_duplicates=args.drop_duplicates, progress_callback=progress)
-    except Exception as e:
-        if os.path.exists(dataset_path):
-            print(f"  [INFO] Raw dataset scan notice ({e}). Auto-loading real observation dataset: {dataset_path}")
-            df = load_dataset(dataset_path)
-        else:
-            raise e
+    if args.feature_source == 'existing':
+        # ── New: Load existing engineered features directly ──────────────────
+        print(f'  [FEATURE SOURCE] Loading existing engineered dataset: {dataset_path}')
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(f'Existing engineered dataset not found: {dataset_path}')
+        df = load_dataset(dataset_path)
+        # ── New: Validate schema compatibility before training ───────────────
+        print('\n' + '=' * 70)
+        print('  [SCHEMA VALIDATION] Existing engineered dataset compatibility check')
+        print('=' * 70)
+        validate_existing_dataset(
+            df,
+            dataset_path,
+            anchors=anchors,
+            expected_feature_cols=None,
+            window_size_ms=args.window_size,
+        )
+    else:
+        try:
+            df = process_all_raw_csvs(
+                args.raw_dir,
+                dataset_path,
+                target_mac=args.target_mac,
+                drop_duplicates=args.drop_duplicates,
+                progress_callback=progress,
+                anchors=anchors,
+                distance_min=args.distance_min,
+                distance_max=args.distance_max,
+                rssi_min=args.rssi_min,
+                rssi_max=args.rssi_max,
+                motion_modes=motion_modes,
+                obstacle_types=obstacle_types,
+                window_size_ms=args.window_size,
+                window_stride_ms=args.stride,
+            )
+        except Exception as e:
+            if os.path.exists(dataset_path):
+                print(f"  [INFO] Raw dataset scan notice ({e}). Auto-loading real observation dataset: {dataset_path}")
+                df = load_dataset(dataset_path)
+            else:
+                raise e
     progress('Dataset Engineered. Loading Observations...', 35)
     print('\n' + '=' * 70)
     print('  STEP 2: MODEL TRAINING')
     print('=' * 70)
-    df = load_dataset(dataset_path)
+
+    # ── New: Apply data-selection filters once so both regression & zone
+    #         classifier consume the same filtered dataset ─────────────────────
+    df = filter_dataset(
+        df,
+        anchors=anchors,
+        min_anchors=args.min_anchors,
+        distance_min=args.distance_min,
+        distance_max=args.distance_max,
+        rssi_min=args.rssi_min,
+        rssi_max=args.rssi_max,
+        motion_modes=motion_modes,
+        obstacle_types=obstacle_types,
+    )
+
     result = None
     zone_result = None
     if args.mode in ('regression', 'both'):
@@ -72,7 +149,25 @@ def main():
         print('\n' + '-' * 70)
         print('  STEP 2a: REGRESSION TOURNAMENT')
         print('-' * 70)
-        result = train_model(df, tune_hyperparams=args.tune, eval_mode=args.eval_mode, progress_callback=progress)
+        result = train_model(
+            df,
+            tune_hyperparams=args.tune,
+            eval_mode=args.eval_mode,
+            progress_callback=progress,
+            anchors=anchors,
+            min_anchors=args.min_anchors,
+            distance_min=args.distance_min,
+            distance_max=args.distance_max,
+            rssi_min=args.rssi_min,
+            rssi_max=args.rssi_max,
+            motion_modes=motion_modes,
+            obstacle_types=obstacle_types,
+            window_size_ms=args.window_size,
+            window_stride_ms=args.stride,
+            outlier_method=args.outlier_method,
+            missing_data_handling=args.missing_data,
+            feature_source=args.feature_source,
+        )
     if args.mode in ('classification', 'both'):
         progress('Running Zone Classification Tournament...', 85)
         print('\n' + '-' * 70)
@@ -84,7 +179,33 @@ def main():
     print('  STEP 3: SAVING MODEL & GENERATING REPORTS')
     print('=' * 70)
     if result:
-        save_model(result, model_dir, zone_result=zone_result)
+        # ── New: Build complete effective configuration for reproducibility ──
+        effective_config = {
+            'dataset': dataset_path,
+            'output_dir': model_dir,
+            'mode': args.mode,
+            'eval_mode': args.eval_mode,
+            'tune': args.tune,
+            'raw_dir': args.raw_dir,
+            'target_mac': args.target_mac,
+            'drop_duplicates': args.drop_duplicates,
+            'anchors': anchors,
+            'min_anchors': args.min_anchors,
+            'distance_min': args.distance_min,
+            'distance_max': args.distance_max,
+            'rssi_min': args.rssi_min,
+            'rssi_max': args.rssi_max,
+            'motion': motion_modes,
+            'obstacle': obstacle_types,
+            'window_size_ms': args.window_size,
+            'stride_ms': args.stride,
+            'outlier_method': args.outlier_method,
+            'missing_data_handling': args.missing_data,
+            'feature_source': args.feature_source,
+            'n_windows_after_filter': len(df),
+            'n_anchors_after_filter': df['anchor_id'].nunique() if 'anchor_id' in df.columns else None,
+        }
+        save_model(result, model_dir, zone_result=zone_result, config=effective_config)
         generate_plots(result, reports_dir, zone_result=zone_result)
     summary_metrics = {'windows': len(df), 'mae': result['metrics']['test_mae'] if result else 0.0, 'r2': result['metrics']['test_r2'] if result else 0.0, 'zone_acc': zone_result.get('zone_accuracy', 0.0) if zone_result else 0.0}
     progress('Pipeline Complete!', 100, metrics=summary_metrics)

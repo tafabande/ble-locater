@@ -93,6 +93,8 @@ class DataCollectorApp:
         self.obstacle_var = tk.StringVar(value="No")
         self.obstacle_type_var = tk.StringVar(value="None")
         self.motion_var = tk.StringVar(value="stationary")
+        self.motion_var.trace_add("write", lambda *_: self._update_tag_rssi_ui(self._last_tag_rssi))
+        self._last_tag_rssi = -80
         self.tag_height_var = tk.DoubleVar(value=0.96)
         self.notes_var = tk.StringVar(value="Visual layout 2D calibrated grid")
         self.target_samples_var = tk.IntVar(value=300)
@@ -122,7 +124,7 @@ class DataCollectorApp:
         self.show_los_var = tk.BooleanVar(value=True)
 
         # Settings
-        self.variance_threshold_var = tk.DoubleVar(value=5.5)
+        self.variance_threshold_var = tk.DoubleVar(value=15.0)
         self.stabilize_duration_var = tk.IntVar(value=5)
 
         # UI & State tracking
@@ -651,6 +653,12 @@ class DataCollectorApp:
         e_h.pack(fill="x", pady=(1, 6))
         self.form_widgets.append(e_h)
 
+        # Tag motion: stationary vs moving (drives the Tag RSSI row colour)
+        tk.Label(card, text="Tag Motion State", bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 8)).pack(anchor="w")
+        cb_motion = ttk.Combobox(card, textvariable=self.motion_var, values=["stationary", "moving"], state="readonly")
+        cb_motion.pack(fill="x", pady=(1, 6))
+        self.form_widgets.append(cb_motion)
+
         # Pre-flight checklist card
         chk_card = tk.Frame(card, bg=t["card"], padx=8, pady=6)
         chk_card.pack(fill="x", pady=(2, 6))
@@ -774,6 +782,50 @@ class DataCollectorApp:
         t = self.THEME
         bottom_frame = tk.Frame(parent, bg=t["bg"])
         bottom_frame.pack(side="bottom", fill="x")
+
+        # ── Tag (Moving Beacon) RSSI Strength Row ─────────────────────────────
+        # Prominent full-width indicator showing the live RSSI strength of the
+        # tracked tag. Blue when stationary, turns yellow when the tag is moving.
+        tag_row = tk.Frame(bottom_frame, bg=t["bg"])
+        tag_row.pack(fill="x", pady=(0, 4))
+
+        self.tag_rssi_card = tk.Frame(tag_row, bg="#1D4ED8", padx=12, pady=8)
+        self.tag_rssi_card.pack(fill="x")
+
+        self.tag_rssi_left = tk.Frame(self.tag_rssi_card, bg="#1D4ED8")
+        self.tag_rssi_left.pack(side="left", fill="x", expand=True)
+
+        tk.Label(
+            self.tag_rssi_left, text="🎯 TAG RSSI STRENGTH", bg="#1D4ED8", fg="#DBEAFE",
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor="w")
+        self.tag_rssi_value_lbl = tk.Label(
+            self.tag_rssi_left, text="-- dBm", bg="#1D4ED8", fg="#FFFFFF",
+            font=("Segoe UI", 20, "bold"),
+        )
+        self.tag_rssi_value_lbl.pack(anchor="w")
+
+        self.tag_rssi_state_lbl = tk.Label(
+            self.tag_rssi_left, text="● STATIONARY", bg="#1D4ED8", fg="#BFDBFE",
+            font=("Segoe UI", 8, "bold"),
+        )
+        self.tag_rssi_state_lbl.pack(anchor="w")
+
+        # Signal strength bar (5 segments)
+        self.tag_rssi_right = tk.Frame(self.tag_rssi_card, bg="#1D4ED8")
+        self.tag_rssi_right.pack(side="right", fill="y", padx=(12, 0))
+        tk.Label(
+            self.tag_rssi_right, text="SIGNAL", bg="#1D4ED8", fg="#DBEAFE",
+            font=("Segoe UI", 7, "bold"),
+        ).pack(anchor="e")
+        self.tag_signal_bar = tk.Frame(self.tag_rssi_right, bg="#1D4ED8")
+        self.tag_signal_bar.pack(anchor="e", pady=(2, 0))
+        self.tag_signal_segments = []
+        for _ in range(5):
+            seg = tk.Frame(self.tag_signal_bar, bg="#1E40AF", width=18, height=14)
+            seg.pack(side="left", padx=1)
+            seg.pack_propagate(False)
+            self.tag_signal_segments.append(seg)
 
         # 4-Anchor Telemetry Cards Row
         anc_row = tk.Frame(bottom_frame, bg=t["bg"])
@@ -1618,6 +1670,7 @@ class DataCollectorApp:
         self._freeze_form_parameters(True)
         self.stabilize_countdown = self.stabilize_duration_var.get()
         self.status_pill.config(text=f"⏳ STABILIZING ({self.stabilize_countdown}s)", bg=self.THEME["amber_dark"], fg="#FFFFFF")
+        self.recording_engine.set_variance_threshold(self.variance_threshold_var.get())
         self.recording_engine.start_stabilization(session, port=self.port_var.get())
         self._countdown_stabilization()
 
@@ -1671,6 +1724,7 @@ class DataCollectorApp:
         self.feed_tree.delete(*self.feed_tree.get_children())
         self.rssi_history.clear()
 
+        self.recording_engine.set_variance_threshold(self.variance_threshold_var.get())
         self.recording_engine.start_recording(session, port=self.port_var.get())
         self._show_recording_overlay()
 
@@ -1722,6 +1776,43 @@ class DataCollectorApp:
     # =========================================================================
     # REAL-TIME QUEUE DISPATCHER & UI POLLING
     # =========================================================================
+    def _update_tag_rssi_ui(self, rssi: int) -> None:
+        """Update the prominent Tag RSSI Strength row.
+
+        Blue when the tag is stationary; turns yellow when the tag is moving.
+        The signal bar fills according to RSSI strength (stronger = more segments).
+        """
+        if not hasattr(self, "tag_rssi_card"):
+            return
+        self._last_tag_rssi = rssi
+        t = self.THEME
+        moving = self.motion_var.get().lower() == "moving"
+
+        # Colour scheme: blue (stationary) vs yellow (moving)
+        if moving:
+            bg, fg, sub, bar_on, bar_off = "#B45309", "#FEF3C7", "#FDE68A", "#F59E0B", "#78350F"
+            state_text = "● MOVING"
+        else:
+            bg, fg, sub, bar_on, bar_off = "#1D4ED8", "#FFFFFF", "#BFDBFE", "#3B82F6", "#1E40AF"
+            state_text = "● STATIONARY"
+
+        self.tag_rssi_card.config(bg=bg)
+        for w in (self.tag_rssi_left, self.tag_rssi_right, self.tag_rssi_value_lbl,
+                  self.tag_rssi_state_lbl, self.tag_signal_bar):
+            try:
+                w.config(bg=bg)
+            except Exception:
+                pass
+
+        self.tag_rssi_value_lbl.config(text=f"{rssi} dBm", fg=fg)
+        self.tag_rssi_state_lbl.config(text=state_text, fg=sub)
+
+        # Signal strength bar: map RSSI (-30 strong .. -90 weak) to 0..5 segments
+        strength = max(0.0, min(1.0, (-30 - rssi) / 60.0))  # -30 -> 1.0, -90 -> 0.0
+        lit = int(round(strength * 5))
+        for i, seg in enumerate(self.tag_signal_segments):
+            seg.config(bg=bar_on if i < lit else bar_off)
+
     def _process_packet_queue(self) -> None:
         target_max = self.target_samples_var.get()
         now_ts = time.time()
@@ -1747,6 +1838,9 @@ class DataCollectorApp:
             self.rssi_history.append((now, anc_id, rssi))
             if len(self.rssi_history) > 100:
                 self.rssi_history.pop(0)
+
+            # Update the prominent Tag RSSI Strength row (blue / yellow on motion)
+            self._update_tag_rssi_ui(rssi)
 
             # Update specific anchor telemetry card
             if anc_id in self.anchor_telemetry_ui:

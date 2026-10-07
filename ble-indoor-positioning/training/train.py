@@ -11,6 +11,11 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 try:
+    from feature_engineering.engineer import process_all_raw_csvs
+    HAS_ENGINEER = True
+except Exception:
+    HAS_ENGINEER = False
+try:
     import seaborn as sns
     HAS_SEABORN = True
 except ImportError:
@@ -140,21 +145,48 @@ def distance_to_zone(distances: np.ndarray) -> np.ndarray:
             zones[i] = ZONE_LABELS[-1]
     return zones
 
-def detect_and_remove_outliers(X: np.ndarray, y: np.ndarray, groups: np.ndarray=None, distance_bucket: np.ndarray=None, contamination: float=0.03) -> tuple:
+def detect_and_remove_outliers(X: np.ndarray, y: np.ndarray, groups: np.ndarray=None, distance_bucket: np.ndarray=None, contamination: float=0.03, outlier_method: str='isolation_forest') -> tuple:
+    method = (outlier_method or 'isolation_forest').lower()
+    if method == 'none':
+        print('  [SIGNAL OUTLIER] Outlier detection DISABLED (outlier_method=none)')
+        return (X, y, groups, distance_bucket, 0)
     try:
-        from sklearn.ensemble import IsolationForest
-        iso = IsolationForest(contamination=contamination, random_state=RANDOM_STATE, n_jobs=-1)
-        inlier_mask = iso.fit_predict(X) == 1
+        if method == 'iqr':
+            # IQR-based outlier removal on the feature space (per-column)
+            q1 = np.percentile(X, 25, axis=0)
+            q3 = np.percentile(X, 75, axis=0)
+            iqr = q3 - q1
+            lower = q1 - 1.5 * iqr
+            upper = q3 + 1.5 * iqr
+            inlier_mask = np.all((X >= lower) & (X <= upper), axis=1)
+            method_label = 'IQR'
+        elif method == 'zscore':
+            from scipy import stats
+            z = np.abs(stats.zscore(X, axis=0, nan_policy='omit'))
+            inlier_mask = np.all(z < 3.0, axis=1)
+            method_label = 'Z-Score (|z|<3)'
+        elif method == 'mad':
+            med = np.median(X, axis=0)
+            mad = np.median(np.abs(X - med), axis=0)
+            mad_safe = np.where(mad == 0, 1e-9, mad)
+            modified_z = 0.6745 * (X - med) / mad_safe
+            inlier_mask = np.all(np.abs(modified_z) < 3.5, axis=1)
+            method_label = 'MAD (modified z<3.5)'
+        else:
+            from sklearn.ensemble import IsolationForest
+            iso = IsolationForest(contamination=contamination, random_state=RANDOM_STATE, n_jobs=-1)
+            inlier_mask = iso.fit_predict(X) == 1
+            method_label = 'IsolationForest'
         n_removed = np.sum(~inlier_mask)
         if n_removed > 0:
-            print(f'  [SIGNAL OUTLIER] Filtered {n_removed} corrupted/transient hardware signal windows ({n_removed / len(y) * 100:.1f}%)')
+            print(f'  [SIGNAL OUTLIER] [{method_label}] Filtered {n_removed} corrupted/transient hardware signal windows ({n_removed / len(y) * 100:.1f}%)')
         else:
-            print(f'  [SIGNAL OUTLIER] No hardware signal anomalies detected.')
+            print(f'  [SIGNAL OUTLIER] [{method_label}] No hardware signal anomalies detected.')
         cleaned_groups = groups[inlier_mask] if groups is not None else None
         cleaned_distance_bucket = distance_bucket[inlier_mask] if distance_bucket is not None else None
         return (X[inlier_mask], y[inlier_mask], cleaned_groups, cleaned_distance_bucket, int(n_removed))
     except Exception as e:
-        print(f'  [SIGNAL OUTLIER] IsolationForest skipped: {e}')
+        print(f'  [SIGNAL OUTLIER] {method_label if "method_label" in dir() else "Outlier"} skipped: {e}')
         return (X, y, groups, distance_bucket, 0)
 
 def feature_importance_pruning(model, X_train, y_train, feature_cols, threshold=0.001):
@@ -208,6 +240,92 @@ def compute_environmental_interactions(df: pd.DataFrame) -> pd.DataFrame:
         df['rssi_div_height'] = np.round(df['rssi_mean'] / (df['height_m'].fillna(0.0) + 1.0), 4)
     return df
 
+def validate_existing_dataset(
+    df: pd.DataFrame,
+    dataset_path: str,
+    anchors: list=None,
+    expected_feature_cols: list=None,
+    window_size_ms: int=None,
+) -> dict:
+    """Validate that an existing engineered dataset is schema-compatible with the
+    current training configuration.
+
+    Returns a dict of validation results. Raises ValueError on hard incompatibilities
+    (e.g. a 1-node dataset being used where a multi-node configuration is required).
+    """
+    if df is None or df.empty:
+        raise ValueError(f'Existing engineered dataset is empty: {dataset_path}')
+
+    issues = []
+    warnings_list = []
+
+    # 1. Required columns present
+    required = set(BASE_FEATURE_COLUMNS + [TARGET_COLUMN])
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f'Existing engineered dataset missing required columns: {missing}')
+
+    # 2. Node / anchor configuration
+    if 'anchor_id' in df.columns:
+        present_anchors = sorted(df['anchor_id'].astype(str).str.strip().str.upper().unique().tolist())
+        n_nodes = len(present_anchors)
+        if anchors:
+            anchors_norm = [str(a).strip().upper() for a in anchors]
+            missing_anchors = [a for a in anchors_norm if a not in present_anchors]
+            if missing_anchors:
+                raise ValueError(
+                    f'Existing engineered dataset has anchors {present_anchors} but '
+                    f'requested anchors {anchors_norm} include missing: {missing_anchors}. '
+                    f'A {n_nodes}-node dataset cannot satisfy a {len(anchors_norm)}-node request.'
+                )
+        print(f'  [SCHEMA] Existing dataset node configuration: {n_nodes} node(s) -> {present_anchors}')
+    else:
+        n_nodes = 0
+        warnings_list.append('No anchor_id column — cannot validate node configuration.')
+
+    # 3. Feature schema / names
+    if expected_feature_cols:
+        present_features = [c for c in expected_feature_cols if c in df.columns]
+        missing_features = [c for c in expected_feature_cols if c not in df.columns]
+        if missing_features:
+            warnings_list.append(f'Missing {len(missing_features)} expected features: {missing_features[:8]}...')
+        print(f'  [SCHEMA] Feature schema: {len(present_features)}/{len(expected_feature_cols)} expected features present')
+
+    # 4. Window configuration (window_start spacing)
+    if 'window_start' in df.columns and len(df) > 1:
+        try:
+            diffs = df['window_start'].sort_values().diff().dropna()
+            diffs = diffs[diffs > 0]
+            if len(diffs) > 0:
+                median_gap = float(diffs.median())
+                if window_size_ms and abs(median_gap - window_size_ms) > window_size_ms * 0.5:
+                    warnings_list.append(
+                        f'Window gap ({median_gap:.0f}ms) differs significantly from requested '
+                        f'window_size ({window_size_ms}ms). Existing data may have been engineered '
+                        f'with a different window configuration.'
+                    )
+        except Exception:
+            pass
+
+    # 5. Session / motion / obstacle coverage
+    if 'motion' in df.columns:
+        motions = sorted(set(str(x).strip().lower() for x in df['motion'].dropna().unique() if pd.notna(x) and str(x).strip().lower() not in ('nan', '')))
+        print(f'  [SCHEMA] Motion modes present: {motions}')
+    if 'obstacle_type' in df.columns:
+        obstacles = sorted(set(str(x).strip().lower() for x in df['obstacle_type'].dropna().unique() if pd.notna(x) and str(x).strip().lower() not in ('nan', '')))
+        print(f'  [SCHEMA] Obstacle types present: {obstacles}')
+
+    for w in warnings_list:
+        print(f'  [SCHEMA WARN] {w}')
+
+    return {
+        'n_nodes': n_nodes,
+        'anchors': present_anchors if 'anchor_id' in df.columns else [],
+        'n_features': len(df.columns),
+        'n_windows': len(df),
+        'warnings': warnings_list,
+    }
+
 def load_dataset(dataset_path: str) -> pd.DataFrame:
     if not os.path.exists(dataset_path):
         raise FileNotFoundError(f'Dataset file not found: {dataset_path}')
@@ -238,7 +356,8 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
     print(f'  Total Clean Windows : {len(df)}')
     print(f'  Features Available  : {len(available_features)}')
     dist_col = 'distance_bucket' if 'distance_bucket' in df.columns else TARGET_COLUMN
-    print(f'  Distance Presets    : {sorted(df[dist_col].unique())} m')
+    dist_presets = [round(float(d), 2) for d in sorted(df[dist_col].unique())]
+    print(f'  Distance Presets    : {dist_presets} m')
     print(f'\n  Distance Breakdown:')
     for dist, count in df.groupby(dist_col).size().items():
         pct = count / len(df) * 100
@@ -280,7 +399,7 @@ def instantiate_candidates() -> dict:
     ada = AdaBoostRegressor(estimator=DecisionTreeRegressor(max_depth=5), n_estimators=200, learning_rate=0.05, random_state=RANDOM_STATE)
     knn = KNeighborsRegressor(n_neighbors=7, weights='distance', metric='minkowski', p=2, n_jobs=-1)
     mlp = MLPRegressor(hidden_layer_sizes=(128, 64, 32), activation='relu', solver='adam', learning_rate='adaptive', learning_rate_init=0.001, max_iter=500, early_stopping=True, validation_fraction=0.15, n_iter_no_change=20, random_state=RANDOM_STATE)
-    svr = SVR(C=10.0, epsilon=0.05, kernel='rbf')
+    svr = SVR(C=10.0, epsilon=0.05, kernel='rbf', max_iter=3000)
     bayesian = BayesianRidge(alpha_1=1e-06, alpha_2=1e-06, lambda_1=1e-06, lambda_2=1e-06)
     elastic = ElasticNet(alpha=0.01, l1_ratio=0.5, max_iter=1000, random_state=RANDOM_STATE)
     bagging = BaggingRegressor(estimator=DecisionTreeRegressor(max_depth=10), n_estimators=200, max_samples=0.8, max_features=0.8, random_state=RANDOM_STATE, n_jobs=-1)
@@ -300,12 +419,17 @@ def instantiate_candidates() -> dict:
         lgbm_tuned = LGBMRegressor(n_estimators=600, learning_rate=0.03, max_depth=8, num_leaves=63, subsample=0.7, colsample_bytree=0.7, reg_alpha=0.5, reg_lambda=2.0, min_child_samples=5, random_state=RANDOM_STATE, n_jobs=-1, verbose=-1)
         candidates['LightGBM Regressor'] = lgbm
         candidates['LightGBM (Deep Tuned)'] = lgbm_tuned
-    stacking_estimators = [('rf', RandomForestRegressor(n_estimators=200, max_depth=15, random_state=RANDOM_STATE, n_jobs=-1)), ('et', ExtraTreesRegressor(n_estimators=200, max_depth=15, random_state=RANDOM_STATE, n_jobs=-1)), ('hgb', HistGradientBoostingRegressor(max_iter=200, max_depth=5, random_state=RANDOM_STATE)), ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance', n_jobs=-1))]
+    stacking_estimators = [
+        ('rf', RandomForestRegressor(n_estimators=100, max_depth=10, random_state=RANDOM_STATE, n_jobs=1)),
+        ('et', ExtraTreesRegressor(n_estimators=100, max_depth=10, random_state=RANDOM_STATE, n_jobs=1)),
+        ('hgb', HistGradientBoostingRegressor(max_iter=100, max_depth=5, random_state=RANDOM_STATE)),
+        ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance', n_jobs=1))
+    ]
     if HAS_XGBOOST:
-        stacking_estimators.append(('xgb', XGBRegressor(n_estimators=200, max_depth=5, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0)))
+        stacking_estimators.append(('xgb', XGBRegressor(n_estimators=100, max_depth=5, random_state=RANDOM_STATE, n_jobs=1, verbosity=0)))
     if HAS_LIGHTGBM:
-        stacking_estimators.append(('lgbm', LGBMRegressor(n_estimators=200, max_depth=5, random_state=RANDOM_STATE, n_jobs=-1, verbose=-1)))
-    stacking = StackingRegressor(estimators=stacking_estimators, final_estimator=RidgeCV(), cv=3, n_jobs=-1)
+        stacking_estimators.append(('lgbm', LGBMRegressor(n_estimators=100, max_depth=5, random_state=RANDOM_STATE, n_jobs=1, verbose=-1)))
+    stacking = StackingRegressor(estimators=stacking_estimators, final_estimator=RidgeCV(), cv=3, n_jobs=1)
     candidates['Stacking Super Learner'] = stacking
     voting_estimators = [('rf', RandomForestRegressor(n_estimators=200, max_depth=15, random_state=RANDOM_STATE, n_jobs=-1)), ('hgb', HistGradientBoostingRegressor(max_iter=200, max_depth=5, random_state=RANDOM_STATE)), ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance', n_jobs=-1))]
     if HAS_XGBOOST:
@@ -348,6 +472,7 @@ def evaluate_extended_metrics(y_true, y_pred) -> dict:
 
 def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int=CV_FOLDS, groups: np.ndarray=None, y_strat: np.ndarray=None) -> dict:
     try:
+        cv_n_jobs = 1 if ('SVR' in model_name or 'Stacking' in model_name) else -1
         if groups is not None and len(np.unique(groups)) >= 2:
             n_groups = len(np.unique(groups))
             folds = min(cv_folds, n_groups)
@@ -360,18 +485,18 @@ def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int=CV_F
             try:
                 sgkf = StratifiedGroupKFold(n_splits=folds, shuffle=True, random_state=RANDOM_STATE)
                 cv_splits = list(sgkf.split(X_scaled, y_strat, groups=groups))
-                mae_scores = -cross_val_score(model, X_scaled, y, cv=cv_splits, scoring='neg_mean_absolute_error', n_jobs=-1)
-                r2_scores = cross_val_score(model, X_scaled, y, cv=cv_splits, scoring='r2', n_jobs=-1)
+                mae_scores = -cross_val_score(model, X_scaled, y, cv=cv_splits, scoring='neg_mean_absolute_error', n_jobs=cv_n_jobs)
+                r2_scores = cross_val_score(model, X_scaled, y, cv=cv_splits, scoring='r2', n_jobs=cv_n_jobs)
                 cv_type = f'StratifiedGroupKFold({folds} session folds)'
             except Exception as e:
                 cv_splitter = GroupKFold(n_splits=folds)
-                mae_scores = -cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring='neg_mean_absolute_error', n_jobs=-1)
-                r2_scores = cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring='r2', n_jobs=-1)
+                mae_scores = -cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring='neg_mean_absolute_error', n_jobs=cv_n_jobs)
+                r2_scores = cross_val_score(model, X_scaled, y, groups=groups, cv=cv_splitter, scoring='r2', n_jobs=cv_n_jobs)
                 cv_type = f'GroupKFold({folds} session folds)'
         else:
             kf = KFold(n_splits=cv_folds, shuffle=True, random_state=RANDOM_STATE)
-            mae_scores = -cross_val_score(model, X_scaled, y, cv=kf, scoring='neg_mean_absolute_error', n_jobs=-1)
-            r2_scores = cross_val_score(model, X_scaled, y, cv=kf, scoring='r2', n_jobs=-1)
+            mae_scores = -cross_val_score(model, X_scaled, y, cv=kf, scoring='neg_mean_absolute_error', n_jobs=cv_n_jobs)
+            r2_scores = cross_val_score(model, X_scaled, y, cv=kf, scoring='r2', n_jobs=cv_n_jobs)
             cv_type = f'KFold({cv_folds} random folds)'
         result = {'cv_mae_mean': round(float(np.mean(mae_scores)), 4), 'cv_mae_std': round(float(np.std(mae_scores)), 4), 'cv_r2_mean': round(float(np.mean(r2_scores)), 4), 'cv_r2_std': round(float(np.std(r2_scores)), 4), 'cv_type': cv_type}
         print(f"    CV ({cv_type}) -> MAE: {result['cv_mae_mean']:.4f} ± {result['cv_mae_std']:.4f} | CV R²: {result['cv_r2_mean']:.4f} ± {result['cv_r2_std']:.4f}")
@@ -399,7 +524,119 @@ def evaluate_path_loss_baseline(X_test: np.ndarray, y_test: np.ndarray, feature_
         logger.warning(f'Path loss baseline evaluation error: {e}')
         return {'name': 'Classical Path-Loss Physics Baseline', 'mae': 2.5, 'rmse': 3.0, 'r2': -0.5}
 
-def train_model(df: pd.DataFrame, tune_hyperparams: bool=False, eval_mode: str='session', prune_features: bool=False, progress_callback=None) -> dict:
+def filter_dataset(
+    df: pd.DataFrame,
+    anchors: list=None,
+    min_anchors: int=None,
+    distance_min: float=None,
+    distance_max: float=None,
+    rssi_min: float=None,
+    rssi_max: float=None,
+    motion_modes: list=None,
+    obstacle_types: list=None,
+) -> pd.DataFrame:
+    """Apply data-selection / experimental-condition filters to the dataset.
+
+    Returns a filtered copy of ``df``. Each filter is optional and only applied
+    when the corresponding column exists and a value is provided.
+    """
+    if df is None or df.empty:
+        return df
+    df = df.copy()
+    n_before = len(df)
+    applied = []
+
+    # 1. Anchor selection
+    if anchors:
+        anchors_norm = [str(a).strip().upper() for a in anchors]
+        if 'anchor_id' in df.columns:
+            df = df[df['anchor_id'].astype(str).str.strip().str.upper().isin(anchors_norm)]
+            applied.append(f'anchors={anchors_norm}')
+
+    # 2. Minimum anchors per window (requires anchor_id + window_start)
+    if min_anchors and min_anchors > 1 and 'anchor_id' in df.columns and 'window_start' in df.columns:
+        counts = df.groupby(['session_id', 'window_start'])['anchor_id'].nunique()
+        valid_keys = set(counts[counts >= min_anchors].index)
+        df = df[df.set_index(['session_id', 'window_start']).index.isin(valid_keys)]
+        applied.append(f'min_anchors>={min_anchors}')
+
+    # 3. Distance range filter
+    if (distance_min is not None or distance_max is not None) and TARGET_COLUMN in df.columns:
+        mask = pd.Series(True, index=df.index)
+        if distance_min is not None:
+            mask &= df[TARGET_COLUMN] >= distance_min
+        if distance_max is not None:
+            mask &= df[TARGET_COLUMN] <= distance_max
+        df = df[mask]
+        applied.append(f'distance=[{distance_min},{distance_max}]')
+
+    # 4. RSSI range filter
+    if (rssi_min is not None or rssi_max is not None) and 'rssi_mean' in df.columns:
+        mask = pd.Series(True, index=df.index)
+        if rssi_min is not None:
+            mask &= df['rssi_mean'] >= rssi_min
+        if rssi_max is not None:
+            mask &= df['rssi_mean'] <= rssi_max
+        df = df[mask]
+        applied.append(f'rssi=[{rssi_min},{rssi_max}]')
+
+    # 5. Motion mode filter
+    if motion_modes and 'motion' in df.columns:
+        motion_norm = [str(m).strip().lower() for m in motion_modes]
+        df = df[df['motion'].astype(str).str.strip().str.lower().isin(motion_norm)]
+        applied.append(f'motion={motion_norm}')
+
+    # 6. Obstacle type filter
+    if obstacle_types and 'obstacle_type' in df.columns:
+        obs_norm = [str(o).strip().lower() for o in obstacle_types]
+        df = df[df['obstacle_type'].astype(str).str.strip().str.lower().isin(obs_norm)]
+        applied.append(f'obstacle_type={obs_norm}')
+
+    n_after = len(df)
+    if applied:
+        print(f"\n{'=' * 75}")
+        print(f'  [DATA SELECTION] Applied filters: {", ".join(applied)}')
+        print(f'  Windows: {n_before:,} -> {n_after:,} ({n_after / max(n_before, 1) * 100:.1f}% retained)')
+        print(f"{'=' * 75}\n")
+    return df
+
+
+def train_model(
+    df: pd.DataFrame,
+    tune_hyperparams: bool=False,
+    eval_mode: str='session',
+    prune_features: bool=False,
+    progress_callback=None,
+    # ── New filtering parameters ──────────────────────────────────────────────
+    anchors: list=None,           # e.g. ['ANCHOR_01', 'ANCHOR_02']
+    min_anchors: int=None,        # minimum anchors required per window
+    distance_min: float=None,     # minimum distance (m)
+    distance_max: float=None,     # maximum distance (m)
+    rssi_min: float=None,         # minimum RSSI (dBm)
+    rssi_max: float=None,        # maximum RSSI (dBm)
+    motion_modes: list=None,      # e.g. ['stationary', 'moving']
+    obstacle_types: list=None,   # e.g. ['None', 'Human body']
+    # ── Window / aggregation parameters ─────────────────────────────────────
+    window_size_ms: int=None,     # override window size (ms)
+    window_stride_ms: int=None,  # override window stride (ms)
+    # ── Data handling parameters ─────────────────────────────────────────────
+    outlier_method: str=None,     # 'isolation_forest', 'iqr', 'zscore', 'mad', 'none'
+    missing_data_handling: str=None,  # 'drop', 'interpolate', 'fill'
+    feature_source: str=None,     # 'raw', 'existing'
+) -> dict:
+    # ── Apply data-selection / experimental-condition filters ─────────────────
+    df = filter_dataset(
+        df,
+        anchors=anchors,
+        min_anchors=min_anchors,
+        distance_min=distance_min,
+        distance_max=distance_max,
+        rssi_min=rssi_min,
+        rssi_max=rssi_max,
+        motion_modes=motion_modes,
+        obstacle_types=obstacle_types,
+    )
+
     df = assign_session_ids(df)
     audit_dataset_health(df)
     feature_cols = detect_available_features(df)
@@ -413,7 +650,7 @@ def train_model(df: pd.DataFrame, tune_hyperparams: bool=False, eval_mode: str='
     print(f"\n{'=' * 75}")
     print(f'  [STAGE 1] OUTLIER DETECTION & DATA CLEANING')
     print(f"{'=' * 75}")
-    X_clean, y_clean, groups_clean, dist_bucket_clean, n_outliers = detect_and_remove_outliers(X_raw, y_raw, groups_raw, dist_bucket_raw)
+    X_clean, y_clean, groups_clean, dist_bucket_clean, n_outliers = detect_and_remove_outliers(X_raw, y_raw, groups_raw, dist_bucket_raw, outlier_method=outlier_method)
     try:
         y_strat = dist_bucket_clean.astype(str)
     except Exception:
@@ -950,12 +1187,15 @@ def append_experiment_log(metadata: dict, output_dir: str):
     except Exception as e:
         logger.warning(f'Failed to append experiment evolution log: {e}')
 
-def save_model(result: dict, output_dir: str, zone_result: dict=None):
+def save_model(result: dict, output_dir: str, zone_result: dict=None, config: dict=None):
     try:
         os.makedirs(output_dir, exist_ok=True)
         joblib.dump(result['model'], os.path.join(output_dir, 'distance_estimator.joblib'))
         joblib.dump(result['scaler'], os.path.join(output_dir, 'scaler.joblib'))
         metadata = {'champion_model': result['model_type'], 'feature_cols': result['feature_cols'], 'all_feature_cols': result.get('all_feature_cols', result['feature_cols']), 'keep_mask': result.get('keep_mask', [True] * len(result['feature_cols'])), 'metrics': result['metrics'], 'importances': {k: round(float(v), 6) for k, v in result['importances'].items()}, 'tournament': result['tournament'], 'trained_at': datetime.datetime.now().isoformat(), 'train_samples': len(result['y_train']), 'test_samples': len(result['y_test']), 'pipeline_version': '2.0-motion-aware', 'has_cross_window_features': any((c in result['feature_cols'] for c in CROSS_WINDOW_FEATURE_COLUMNS)), 'n_cross_window_features': sum((1 for c in result['feature_cols'] if c in CROSS_WINDOW_FEATURE_COLUMNS))}
+        # ── New: Save the complete effective configuration for reproducibility ──
+        if config:
+            metadata['effective_config'] = config
         if zone_result and zone_result.get('model'):
             joblib.dump(zone_result['model'], os.path.join(output_dir, 'zone_classifier.joblib'))
             joblib.dump(zone_result['scaler'], os.path.join(output_dir, 'zone_scaler.joblib'))
@@ -963,8 +1203,14 @@ def save_model(result: dict, output_dir: str, zone_result: dict=None):
             print(f"[SAVE] Zone classifier saved: {os.path.join(output_dir, 'zone_classifier.joblib')}")
         with open(os.path.join(output_dir, 'model_metadata.json'), 'w') as f:
             json.dump(metadata, f, indent=2)
-        print(f'[SAVE] Champion model & scaler saved to {output_dir}')
         append_experiment_log(metadata, output_dir)
+        try:
+            from training.model_db import log_training_session
+            db_file = os.path.join(output_dir, 'model_registry.db')
+            sess_id = log_training_session(metadata, db_file)
+            print(f'[DATABASE REGISTRY] Session {sess_id} committed to {db_file}')
+        except Exception as dbe:
+            logger.warning(f'Failed to log to SQLite model registry: {dbe}')
     except Exception as e:
         logger.error(f'Failed to save model assets: {e}')
 
@@ -978,7 +1224,38 @@ def main():
     parser.add_argument('--eval-mode', type=str, choices=['session', 'random'], default='session', help='Evaluation mode: session split (generalization) or random split (interpolation)')
     parser.add_argument('--no-height', action='store_true', help='Exclude height_m from features')
     parser.add_argument('--prune-features', action='store_true', help='Enable feature pruning via SelectFromModel')
+
+    # ── New: Data selection / filtering parameters ────────────────────────────
+    parser.add_argument('--anchors', type=str, default=None, help='Comma-separated anchor IDs to include (e.g. ANCHOR_01,ANCHOR_02)')
+    parser.add_argument('--min-anchors', type=int, default=None, help='Minimum number of anchors required per observation window')
+    parser.add_argument('--distance-min', type=float, default=None, help='Minimum distance (m) to include')
+    parser.add_argument('--distance-max', type=float, default=None, help='Maximum distance (m) to include')
+    parser.add_argument('--rssi-min', type=float, default=None, help='Minimum RSSI (dBm) to include')
+    parser.add_argument('--rssi-max', type=float, default=None, help='Maximum RSSI (dBm) to include')
+    parser.add_argument('--motion', type=str, default=None, help='Comma-separated motion modes to include (e.g. stationary,moving)')
+    parser.add_argument('--obstacle', type=str, default=None, help='Comma-separated obstacle types to include (e.g. None,Human body)')
+
+    # ── New: Window / aggregation parameters ──────────────────────────────────
+    parser.add_argument('--window-size', type=int, default=None, help='Feature engineering window size in MILLISECONDS (default 1000). Raw timestamps are epoch-ms, so this is time-based.')
+    parser.add_argument('--stride', type=int, default=None, help='Feature engineering window stride in MILLISECONDS (default = window-size). Time-based.')
+
+    # ── New: Data handling parameters ─────────────────────────────────────────
+    parser.add_argument('--outlier-method', type=str, choices=['isolation_forest', 'iqr', 'zscore', 'mad', 'none'], default=None, help='Outlier detection method')
+    parser.add_argument('--missing-data', type=str, choices=['drop', 'interpolate', 'fill'], default=None, help='Missing data handling strategy')
+    parser.add_argument('--feature-source', type=str, choices=['raw', 'existing'], default=None, help='Data source: raw observations (re-engineer) or existing engineered features')
+
     args = parser.parse_args()
+
+    # Parse comma-separated list args
+    def _parse_list(val):
+        if not val:
+            return None
+        return [x.strip() for x in val.split(',') if x.strip()]
+
+    anchors = _parse_list(args.anchors)
+    motion_modes = _parse_list(args.motion)
+    obstacle_types = _parse_list(args.obstacle)
+
     if args.no_height:
         global PHYSICAL_METADATA_COLUMNS, ALL_FEATURE_COLUMNS
         if 'height_m' in PHYSICAL_METADATA_COLUMNS:
@@ -991,14 +1268,84 @@ def main():
     if args.output_dir is None:
         args.output_dir = os.path.join(project_root, 'models')
     df = load_dataset(args.dataset)
+
+    # ── New: Validate schema compatibility of the loaded engineered dataset ──
+    print('\n' + '=' * 70)
+    print('  [SCHEMA VALIDATION] Engineered dataset compatibility check')
+    print('=' * 70)
+    validate_existing_dataset(
+        df,
+        args.dataset,
+        anchors=anchors,
+        expected_feature_cols=None,
+        window_size_ms=args.window_size,
+    )
+
+    # ── New: Apply data-selection filters once so both regression & zone
+    #         classifier consume the same filtered dataset ─────────────────────
+    df = filter_dataset(
+        df,
+        anchors=anchors,
+        min_anchors=args.min_anchors,
+        distance_min=args.distance_min,
+        distance_max=args.distance_max,
+        rssi_min=args.rssi_min,
+        rssi_max=args.rssi_max,
+        motion_modes=motion_modes,
+        obstacle_types=obstacle_types,
+    )
+
     result = None
     zone_result = None
     if args.mode in ('regression', 'both'):
-        result = train_model(df, model_type=args.model_type, tune_hyperparams=args.tune, eval_mode=args.eval_mode, prune_features=args.prune_features)
+        result = train_model(
+            df,
+            tune_hyperparams=args.tune,
+            eval_mode=args.eval_mode,
+            prune_features=args.prune_features,
+            anchors=anchors,
+            min_anchors=args.min_anchors,
+            distance_min=args.distance_min,
+            distance_max=args.distance_max,
+            rssi_min=args.rssi_min,
+            rssi_max=args.rssi_max,
+            motion_modes=motion_modes,
+            obstacle_types=obstacle_types,
+            window_size_ms=args.window_size,
+            window_stride_ms=args.stride,
+            outlier_method=args.outlier_method,
+            missing_data_handling=args.missing_data,
+            feature_source=args.feature_source,
+        )
     if args.mode in ('classification', 'both'):
         zone_result = train_zone_classifier(df, eval_mode=args.eval_mode)
     if result:
-        save_model(result, args.output_dir, zone_result=zone_result)
+        # ── New: Build complete effective configuration for reproducibility ──
+        effective_config = {
+            'dataset': args.dataset,
+            'output_dir': args.output_dir,
+            'mode': args.mode,
+            'eval_mode': args.eval_mode,
+            'tune': args.tune,
+            'prune_features': args.prune_features,
+            'no_height': args.no_height,
+            'anchors': anchors,
+            'min_anchors': args.min_anchors,
+            'distance_min': args.distance_min,
+            'distance_max': args.distance_max,
+            'rssi_min': args.rssi_min,
+            'rssi_max': args.rssi_max,
+            'motion': motion_modes,
+            'obstacle': obstacle_types,
+            'window_size_ms': args.window_size,
+            'stride_ms': args.stride,
+            'outlier_method': args.outlier_method,
+            'missing_data_handling': args.missing_data,
+            'feature_source': args.feature_source,
+            'n_windows_after_filter': len(df),
+            'n_anchors_after_filter': df['anchor_id'].nunique() if 'anchor_id' in df.columns else None,
+        }
+        save_model(result, args.output_dir, zone_result=zone_result, config=effective_config)
         reports_dir = os.path.join(os.path.dirname(args.output_dir), 'reports')
         generate_plots(result, reports_dir, zone_result=zone_result)
     elif zone_result:

@@ -21,9 +21,9 @@
       4.8,
       0.2
     ],
-    "status": "configured",
+    "status": "provisioned",
     "locked": false,
-    "last_flashed": null
+    "last_flashed": "2026-09-27 20:24:53"
   },
   "NODE_C": {
     "anchor_id": "ANCHOR_03",
@@ -36,7 +36,7 @@
     ],
     "status": "provisioned",
     "locked": false,
-    "last_flashed": "2026-09-24 22:12:18"
+    "last_flashed": "2026-09-27 20:33:07"
   },
   "NODE_D": {
     "anchor_id": "ANCHOR_04",
@@ -47,8 +47,8 @@
       4.8,
       4.8
     ],
-    "status": "configured",
+    "status": "provisioned",
     "locked": false,
-    "last_flashed": "2026-09-27 14:15:02"
+    "last_flashed": "2026-09-27 20:36:38"
   }
 }

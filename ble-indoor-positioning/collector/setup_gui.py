@@ -421,12 +421,12 @@ class SetupApp:
             self.hotspot_status_var.set(
                 f"Experimental hotspot detected: {hotspot_ifaces[0][0]} ({hotspot_ifaces[0][1]})"
             )
-            hotspot_fg = t["green"]
+            hotspot_fg = t["accent"]
         else:
             self.hotspot_status_var.set(
                 "Laptop hotspot not detected — enable Mobile Hotspot before provisioning"
             )
-            hotspot_fg = t["amber"]
+            hotspot_fg = t["warning"]
         tk.Label(card, textvariable=self.hotspot_status_var, bg=t["panel"], fg=hotspot_fg,
                  font=("Segoe UI", 8, "bold"), wraplength=360, justify="left").pack(anchor="w", pady=(0, 5))
 
@@ -1116,6 +1116,7 @@ class SetupApp:
                 "SAVE_CONFIG\n",
                 "RECONNECT_WIFI\n",
             ]
+            unsupported = []
             for cmd in commands:
                 cmd_name = cmd.strip().split('=')[0]
                 self._log(f"  → Sending: {cmd_name}")
@@ -1126,6 +1127,19 @@ class SetupApp:
                     for r_line in reply.splitlines():
                         if r_line.strip():
                             self._log(f"    ← Reply: {r_line.strip()}")
+                            if "unknown command" in r_line.lower():
+                                unsupported.append(cmd_name)
+
+            if unsupported:
+                raise RuntimeError(
+                    "The ESP32 firmware on this device does not support the Wi-Fi provisioning commands "
+                    f"({', '.join(unsupported)}).\n\n"
+                    "This device is running the older 'ble_anchor' firmware, which only supports "
+                    "SET_ANCHOR / SET_TAG / SET_MODE.\n\n"
+                    "Use the 'Flash & Provision' button instead — it will flash the full "
+                    "esp32_wifi_anchor firmware (with Wi-Fi, host & UDP support) before writing "
+                    "the NVS configuration."
+                )
 
             self._log("  → Verifying NVS parameters via GET_CONFIG...")
             ser.write(b"GET_CONFIG\n")
@@ -1458,6 +1472,31 @@ class SetupApp:
                 ser.read_all()
             except Exception:
                 pass
+
+            # Wait for the freshly-flashed firmware to finish booting and the UART
+            # command handler to become ready. Commands sent too early are silently
+            # dropped while the chip is still booting, which causes the read-back
+            # verification to fail. Poll GET_MAC until the firmware responds.
+            self._log("  → Waiting for firmware to finish booting (UART handshake)...")
+            fw_ready = False
+            for _ in range(20):
+                try:
+                    ser.write(b"GET_MAC\n")
+                    time.sleep(0.4)
+                    res = ser.read_all().decode("utf-8", errors="ignore")
+                    if '"mac"' in res.lower() or "mac" in res.lower():
+                        fw_ready = True
+                        self._log("  ✔ Firmware ready — UART command handler responding.")
+                        break
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            if not fw_ready:
+                raise RuntimeError(
+                    "ESP32 firmware did not respond to UART handshake after flashing. "
+                    "The chip may still be booting or the firmware did not start. "
+                    "Reopen the port and try again."
+                )
 
             commands = [
                 f"SET_ANCHOR={node_key}\n",

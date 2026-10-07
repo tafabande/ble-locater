@@ -1,0 +1,134 @@
+{
+  "generated_at": "2026-10-07T11:27:10.698846",
+  "total_windows": 37623,
+  "n_sessions": 87,
+  "protocols": [
+    {
+      "protocol": "Protocol 1: Random Split",
+      "overlap_pct": 89.5,
+      "mae": 0.404,
+      "rmse": 0.7755,
+      "r2": 0.8116,
+      "within_1m": 88.1,
+      "within_50cm": 76.5,
+      "assessment": "Optimistic baseline subject to rolling window autocorrelation"
+    },
+    {
+      "protocol": "Protocol 2: Temporally Blocked & Embargoed",
+      "overlap_pct": 0.0,
+      "mae": 0.5116,
+      "rmse": 0.9894,
+      "r2": 0.703,
+      "within_1m": 84.9,
+      "within_50cm": 72.2,
+      "ci_95": [
+        0.4893,
+        0.5331
+      ],
+      "train_samples": 30125,
+      "test_samples": 5378,
+      "purged_samples": 2120,
+      "assessment": "Rigorous chronological generalization with zero packet overlap and purge buffer >= 15 windows"
+    },
+    {
+      "protocol": "Protocol 3: Distance-Stratified Disjoint Session Holdout",
+      "overlap_pct": 0.0,
+      "mae": 1.3864,
+      "rmse": 1.9725,
+      "r2": -0.0132,
+      "within_1m": 53.0,
+      "within_50cm": 33.8,
+      "assessment": "25% held-out sessions per ground-truth distance tier (67 train sessions, 24 disjoint test sessions; zero session overlap)"
+    }
+  ],
+  "ablation": [
+    {
+      "name": "Full Engineered Feature Set",
+      "features_count": 59,
+      "mae": 0.5116,
+      "error_delta_pct": 0.0,
+      "role": "Multi-scale temporal smoothing + statistical dispersion + environmental terms"
+    },
+    {
+      "name": "Temporal & Cross-Window Only",
+      "features_count": 23,
+      "mae": 0.8106,
+      "error_delta_pct": 58.4,
+      "role": "Primary suppression of Rayleigh multipath variance"
+    },
+    {
+      "name": "Static Base Features Only (No Rolling)",
+      "features_count": 30,
+      "mae": 1.288,
+      "error_delta_pct": 151.8,
+      "role": "Instantaneous distribution moments without temporal smoothing"
+    },
+    {
+      "name": "Raw Instantaneous RSSI Only",
+      "features_count": 1,
+      "mae": 1.2879,
+      "error_delta_pct": 151.7,
+      "role": "Unconditioned raw RSSI subject to stochastic phase flutter"
+    }
+  ],
+  "statistical_test": {
+    "model_a": "XGBoost (Deep Tuned)",
+    "model_b": "LightGBM (Deep Tuned)",
+    "mae_a": 0.5116,
+    "mae_b": 0.5851,
+    "t_statistic": -18.37,
+    "p_value": 3.8128e-73,
+    "is_significant": true,
+    "ci_95_diff": [
+      -0.0814,
+      -0.0657
+    ]
+  },
+  "multilateration_2d": {
+    "evaluation_type": "Semi-Empirical Monte Carlo Error Propagation",
+    "room_dimensions_m": [
+      6.0,
+      6.0
+    ],
+    "anchor_count": 4,
+    "n_monte_carlo_points": 300,
+    "random_seed": 42,
+    "residual_source": "Protocol 2 Chronologically Embargoed Test Holdout",
+    "solver": "Levenberg-Marquardt Non-Linear Least Squares",
+    "mae": 0.7279,
+    "rmse": 0.9802,
+    "median_error": 0.5389,
+    "sub_meter_pct": 74.0,
+    "sub_half_meter_pct": 47.0,
+    "mean_gdop": 1.02,
+    "sample_size_sensitivity": {
+      "300": {
+        "k": 300,
+        "mae": 0.7279,
+        "rmse": 0.9802,
+        "median": 0.5389,
+        "sub_meter_pct": 74.0,
+        "sub_half_meter_pct": 47.0,
+        "mean_gdop": 1.02
+      },
+      "1000": {
+        "k": 1000,
+        "mae": 0.6984,
+        "rmse": 0.9345,
+        "median": 0.5233,
+        "sub_meter_pct": 75.6,
+        "sub_half_meter_pct": 48.7,
+        "mean_gdop": 1.02
+      },
+      "5000": {
+        "k": 5000,
+        "mae": 0.7184,
+        "rmse": 0.9605,
+        "median": 0.5265,
+        "sub_meter_pct": 74.5,
+        "sub_half_meter_pct": 48.3,
+        "mean_gdop": 1.02
+      }
+    }
+  }
+}

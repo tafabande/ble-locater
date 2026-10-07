@@ -91,6 +91,10 @@ class RecordingEngine:
         self._http_forward_url: str = "http://127.0.0.1:8000/api/telemetry/ingest"
         self._http_forward_thread: Optional[threading.Thread] = None
 
+    def set_variance_threshold(self, threshold_db: float) -> None:
+        """Update the validator's RSSI variance threshold at runtime."""
+        self.validator.variance_threshold_db = threshold_db
+
     def _start_http_forwarder(self) -> None:
         """Start the background forwarder worker if not already running."""
         if self._http_forward_thread is None or not self._http_forward_thread.is_alive():

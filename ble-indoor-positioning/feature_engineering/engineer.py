@@ -1,5 +1,6 @@
 import os
 import glob
+import json
 import logging
 import argparse
 import numpy as np
@@ -316,7 +317,22 @@ def normalize_and_clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].replace([np.inf, -np.inf], 0.0)
     return df
 
-def process_raw_csv(filepath: str, target_mac: str=None, drop_duplicates: bool=False) -> pd.DataFrame:
+def process_raw_csv(
+    filepath: str,
+    target_mac: str=None,
+    drop_duplicates: bool=False,
+    # ── New: Data selection / filtering parameters ────────────────────────────
+    anchors: list=None,
+    distance_min: float=None,
+    distance_max: float=None,
+    rssi_min: float=None,
+    rssi_max: float=None,
+    motion_modes: list=None,
+    obstacle_types: list=None,
+    # ── New: Window / aggregation parameters ───────────────────────────────────
+    window_size_ms: int=None,
+    window_stride_ms: int=None,
+) -> pd.DataFrame:
     if not os.path.exists(filepath):
         logger.warning(f'File not found: {filepath}')
         return pd.DataFrame()
@@ -346,9 +362,42 @@ def process_raw_csv(filepath: str, target_mac: str=None, drop_duplicates: bool=F
         if df.empty:
             print(f'  [!] No packets for MAC {target_mac} in {os.path.basename(filepath)}')
             return pd.DataFrame()
+
+    # ── New: Apply data-selection / experimental-condition filters ────────────
+    if anchors:
+        anchors_norm = [str(a).strip().upper() for a in anchors]
+        df = df[df['anchor'].astype(str).str.strip().str.upper().isin(anchors_norm)]
+    if distance_min is not None:
+        df = df[df['distance_m'] >= distance_min]
+    if distance_max is not None:
+        df = df[df['distance_m'] <= distance_max]
+    if rssi_min is not None:
+        df = df[df['rssi'] >= rssi_min]
+    if rssi_max is not None:
+        df = df[df['rssi'] <= rssi_max]
+    if motion_modes:
+        motion_norm = [str(m).strip().lower() for m in motion_modes]
+        if 'motion' in df.columns:
+            df = df[df['motion'].astype(str).str.strip().str.lower().isin(motion_norm)]
+    if obstacle_types:
+        obs_norm = [str(o).strip().lower() for o in obstacle_types]
+        if 'obstacle_type' in df.columns:
+            df = df[df['obstacle_type'].astype(str).str.strip().str.lower().isin(obs_norm)]
+    if df.empty:
+        return pd.DataFrame()
+
+    # ── New: Window size / stride override ────────────────────────────────────
+    eff_window_ms = window_size_ms if window_size_ms else WINDOW_SIZE_MS
+    eff_stride_ms = window_stride_ms if window_stride_ms else eff_window_ms
+
     df.sort_values('timestamp', inplace=True)
     t_min = df['timestamp'].min()
-    df['window_id'] = ((df['timestamp'] - t_min) // WINDOW_SIZE_MS).astype(int)
+    if eff_stride_ms == eff_window_ms:
+        df['window_id'] = ((df['timestamp'] - t_min) // eff_window_ms).astype(int)
+    else:
+        # Sliding window with stride: assign each packet to the window whose
+        # start is closest (packet belongs to the window it falls within).
+        df['window_id'] = ((df['timestamp'] - t_min) // eff_stride_ms).astype(int)
     has_motion = 'motion' in df.columns
     rows = []
     for (anchor, window_id), group in df.groupby(['anchor', 'window_id']):
@@ -356,7 +405,7 @@ def process_raw_csv(filepath: str, target_mac: str=None, drop_duplicates: bool=F
             continue
         features = compute_window_features(group)
         first = group.iloc[0]
-        features['window_start'] = int(t_min + window_id * WINDOW_SIZE_MS)
+        features['window_start'] = int(t_min + window_id * eff_stride_ms)
         features['anchor_id'] = str(anchor).strip().upper()
         features['distance_m'] = normalize_distance_preset(first['distance_m'])
         features['height_m'] = round(float(first.get('height_m', 0.0)), 2)
@@ -364,7 +413,13 @@ def process_raw_csv(filepath: str, target_mac: str=None, drop_duplicates: bool=F
         features['obstacle_type'] = str(first.get('obstacle_type', 'None')).strip().title()
         if has_motion:
             motion_val = str(first.get('motion', 'stationary')).strip().lower()
-            features['motion'] = motion_val if motion_val in ('stationary', 'approaching', 'moving_away') else 'stationary'
+            # Preserve all real motion modes observed in collected data.
+            # 'moving' is a valid mode in the new 2-node collection and must
+            # NOT be silently collapsed into 'stationary'.
+            if motion_val in ('stationary', 'approaching', 'moving_away', 'moving', 'walking'):
+                features['motion'] = motion_val
+            else:
+                features['motion'] = 'stationary'
         else:
             features['motion'] = 'stationary'
         rows.append(features)
@@ -448,7 +503,40 @@ def print_dataset_audit_report(merged: pd.DataFrame):
         print('     [VERDICT] CRITICAL: Dataset is small. Collect additional BLE recording sessions before training.')
     print('=' * 75 + '\n')
 
-def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str=None, drop_duplicates: bool=False, progress_callback=None) -> pd.DataFrame:
+def _load_session_metadata(csv_path: str) -> dict:
+    """Load companion JSON metadata for a raw CSV session file."""
+    base = os.path.splitext(csv_path)[0]
+    meta_path = base + "_info.json"
+    if os.path.exists(meta_path) and os.path.getsize(meta_path) > 0:
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def process_all_raw_csvs(
+    raw_dir: str,
+    output_path: str,
+    target_mac: str=None,
+    drop_duplicates: bool=False,
+    progress_callback=None,
+    # ── New: Data selection / filtering parameters ────────────────────────────
+    anchors: list=None,
+    distance_min: float=None,
+    distance_max: float=None,
+    rssi_min: float=None,
+    rssi_max: float=None,
+    motion_modes: list=None,
+    obstacle_types: list=None,
+    # ── New: Window / aggregation parameters ───────────────────────────────────
+    window_size_ms: int=None,
+    window_stride_ms: int=None,
+    # ── New: Session-level filters ─────────────────────────────────────────────
+    min_session_duration_sec: float=None,
+    exclude_session_names: list=None,
+) -> pd.DataFrame:
     if not os.path.exists(raw_dir):
         raise FileNotFoundError(f'Raw CSV directory not found: {raw_dir}')
     csv_files = sorted(glob.glob(os.path.join(raw_dir, 'dataset_*.csv')))
@@ -465,7 +553,20 @@ def process_all_raw_csvs(raw_dir: str, output_path: str, target_mac: str=None, d
             pct = 5 + int(index / total * 30)
             progress_callback(f'Processing CSV {index + 1}/{total}: {fname}', pct)
         try:
-            df = process_raw_csv(fpath, target_mac=target_mac, drop_duplicates=drop_duplicates)
+            df = process_raw_csv(
+                fpath,
+                target_mac=target_mac,
+                drop_duplicates=drop_duplicates,
+                anchors=anchors,
+                distance_min=distance_min,
+                distance_max=distance_max,
+                rssi_min=rssi_min,
+                rssi_max=rssi_max,
+                motion_modes=motion_modes,
+                obstacle_types=obstacle_types,
+                window_size_ms=window_size_ms,
+                window_stride_ms=window_stride_ms,
+            )
             if df.empty:
                 print(f'  [SKIP] {fname} -> 0 windows (skipped)')
             else:
@@ -490,10 +591,40 @@ def main():
     parser.add_argument('--raw-dir', type=str, required=True)
     parser.add_argument('--output', type=str, default=None)
     parser.add_argument('--target-mac', type=str, default=None)
+    # ── New: Data selection / filtering parameters ────────────────────────────
+    parser.add_argument('--anchors', type=str, default=None, help='Comma-separated anchor IDs to include')
+    parser.add_argument('--distance-min', type=float, default=None, help='Minimum distance (m)')
+    parser.add_argument('--distance-max', type=float, default=None, help='Maximum distance (m)')
+    parser.add_argument('--rssi-min', type=float, default=None, help='Minimum RSSI (dBm)')
+    parser.add_argument('--rssi-max', type=float, default=None, help='Maximum RSSI (dBm)')
+    parser.add_argument('--motion', type=str, default=None, help='Comma-separated motion modes to include')
+    parser.add_argument('--obstacle', type=str, default=None, help='Comma-separated obstacle types to include')
+    # ── New: Window / aggregation parameters ───────────────────────────────────
+    parser.add_argument('--window-size', type=int, default=None, help='Window size in MILLISECONDS (default 1000). Raw timestamps are epoch-ms, so this is time-based.')
+    parser.add_argument('--stride', type=int, default=None, help='Window stride in MILLISECONDS (default = window-size). Time-based.')
     args = parser.parse_args()
+
+    def _parse_list(val):
+        if not val:
+            return None
+        return [x.strip() for x in val.split(',') if x.strip()]
+
     if args.output is None:
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         args.output = os.path.join(project_root, 'datasets', 'observations.csv')
-    process_all_raw_csvs(args.raw_dir, args.output, target_mac=args.target_mac)
+    process_all_raw_csvs(
+        args.raw_dir,
+        args.output,
+        target_mac=args.target_mac,
+        anchors=_parse_list(args.anchors),
+        distance_min=args.distance_min,
+        distance_max=args.distance_max,
+        rssi_min=args.rssi_min,
+        rssi_max=args.rssi_max,
+        motion_modes=_parse_list(args.motion),
+        obstacle_types=_parse_list(args.obstacle),
+        window_size_ms=args.window_size,
+        window_stride_ms=args.stride,
+    )
 if __name__ == '__main__':
     main()

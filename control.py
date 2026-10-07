@@ -1,10 +1,10 @@
 """Indoor Positioning — Application Launcher & Research Operations Console (Project 1).
 
 A lightweight, dedicated launchpad for the indoor positioning research ecosystem:
-  📡 Data Collector & Room Surveyor (controller.py)
-  🛠️ ESP32 Wireless Provisioner & Flasher (setup.py)
-  🧠 AI Model Studio & Trainer (trainer_gui.py)
-  📊 System Administrator & Telemetry (admin_gui.py)
+  Data Collector & Room Surveyor (controller.py)
+  ESP32 Wireless Provisioner & Flasher (setup.py)
+  AI Model Studio & Trainer (trainer_gui.py)
+  System Administrator & Telemetry (admin_gui.py)
 """
 from __future__ import annotations
 
@@ -134,6 +134,14 @@ class ApplicationLauncher:
         btn_box = tk.Frame(header, bg=self.THEME["panel"])
         btn_box.pack(side="right", padx=24, pady=12)
 
+        self.btn_benchmark = tk.Button(
+            btn_box, text="BENCHMARK STUDIO",
+            bg="#FBBF24", fg="#121214", font=("Segoe UI", 9, "bold"),
+            relief="flat", cursor="hand2", padx=12, pady=6,
+            command=self.launch_benchmark,
+        )
+        self.btn_benchmark.pack(side="right", padx=(0, 10))
+
         self.btn_stack = tk.Button(
             btn_box, text="▶  START BACKEND ENGINE",
             bg=self.THEME["green"], fg="#FFFFFF", font=("Segoe UI", 9, "bold"),
@@ -155,7 +163,7 @@ class ApplicationLauncher:
         # 1. Experiment Controller & Data Collector Card (Row 0, Col 0)
         self.card_coll = self._create_app_card(
             apps_frame, row=0, col=0,
-            icon="📡", title="Experiment Controller & Data Collector",
+            icon="[COLLECTOR]", title="Experiment Controller & Data Collector",
             desc="Remodeled collection console: Master Start/Pause/Stop ribbon,\n2D room layout, obstacle raycasting & wireless Wi-Fi UDP ingestion.",
             status="Python GUI", status_color=self.THEME["green"],
             action_text="Launch Controller GUI",
@@ -165,7 +173,7 @@ class ApplicationLauncher:
         # 2. ESP32 Wireless Provisioner & Flasher Card (Row 0, Col 1)
         self.card_setup = self._create_app_card(
             apps_frame, row=0, col=1,
-            icon="🛠️", title="ESP32 Wireless Setup & Flasher",
+            icon="[HARDWARE]", title="ESP32 Wireless Setup & Flasher",
             desc="Provision Wi-Fi credentials, bind hardware MAC to 4 corners\n(Node A, B, C, D), flash ESP32 ROM & serial debug monitor.",
             status="Python GUI", status_color=self.THEME["accent"],
             action_text="Launch Setup & Flasher GUI",
@@ -175,17 +183,19 @@ class ApplicationLauncher:
         # 3. Model Trainer Card (Row 1, Col 0)
         self.card_trainer = self._create_app_card(
             apps_frame, row=1, col=0,
-            icon="🧠", title="AI Model Studio & Trainer",
+            icon="[TRAINER]", title="AI Model Studio & Trainer",
             desc="Feature engineering (60 features), Super Learner ML tournament,\nMAE/RMSE evaluation metrics, and diagnostic plots.",
             status="Python GUI", status_color=self.THEME["amber"],
             action_text="Launch Trainer GUI",
             action_cmd=self.launch_trainer,
+            secondary_text="Benchmark Studio",
+            secondary_cmd=self.launch_benchmark,
         )
 
         # 4. System Administrator & Telemetry Card (Row 1, Col 1)
         self.card_admin = self._create_app_card(
             apps_frame, row=1, col=1,
-            icon="📊", title="System Administrator & Telemetry",
+            icon="[ADMIN]", title="System Administrator & Telemetry",
             desc="Hardware node health, RSSI readings, packet stats, dropped packets,\nnetwork connections, and diagnostic logs.",
             status="Python GUI", status_color=self.THEME["accent"],
             action_text="Launch Admin Console",
@@ -217,7 +227,7 @@ class ApplicationLauncher:
         self.log_text = tk.Text(log_frame, bg="#0E0E10", fg=self.THEME["text"], font=("Consolas", 9), relief="flat", wrap="word", height=6)
         self.log_text.pack(fill="both", expand=True, pady=(6, 0))
 
-    def _create_app_card(self, parent: tk.Frame, row: int, col: int, icon: str, title: str, desc: str, status: str, status_color: str, action_text: str, action_cmd) -> dict:
+    def _create_app_card(self, parent: tk.Frame, row: int, col: int, icon: str, title: str, desc: str, status: str, status_color: str, action_text: str, action_cmd, secondary_text: str = None, secondary_cmd = None) -> dict:
         card = tk.Frame(parent, bg=self.THEME["panel"], padx=18, pady=16)
         card.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
 
@@ -232,16 +242,31 @@ class ApplicationLauncher:
         # Description
         tk.Label(card, text=desc, bg=self.THEME["panel"], fg=self.THEME["subtext"], font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(8, 12))
 
-        # Launch Button
+        # Launch Button(s)
+        btn_box = tk.Frame(card, bg=self.THEME["panel"])
+        btn_box.pack(fill="x")
+
         btn = tk.Button(
-            card, text=action_text,
+            btn_box, text=action_text,
             bg=self.THEME["card"], fg=self.THEME["text"],
             font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
             padx=12, pady=6, command=action_cmd,
         )
-        btn.pack(fill="x")
+
+        if secondary_text and secondary_cmd:
+            btn.pack(side="left", fill="x", expand=True, padx=(0, 4))
+            sec_btn = tk.Button(
+                btn_box, text=secondary_text,
+                bg="#FBBF24", fg="#121214",
+                font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
+                padx=10, pady=6, command=secondary_cmd,
+            )
+            sec_btn.pack(side="right", fill="x", expand=True, padx=(4, 0))
+        else:
+            btn.pack(fill="x")
 
         return {"card": card, "status": status_lbl, "btn": btn}
+
 
     def _create_service_button(self, parent: tk.Frame, label: str, key: str, cmd) -> tk.Button:
         btn = tk.Button(
@@ -312,6 +337,13 @@ class ApplicationLauncher:
         self._log("Launching Standalone Model Trainer GUI...")
         script = BASE_DIR / "trainer_gui.py"
         subprocess.Popen([PYTHON_EXE, str(script)], cwd=str(BASE_DIR))
+
+    def launch_benchmark(self) -> None:
+        """Launch the standalone Model Tournament Benchmark Studio."""
+        self._log("Launching Model Tournament Benchmark Studio & Evaluation Suite...")
+        script = BASE_DIR / "benchmark_gui.py"
+        subprocess.Popen([PYTHON_EXE, str(script)], cwd=str(BASE_DIR))
+
 
     # ── Backend Service Controls ─────────────────────────────────────────────
     def toggle_full_stack(self) -> None:
@@ -566,6 +598,7 @@ def main() -> None:
             "  python control.py setup              Launch ESP32 Wireless Provisioner & Flasher GUI\n"
             "  python control.py collector          Launch Visual Data Collector & Environment Controller GUI\n"
             "  python control.py trainer            Launch AI Model Studio & Trainer GUI\n"
+            "  python control.py benchmark          Launch Model Tournament Benchmark & Performance Studio\n"
             "  python control.py admin              Launch System Administrator & Telemetry GUI\n"
         )
         return
@@ -596,6 +629,11 @@ def main() -> None:
         import trainer_gui
         trainer_gui.main()
         return
+    elif "--benchmark" in cli_args or "benchmark" in cli_args or ("--app" in sys.argv and sys.argv[sys.argv.index("--app")+1].lower() in ("benchmark", "tournament")):
+        import benchmark_gui
+        benchmark_gui.main()
+        return
+
 
     root = tk.Tk()
     app = ApplicationLauncher(root)

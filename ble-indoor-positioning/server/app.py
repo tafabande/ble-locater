@@ -1457,6 +1457,25 @@ class TrainingRequest(BaseModel):
     n_estimators: int = 250
     dataset: str = "observations.csv"
 
+    # ── New: Data selection / filtering parameters ──────────────────────────────
+    anchors: str = ""              # comma-separated anchor IDs
+    min_anchors: int = 0          # 0 = no minimum
+    distance_min: float = 0.0      # 0 = no minimum
+    distance_max: float = 0.0      # 0 = no maximum
+    rssi_min: float = -120.0       # very permissive default
+    rssi_max: float = -20.0        # very permissive default
+    motion: str = ""               # comma-separated motion modes
+    obstacle: str = ""             # comma-separated obstacle types
+
+    # ── New: Window / aggregation parameters ───────────────────────────────────
+    window_size: int = 0           # 0 = use default (1000ms)
+    stride: int = 0               # 0 = use default (window_size)
+
+    # ── New: Data handling parameters ──────────────────────────────────────────
+    outlier_method: str = "isolation_forest"   # isolation_forest, iqr, zscore, mad, none
+    missing_data: str = "drop"     # drop, interpolate, fill
+    feature_source: str = "raw"    # raw, existing
+
 @app.post('/api/training/run')
 async def trigger_training_run(req: TrainingRequest):
     global _active_pipeline_proc
@@ -1490,6 +1509,35 @@ async def trigger_training_run(req: TrainingRequest):
             cmd = [sys.executable, pipeline_script]
             if "super" in req.algorithm.lower() or req.algorithm.lower() == "superlearner":
                 cmd.append("--tune")
+
+            # ── New: Pass data-selection / filtering params to pipeline ─────────
+            def _add_if(flag, val):
+                if val not in (None, "", 0, 0.0):
+                    cmd.extend([flag, str(val)])
+
+            _add_if("--anchors", req.anchors)
+            if req.min_anchors > 0:
+                cmd.extend(["--min-anchors", str(req.min_anchors)])
+            if req.distance_min > 0:
+                cmd.extend(["--distance-min", str(req.distance_min)])
+            if req.distance_max > 0:
+                cmd.extend(["--distance-max", str(req.distance_max)])
+            if req.rssi_min != -120.0:
+                cmd.extend(["--rssi-min", str(req.rssi_min)])
+            if req.rssi_max != -20.0:
+                cmd.extend(["--rssi-max", str(req.rssi_max)])
+            _add_if("--motion", req.motion)
+            _add_if("--obstacle", req.obstacle)
+            if req.window_size > 0:
+                cmd.extend(["--window-size", str(req.window_size)])
+            if req.stride > 0:
+                cmd.extend(["--stride", str(req.stride)])
+            if req.outlier_method not in ("", "isolation_forest"):
+                cmd.extend(["--outlier-method", req.outlier_method])
+            if req.missing_data not in ("", "drop"):
+                cmd.extend(["--missing-data", req.missing_data])
+            if req.feature_source not in ("", "raw"):
+                cmd.extend(["--feature-source", req.feature_source])
 
             proc = subprocess.Popen(
                 cmd,

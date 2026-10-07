@@ -238,5 +238,20 @@
     "physics_baseline_mae": 2.45,
     "improvement_over_physics_pct": 64.3,
     "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
+  },
+  {
+    "timestamp": "2026-10-02T12:24:44.893050",
+    "phase": "Phase 4 (Zero-Leakage Pipeline CV & Physics Baseline Benchmark)",
+    "raw_files": 34,
+    "total_windows": 15244,
+    "features_count": 59,
+    "champion_model": "XGBoost (Deep Tuned)",
+    "test_mae": 0.4063,
+    "test_rmse": 0.859,
+    "test_r2": 0.781,
+    "zone_accuracy": null,
+    "physics_baseline_mae": 2.45,
+    "improvement_over_physics_pct": 83.4,
+    "methodology": "In-Fold Pipeline feature selection & scaling, session GroupKFold CV, zero-leakage composite score selection."
   }
 ]
