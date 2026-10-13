@@ -6,13 +6,10 @@ import math
 import logging
 import asyncio
 import datetime
-import sqlite3
 import csv
-import socket
 import threading
 from contextlib import asynccontextmanager
 from collections import defaultdict
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Union
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,13 +27,12 @@ from learning.calibration_storage import CalibrationStorage
 from engineering.geofence_engine import GeofenceEngine
 from server.asset_registry import AssetRegistry, SearchEngine
 from sqlmodel import SQLModel, Session, select
-from server.db import create_db_engine, PositionHistory
+from server.db import create_db_engine, PositionHistory, transaction_scope, check_db_integrity
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('BLE_SERVER')
-from core.config import DEFAULT_ANCHORS_CONFIG, load_anchor_config, load_anchor_metadata
+from core.config import DEFAULT_ANCHORS_CONFIG
 from core.positioning import resolve_room_name, resolve_room_name_with_hysteresis
-from collector.node_registry import get_node_by_mac, get_node_by_anchor_id
 
 class OnlineDistanceLearner:
 
@@ -133,7 +129,7 @@ class PositionHistoryDB:
         now_ms = int(time.time() * 1000)
         for attempt in range(max_retries):
             try:
-                with Session(self.engine) as session:
+                with transaction_scope(self.engine) as session:
                     pos_record = PositionHistory(
                         timestamp_ms=now_ms,
                         tag_id=tag_id,
@@ -145,13 +141,43 @@ class PositionHistoryDB:
                         room=position.get('room', 'Unknown')
                     )
                     session.add(pos_record)
-                    session.commit()
                 return
             except Exception as e:
                 if 'locked' in str(e).lower() and attempt < max_retries - 1:
                     time.sleep(0.05 * (attempt + 1))
                     continue
                 logger.error(f'Failed to log position for {tag_id}: {e}')
+                break
+
+    def log_positions_batch(self, positions_batch: List[dict]):
+        """Atomic batch insert of multiple tag position records under a single ACID transaction."""
+        if not positions_batch:
+            return
+        max_retries = 3
+        now_ms = int(time.time() * 1000)
+        for attempt in range(max_retries):
+            try:
+                with transaction_scope(self.engine) as session:
+                    for item in positions_batch:
+                        tag_id = item.get('tag_id', 'TAG_UNKNOWN')
+                        pos = item.get('position', {})
+                        pos_record = PositionHistory(
+                            timestamp_ms=item.get('timestamp_ms', now_ms),
+                            tag_id=tag_id,
+                            x=pos.get('x', 0.0),
+                            y=pos.get('y', 0.0),
+                            uncertainty=pos.get('uncertainty', 0.0),
+                            gdop=pos.get('gdop', 0.0),
+                            zone=pos.get('zone', 'Unknown'),
+                            room=pos.get('room', 'Unknown')
+                        )
+                        session.add(pos_record)
+                return
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                logger.error(f'Failed to log positions batch ({len(positions_batch)} records): {e}')
                 break
 
     def get_history(self, tag_id: str=None, limit: int=500, since_ms: int=None) -> List[dict]:
@@ -178,8 +204,10 @@ class TagState:
         self.last_seen = time.time()
         self.kalman_filter = KalmanFilter2D(dt=0.1, process_noise=0.05, measurement_noise=0.8)
         self.zone_prediction = 'Unknown'
-        self.current_room = 'Room A (Executive Suite 1)'
-        self.last_position = {'x': 2.5, 'y': 7.5, 'uncertainty': 0.0, 'gdop': 0.0, 'zone': 'Unknown', 'room': 'Room A (Executive Suite 1)'}
+        self.current_room = 'Unknown'
+        self.last_position: Optional[dict] = None
+        self.last_position_time: Optional[float] = None
+        self.status = 'unavailable'
         self.last_raw_packets: Dict[str, List] = defaultdict(list)
         self.anchor_window_history: Dict[str, List] = defaultdict(list)
         self.estimated_distances: Dict[str, float] = {}
@@ -188,8 +216,43 @@ class TagState:
         self.alerts: List[dict] = []
         self.latest_alert: Optional[dict] = None
 
+    def get_position_status(self, now: Optional[float] = None) -> str:
+        """Evaluate whether tag position is current, stale, or unavailable.
+
+        - 'current': actively localized with fresh anchor packets within 4.0s.
+        - 'stale': no fresh anchor packets for 4.0 - 30.0s (decaying position).
+        - 'unavailable': no telemetry for > 30.0s or never localized (< 3 anchors).
+        """
+        if self.last_position is None or self.last_position_time is None:
+            return 'unavailable'
+        current_time = now if now is not None else time.time()
+        age = current_time - self.last_position_time
+        if age <= 4.0:
+            return 'current'
+        elif age <= 30.0:
+            return 'stale'
+        return 'unavailable'
+
     def to_summary(self) -> dict:
-        return {'tag_id': self.tag_id, 'label': self.label, 'first_seen': self.first_seen, 'last_seen': self.last_seen, 'position': self.last_position, 'distances': self.estimated_distances, 'zone': self.zone_prediction, 'room': self.current_room, 'history': self.history[-100:], 'alerts': self.alerts[-10:], 'latest_alert': self.latest_alert}
+        now = time.time()
+        pos_status = self.get_position_status(now)
+        pos_age = round(now - self.last_position_time, 2) if self.last_position_time else None
+        return {
+            'tag_id': self.tag_id,
+            'label': self.label,
+            'first_seen': self.first_seen,
+            'last_seen': self.last_seen,
+            'status': pos_status,
+            'position_status': pos_status,
+            'position_age_s': pos_age,
+            'position': self.last_position,
+            'distances': self.estimated_distances,
+            'zone': self.zone_prediction if pos_status != 'unavailable' else 'Unknown',
+            'room': self.current_room,
+            'history': self.history[-100:],
+            'alerts': self.alerts[-10:],
+            'latest_alert': self.latest_alert
+        }
 
 class TagStateManager:
 
@@ -255,7 +318,27 @@ def get_anchors_broadcast():
     return res
 
 asset_registry_inst = AssetRegistry()
-shared = {'model': None, 'scaler': None, 'model_metadata': None, 'zone_model': None, 'zone_scaler': None, 'anchors_config': DEFAULT_ANCHORS_CONFIG.copy(), 'anchors_metadata': DEFAULT_ANCHORS_METADATA.copy(), 'anchor_health': {}, 'trilateration_engine': TrilaterationEngine(DEFAULT_ANCHORS_CONFIG), 'online_learner': OnlineDistanceLearner(), 'geofence_engine': GeofenceEngine(), 'tag_manager': TagStateManager(), 'position_db': PositionHistoryDB(), 'asset_registry': asset_registry_inst, 'search_engine': SearchEngine(asset_registry_inst), 'active_connections': []}
+shared = {
+    'model': None,
+    'scaler': None,
+    'model_metadata': None,
+    'coord_model': None,
+    'coord_scaler': None,
+    'coord_metadata': None,
+    'zone_model': None,
+    'zone_scaler': None,
+    'anchors_config': DEFAULT_ANCHORS_CONFIG.copy(),
+    'anchors_metadata': DEFAULT_ANCHORS_METADATA.copy(),
+    'anchor_health': {},
+    'trilateration_engine': TrilaterationEngine(DEFAULT_ANCHORS_CONFIG),
+    'online_learner': OnlineDistanceLearner(),
+    'geofence_engine': GeofenceEngine(),
+    'tag_manager': TagStateManager(),
+    'position_db': PositionHistoryDB(),
+    'asset_registry': asset_registry_inst,
+    'search_engine': SearchEngine(asset_registry_inst),
+    'active_connections': []
+}
 
 def load_ml_assets():
     model_path = os.path.join(PROJECT_ROOT, 'models', 'distance_estimator.joblib')
@@ -263,6 +346,10 @@ def load_ml_assets():
     meta_path = os.path.join(PROJECT_ROOT, 'models', 'model_metadata.json')
     zone_model_path = os.path.join(PROJECT_ROOT, 'models', 'zone_classifier.joblib')
     zone_scaler_path = os.path.join(PROJECT_ROOT, 'models', 'zone_scaler.joblib')
+    coord_model_path = os.path.join(PROJECT_ROOT, 'models', 'coordinate_regressor.joblib')
+    coord_scaler_path = os.path.join(PROJECT_ROOT, 'models', 'coordinate_scaler.joblib')
+    coord_meta_path = os.path.join(PROJECT_ROOT, 'models', 'coordinate_model_metadata.json')
+
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         try:
             shared['model'] = joblib.load(model_path)
@@ -273,6 +360,18 @@ def load_ml_assets():
             logger.info('✅ Champion distance model loaded cleanly.')
         except Exception as e:
             logger.error(f'Failed to load distance model assets: {e}')
+
+    if os.path.exists(coord_model_path) and os.path.exists(coord_scaler_path):
+        try:
+            shared['coord_model'] = joblib.load(coord_model_path)
+            shared['coord_scaler'] = joblib.load(coord_scaler_path)
+            if os.path.exists(coord_meta_path):
+                with open(coord_meta_path, 'r', encoding='utf-8') as f:
+                    shared['coord_metadata'] = json.load(f)
+            logger.info('✅ Champion multi-anchor coordinate regressor loaded cleanly.')
+        except Exception as e:
+            logger.error(f'Failed to load coordinate model assets: {e}')
+
     if os.path.exists(zone_model_path) and os.path.exists(zone_scaler_path):
         try:
             shared['zone_model'] = joblib.load(zone_model_path)
@@ -351,6 +450,7 @@ def predict_distance_for_anchor(tag: TagState, anchor_id: str, rssi_list: List[i
         return None
     try:
         group = pd.DataFrame({'rssi': rssi_list, 'timestamp': timestamps})
+        group = group.sort_values('timestamp').reset_index(drop=True)
         features = compute_window_features(group)
         features['window_start'] = int(timestamps[0]) if timestamps else int(time.time() * 1000)
         history = tag.anchor_window_history[anchor_id]
@@ -397,12 +497,74 @@ def predict_distance_for_anchor(tag: TagState, anchor_id: str, rssi_list: List[i
         logger.error(f'Distance prediction calculation error for anchor {anchor_id}: {e}')
         return 2.5
 
+COORD_FEATURE_COLS = [
+    "ANCHOR_01_rssi", "ANCHOR_02_rssi", "ANCHOR_03_rssi", "ANCHOR_04_rssi",
+    "ANCHOR_01_age_s", "ANCHOR_02_age_s", "ANCHOR_03_age_s", "ANCHOR_04_age_s",
+    "ANCHOR_01_present", "ANCHOR_02_present", "ANCHOR_03_present", "ANCHOR_04_present",
+    "rssi_diff_x_south", "rssi_diff_x_north", "rssi_diff_y_west", "rssi_diff_y_east",
+    "rssi_diag_diff_1", "rssi_diag_diff_2", "rssi_mean_all", "rssi_std_all", "n_anchors_active"
+]
+
+def extract_multi_anchor_features(tag: TagState, now_ms: int, decay_ms: int = 4000) -> Optional[np.ndarray]:
+    """Extract 21-feature synchronized multi-anchor observation vector for direct coordinate ML."""
+    active_anchors = {}
+    for aid in ["ANCHOR_01", "ANCHOR_02", "ANCHOR_03", "ANCHOR_04"]:
+        packets = tag.last_raw_packets.get(aid, [])
+        recent = [(min(t, now_ms), r) for t, r in packets if -1000 <= (now_ms - t) <= decay_ms]
+        if recent:
+            latest_t = max(t for t, _ in recent)
+            mean_rssi = float(np.mean([r for _, r in recent]))
+            active_anchors[aid] = {
+                "rssi": mean_rssi,
+                "age_s": max(0.0, round((now_ms - latest_t) / 1000.0, 2))
+            }
+
+    if len(active_anchors) < 3:
+        return None
+
+    row = {}
+    for aid in ["ANCHOR_01", "ANCHOR_02", "ANCHOR_03", "ANCHOR_04"]:
+        if aid in active_anchors:
+            row[f"{aid}_rssi"] = active_anchors[aid]["rssi"]
+            row[f"{aid}_age_s"] = active_anchors[aid]["age_s"]
+            row[f"{aid}_present"] = 1.0
+        else:
+            row[f"{aid}_rssi"] = -100.0
+            row[f"{aid}_age_s"] = 10.0
+            row[f"{aid}_present"] = 0.0
+
+    r1 = row["ANCHOR_01_rssi"]
+    r2 = row["ANCHOR_02_rssi"]
+    r3 = row["ANCHOR_03_rssi"]
+    r4 = row["ANCHOR_04_rssi"]
+    row["rssi_diff_x_south"] = round(r2 - r1, 2)
+    row["rssi_diff_x_north"] = round(r4 - r3, 2)
+    row["rssi_diff_y_west"]  = round(r3 - r1, 2)
+    row["rssi_diff_y_east"]  = round(r4 - r2, 2)
+    row["rssi_diag_diff_1"]  = round(r4 - r1, 2)
+    row["rssi_diag_diff_2"]  = round(r3 - r2, 2)
+    row["rssi_mean_all"]     = round(float(np.mean([r1, r2, r3, r4])), 2)
+    row["rssi_std_all"]      = round(float(np.std([r1, r2, r3, r4])), 2)
+    row["n_anchors_active"]  = float(len(active_anchors))
+
+    feat_vector = np.array([[row[col] for col in COORD_FEATURE_COLS]], dtype=float)
+    return feat_vector
+
 def perform_localization(tag: TagState):
     try:
         now_ms = int(time.time() * 1000)
         active_distances = {}
         for anchor_id, packets in list(tag.last_raw_packets.items()):
-            valid_packets = [(t, r) for t, r in packets if now_ms - t < 2000]
+            # Deduplicate identical datagrams & tolerate up to 1000ms clock skew ahead
+            seen = set()
+            valid_packets = []
+            for t, r in packets:
+                if -1000 <= (now_ms - t) <= 4000:
+                    clamped_item = (min(t, now_ms), r)
+                    if clamped_item not in seen:
+                        seen.add(clamped_item)
+                        valid_packets.append(clamped_item)
+            valid_packets.sort(key=lambda item: item[0])
             tag.last_raw_packets[anchor_id] = valid_packets
             if valid_packets:
                 times = [t for t, _ in valid_packets]
@@ -415,10 +577,35 @@ def perform_localization(tag: TagState):
                     active_distances[anchor_id] = round(float(dist), 2)
         tag.estimated_distances = active_distances
         if len(active_distances) < 3:
+            tag.status = tag.get_position_status()
             return
-        sorted_anchors = sorted(active_distances.items(), key=lambda item: item[1])
-        top_k_distances = dict(sorted_anchors[:4])
-        pos, uncertainty, gdop = shared['trilateration_engine'].estimate_position(top_k_distances)
+
+        pos = None
+        uncertainty = 1.5
+        gdop = 1.0
+
+        # Primary: Multi-Anchor Coordinate Regression Champion
+        if shared.get('coord_model') is not None and shared.get('coord_scaler') is not None:
+            try:
+                X_feat = extract_multi_anchor_features(tag, now_ms)
+                if X_feat is not None and np.all(np.isfinite(X_feat)):
+                    X_s = shared['coord_scaler'].transform(X_feat)
+                    raw_coord = shared['coord_model'].predict(X_s)[0]
+                    # Clamp prediction within room boundary
+                    pos = (
+                        float(max(0.0, min(5.0, raw_coord[0]))),
+                        float(max(0.0, min(5.0, raw_coord[1])))
+                    )
+                    uncertainty = 0.41  # Empirical median 2D error
+                    gdop = 1.0
+            except Exception as e:
+                logger.warning(f'Direct coordinate model inference fallback to trilateration: {e}')
+
+        # Fallback: Ranging-based Levenberg-Marquardt Trilateration
+        if pos is None:
+            sorted_anchors = sorted(active_distances.items(), key=lambda item: item[1])
+            top_k_distances = dict(sorted_anchors[:4])
+            pos, uncertainty, gdop = shared['trilateration_engine'].estimate_position(top_k_distances)
         smoothed_x, smoothed_y = tag.kalman_filter.filter(pos[0], pos[1])
         zone_str = 'Unknown'
         if shared['zone_model'] is not None and shared['model_metadata'] is not None:
@@ -465,6 +652,8 @@ def perform_localization(tag: TagState):
                 tag.latest_alert = alert
                 logger.warning(f"🚨 GEOFENCE ALERT [{tag.tag_id}]: {alert['message']}")
         tag.last_position = {'x': round(float(smoothed_x), 2), 'y': round(float(smoothed_y), 2), 'uncertainty': round(float(uncertainty), 2), 'gdop': round(float(gdop), 2), 'zone': zone_str, 'room': room_name}
+        tag.last_position_time = time.time()
+        tag.status = 'current'
         tag.history.append({'timestamp': now_ms, 'x': round(float(smoothed_x), 2), 'y': round(float(smoothed_y), 2)})
         if len(tag.history) > 500:
             tag.history.pop(0)
@@ -561,7 +750,19 @@ def list_tags():
     now = time.time()
     tags_info = []
     for tid, ts in manager.tags.items():
-        tags_info.append({'tag_id': tid, 'label': ts.label, 'position': ts.last_position, 'room': ts.current_room, 'last_seen': ts.last_seen, 'active': now - ts.last_seen < 30.0, 'anchors_in_range': len(ts.estimated_distances)})
+        summary = ts.to_summary()
+        tags_info.append({
+            'tag_id': tid,
+            'label': ts.label,
+            'status': summary['status'],
+            'position_status': summary['position_status'],
+            'position_age_s': summary['position_age_s'],
+            'position': ts.last_position,
+            'room': ts.current_room,
+            'last_seen': ts.last_seen,
+            'active': now - ts.last_seen < 30.0,
+            'anchors_in_range': len(ts.estimated_distances)
+        })
     return {'tags': tags_info, 'total': manager.count}
 
 @app.post('/api/tags/label')
@@ -788,7 +989,7 @@ async def websocket_endpoint(websocket: WebSocket):
             for tid, ts in tag_manager.tags.items():
                 if subscribed_tags is not None and tid not in subscribed_tags:
                     continue
-                tags_data[tid] = {'tag_id': tid, 'label': ts.label, 'position': ts.last_position, 'distances': ts.estimated_distances, 'zone': ts.zone_prediction, 'room': ts.current_room, 'history': ts.history[-50:], 'latest_alert': ts.latest_alert}
+                tags_data[tid] = ts.to_summary()
                 if ts.latest_alert:
                     all_alerts.append(ts.latest_alert)
             current_data = {'event': 'position_update', 'data': {'tags': tags_data, 'total_tags': tag_manager.count, 'anchors': shared['anchors_config'], 'anchors_detail': get_anchors_broadcast(), 'position': list(tags_data.values())[0]['position'] if len(tags_data) == 1 else None, 'distances': list(tags_data.values())[0]['distances'] if len(tags_data) == 1 else None, 'zone': list(tags_data.values())[0]['zone'] if len(tags_data) == 1 else None, 'room': list(tags_data.values())[0]['room'] if len(tags_data) == 1 else None, 'alert': all_alerts[-1] if all_alerts else None}}
@@ -908,7 +1109,7 @@ async def unlock_node_api(req: NodeLockRequest):
     from collector.node_registry import set_node_lock
     try:
         updated = set_node_lock(req.node_key, False)
-        return {"status": "ok", "node_key": req.node_key, "locked": False}
+        return {"status": "ok", "node_key": req.node_key, "locked": updated.get("locked", False)}
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -1094,7 +1295,57 @@ async def download_collector_log():
             f.write('# Plain Text Raw Node Stream Log\n')
     return FileResponse(log_file, media_type='text/plain', filename='raw_stream.log')
 
-_active_pipeline_proc = None
+_training_launch_lock = threading.Lock()
+_active_pipeline_proc: Optional[subprocess.Popen] = None
+
+def _terminate_process_tree(proc: subprocess.Popen, timeout: float = 3.0) -> bool:
+    """Safely terminate a subprocess and all of its spawned child processes.
+
+    Verifies process termination, enforces timeout wait, falls back to forced kill,
+    and reaps exit code before returning.
+    """
+    if proc.poll() is not None:
+        return True
+
+    pid = proc.pid
+    if HAS_PSUTIL:
+        try:
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            parent.terminate()
+
+            gone, alive = psutil.wait_procs(children + [parent], timeout=timeout)
+            for p in alive:
+                try:
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            if alive:
+                psutil.wait_procs(alive, timeout=1.0)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    else:
+        try:
+            proc.terminate()
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=1.0)
+        except Exception as e:
+            logger.warning(f"Error terminating process {pid}: {e}")
+
+    try:
+        proc.wait(timeout=1.0)
+    except Exception:
+        pass
+
+    return proc.poll() is not None
 
 def _load_last_pipeline_run() -> dict:
     models_dir = os.path.join(PROJECT_ROOT, "models")
@@ -1162,7 +1413,6 @@ def _save_last_pipeline_run(run_data: dict) -> None:
         logger.error(f"Failed to save last_pipeline_run.json: {e}")
 
 def _is_pipeline_running() -> bool:
-    global _active_pipeline_proc
     if _active_pipeline_proc and _active_pipeline_proc.poll() is None:
         return True
     if HAS_PSUTIL:
@@ -1312,57 +1562,55 @@ async def get_training_status():
 async def cancel_training_run():
     global _active_pipeline_proc
     cancelled = False
-    try:
-        if _active_pipeline_proc and _active_pipeline_proc.poll() is None:
-            try:
-                _active_pipeline_proc.terminate()
+    with _training_launch_lock:
+        try:
+            if _active_pipeline_proc is not None:
                 try:
-                    _active_pipeline_proc.wait(timeout=2)
-                except Exception:
-                    _active_pipeline_proc.kill()
-                cancelled = True
-            except Exception as e:
-                logger.warning(f"⚠️ Error terminating pipeline process: {e}")
+                    cancelled = _terminate_process_tree(_active_pipeline_proc, timeout=3.0)
+                except Exception as e:
+                    logger.warning(f"⚠️ Error terminating pipeline process: {e}")
+                finally:
+                    _active_pipeline_proc = None
 
-        if HAS_PSUTIL:
-            for p in psutil.process_iter(['name', 'cmdline']):
-                try:
-                    cmd = p.info.get('cmdline') or []
-                    if any('pipeline.py' in str(arg) for arg in cmd):
-                        p.kill()
-                        cancelled = True
-                except Exception:
-                    pass
+            if HAS_PSUTIL:
+                for p in psutil.process_iter(['name', 'cmdline']):
+                    try:
+                        cmd = p.info.get('cmdline') or []
+                        if any('pipeline.py' in str(arg) for arg in cmd):
+                            p.kill()
+                            cancelled = True
+                    except Exception:
+                        pass
 
-        last_info = _load_last_pipeline_run()
-        now_str = datetime.datetime.now().isoformat()
-        
-        web_service_state["training_job"] = {
-            "status": "CANCELLED",
-            "progress": 0,
-            "message": "Training pipeline run was cancelled by operator."
-        }
-        
-        run_record = {
-            "status": "CANCELLED",
-            "last_successful_run": last_info.get("last_successful_run"),
-            "last_result": {
+            last_info = _load_last_pipeline_run()
+            now_str = datetime.datetime.now().isoformat()
+
+            web_service_state["training_job"] = {
                 "status": "CANCELLED",
-                "timestamp": now_str,
-                "duration": "Cancelled",
-                "algorithm": "End-to-End Pipeline",
-                "dataset": "observations.csv",
-                "message": "Pipeline execution cancelled by operator."
+                "progress": 0,
+                "message": "Training pipeline run was cancelled by operator."
             }
-        }
-        _save_last_pipeline_run(run_record)
-        logger.warning("🚨 [LOUD ACTION] Pipeline execution cancelled by operator.")
-        web_service_state["log_history"].append("[TRAINING] 🚫 Pipeline execution cancelled by operator.")
-        return {"status": "ok", "message": "Pipeline run cancelled successfully.", "was_running": cancelled}
-    except Exception as e:
-        logger.error(f"❌ [LOUD ERROR] Failed to cancel pipeline: {e}")
-        web_service_state["log_history"].append(f"[ERROR] Failed to cancel pipeline: {e}")
-        return {"status": "error", "message": f"Failed to cancel pipeline: {e}", "was_running": False}
+
+            run_record = {
+                "status": "CANCELLED",
+                "last_successful_run": last_info.get("last_successful_run"),
+                "last_result": {
+                    "status": "CANCELLED",
+                    "timestamp": now_str,
+                    "duration": "Cancelled",
+                    "algorithm": "End-to-End Pipeline",
+                    "dataset": "observations.csv",
+                    "message": "Pipeline execution cancelled by operator."
+                }
+            }
+            _save_last_pipeline_run(run_record)
+            logger.warning("🚨 [LOUD ACTION] Pipeline execution cancelled by operator.")
+            web_service_state["log_history"].append("[TRAINING] 🚫 Pipeline execution cancelled by operator.")
+            return {"status": "ok", "message": "Pipeline run cancelled successfully.", "was_running": cancelled}
+        except Exception as e:
+            logger.error(f"❌ [LOUD ERROR] Failed to cancel pipeline: {e}")
+            web_service_state["log_history"].append(f"[ERROR] Failed to cancel pipeline: {e}")
+            return {"status": "error", "message": f"Failed to cancel pipeline: {e}", "was_running": False}
 
 @app.post('/api/models/reload')
 async def reload_models():
@@ -1421,8 +1669,20 @@ async def save_schematic(payload: SchematicPayload):
     data = payload.model_dump() if hasattr(payload, 'model_dump') else payload.dict()
     try:
         os.makedirs(os.path.dirname(SCHEMATIC_FILE), exist_ok=True)
-        with open(SCHEMATIC_FILE, 'w', encoding='utf-8') as f:
+        temp_schematic = f"{SCHEMATIC_FILE}.{os.getpid()}_{time.time_ns()}.tmp"
+        with open(temp_schematic, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
+        for attempt in range(5):
+            try:
+                os.replace(temp_schematic, SCHEMATIC_FILE)
+                break
+            except OSError:
+                if attempt == 4:
+                    if os.path.exists(temp_schematic):
+                        try: os.remove(temp_schematic)
+                        except Exception: pass
+                    raise
+                await asyncio.sleep(0.05)
         
         if payload.anchors:
             new_anchors = {}
@@ -1478,25 +1738,25 @@ class TrainingRequest(BaseModel):
 
 @app.post('/api/training/run')
 async def trigger_training_run(req: TrainingRequest):
-    global _active_pipeline_proc
-    if web_service_state["training_job"]["status"] == "TRAINING" or _is_pipeline_running():
-        logger.warning("⚠️ Training trigger blocked: pipeline is already running.")
-        raise HTTPException(status_code=400, detail="A training run is already in progress.")
-    
-    ds_path = os.path.join(PROJECT_ROOT, "datasets", req.dataset)
-    if not os.path.exists(ds_path) and not req.dataset.endswith(".csv"):
-        err_text = f"Dataset '{req.dataset}' does not exist on disk in datasets/."
-        logger.error(f"❌ [LOUD ERROR] {err_text}")
-        web_service_state["log_history"].append(f"[ERROR] {err_text}")
-        raise HTTPException(status_code=400, detail=err_text)
+    with _training_launch_lock:
+        if web_service_state["training_job"]["status"] == "TRAINING" or _is_pipeline_running():
+            logger.warning("⚠️ Training trigger blocked: pipeline is already running.")
+            raise HTTPException(status_code=400, detail="A training run is already in progress.")
 
-    web_service_state["training_job"] = {
-        "status": "TRAINING",
-        "progress": 5,
-        "message": f"Launching {req.algorithm} End-to-End Pipeline on {req.dataset}..."
-    }
-    logger.info(f"🚀 [LOUD ACTION] Launched {req.algorithm} Pipeline on {req.dataset}")
-    web_service_state["log_history"].append(f"[TRAINING] Launched {req.algorithm} End-to-End Pipeline & SuperLearner Stacking Tournament.")
+        ds_path = os.path.join(PROJECT_ROOT, "datasets", req.dataset)
+        if not os.path.exists(ds_path) and not req.dataset.endswith(".csv"):
+            err_text = f"Dataset '{req.dataset}' does not exist on disk in datasets/."
+            logger.error(f"❌ [LOUD ERROR] {err_text}")
+            web_service_state["log_history"].append(f"[ERROR] {err_text}")
+            raise HTTPException(status_code=400, detail=err_text)
+
+        web_service_state["training_job"] = {
+            "status": "TRAINING",
+            "progress": 5,
+            "message": f"Launching {req.algorithm} End-to-End Pipeline on {req.dataset}..."
+        }
+        logger.info(f"🚀 [LOUD ACTION] Launched {req.algorithm} Pipeline on {req.dataset}")
+        web_service_state["log_history"].append(f"[TRAINING] Launched {req.algorithm} End-to-End Pipeline & SuperLearner Stacking Tournament.")
 
     def run_training_pipeline():
         global _active_pipeline_proc
@@ -1539,14 +1799,17 @@ async def trigger_training_run(req: TrainingRequest):
             if req.feature_source not in ("", "raw"):
                 cmd.extend(["--feature-source", req.feature_source])
 
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                cwd=PROJECT_ROOT
-            )
-            _active_pipeline_proc = proc
+            with _training_launch_lock:
+                if web_service_state["training_job"]["status"] == "CANCELLED":
+                    return
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    cwd=PROJECT_ROOT
+                )
+                _active_pipeline_proc = proc
 
             for line in iter(proc.stdout.readline, ""):
                 line_str = line.strip()
@@ -1598,6 +1861,7 @@ async def trigger_training_run(req: TrainingRequest):
                     "last_result": {
                         "status": "COMPLETED",
                         "timestamp": now_str,
+                        "start_time": start_ts_str,
                         "duration": duration_str,
                         "algorithm": champ,
                         "mae_meters": round(float(metrics.get("test_mae", 0.68)), 4),
@@ -1657,7 +1921,9 @@ async def trigger_training_run(req: TrainingRequest):
             _save_last_pipeline_run(run_record)
             web_service_state["log_history"].append(f"[ERROR] Training pipeline failed: {e}")
         finally:
-            _active_pipeline_proc = None
+            with _training_launch_lock:
+                if _active_pipeline_proc is proc:
+                    _active_pipeline_proc = None
 
     asyncio.create_task(asyncio.to_thread(run_training_pipeline))
     return {"status": "ok", "message": f"{req.algorithm} Pipeline launched successfully"}
@@ -1670,7 +1936,57 @@ async def service_autostart():
 @app.get('/healthz')
 @app.get('/api/health')
 async def health_check():
-    return {"status": "healthy", "service": "ble-location-engine"}
+    pos_health = check_db_integrity(shared['position_db'].engine) if 'position_db' in shared else {"status": "uninitialized"}
+    asset_health = check_db_integrity(shared['asset_registry'].engine) if 'asset_registry' in shared else {"status": "uninitialized"}
+    alerts_health = check_db_integrity(shared['geofence_engine'].db.engine) if 'geofence_engine' in shared else {"status": "uninitialized"}
+
+    is_healthy = (
+        pos_health.get("status") == "healthy" and
+        asset_health.get("status") == "healthy" and
+        alerts_health.get("status") == "healthy"
+    )
+
+    return {
+        "status": "healthy" if is_healthy else "degraded",
+        "service": "ble-location-engine",
+        "timestamp": time.time(),
+        "database_acid": {
+            "positions": pos_health,
+            "assets": asset_health,
+            "alerts": alerts_health,
+        },
+        "models": {
+            "distance_model_loaded": shared.get('model') is not None,
+            "zone_model_loaded": shared.get('zone_model') is not None,
+            "online_learner_active": shared.get('online_learner') is not None,
+        },
+        "anchors_online": len(shared.get('anchors_config', {})),
+    }
+
+@app.get('/api/diagnostics/database')
+async def database_diagnostics():
+    """Enterprise ACID Diagnostics: Verify SQLite PRAGMAs, WAL mode, synchronous level, and quick_check integrity."""
+    pos_health = check_db_integrity(shared['position_db'].engine) if 'position_db' in shared else {"status": "uninitialized"}
+    asset_health = check_db_integrity(shared['asset_registry'].engine) if 'asset_registry' in shared else {"status": "uninitialized"}
+    alerts_health = check_db_integrity(shared['geofence_engine'].db.engine) if 'geofence_engine' in shared else {"status": "uninitialized"}
+
+    return {
+        "status": "ok",
+        "databases": {
+            "position_history": {
+                "path": getattr(shared.get('position_db'), 'db_path', 'unknown'),
+                "acid_status": pos_health,
+            },
+            "asset_registry": {
+                "path": getattr(shared.get('asset_registry'), 'db_path', 'unknown'),
+                "acid_status": asset_health,
+            },
+            "alerts_history": {
+                "path": getattr(getattr(shared.get('geofence_engine'), 'db', None), 'db_path', 'unknown'),
+                "acid_status": alerts_health,
+            },
+        }
+    }
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 

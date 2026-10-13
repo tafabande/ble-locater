@@ -9,7 +9,6 @@ A lightweight, dedicated launchpad for the indoor positioning research ecosystem
 from __future__ import annotations
 
 import json
-import os
 import queue
 import signal
 import subprocess
@@ -17,9 +16,8 @@ import sys
 import threading
 import time
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import ttk
 import tkinter as tk
-from typing import Optional
 
 if sys.platform == "win32":
     try:

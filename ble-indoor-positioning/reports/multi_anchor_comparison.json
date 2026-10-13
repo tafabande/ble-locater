@@ -1,0 +1,173 @@
+{
+  "dataset": {
+    "total_synchronized_windows": 1961,
+    "unique_sessions": 33,
+    "cv_folds": 5,
+    "validation_strategy": "GroupKFold on session_id (Zero Session Leakage)",
+    "facility_dimensions_m": [
+      5.0,
+      5.0
+    ],
+    "anchor_count": 4
+  },
+  "approach_1_direct_coordinate_regression": {
+    "Random Forest (Coord)": {
+      "mean_2d_error_m": 0.9249,
+      "median_2d_error_m": 0.6139,
+      "rmse_2d_error_m": 1.3447,
+      "p95_2d_error_m": 2.7921,
+      "mae_x_m": 0.5668,
+      "mae_y_m": 0.6125,
+      "r2_x": -0.0312,
+      "r2_y": -0.5772,
+      "acc_sub_50cm_pct": 45.79,
+      "acc_sub_1m_pct": 64.81,
+      "acc_sub_1_5m_pct": 72.21
+    },
+    "Extra Trees (Coord)": {
+      "mean_2d_error_m": 0.8853,
+      "median_2d_error_m": 0.4059,
+      "rmse_2d_error_m": 1.369,
+      "p95_2d_error_m": 3.2547,
+      "mae_x_m": 0.5332,
+      "mae_y_m": 0.599,
+      "r2_x": 0.0118,
+      "r2_y": -0.7236,
+      "acc_sub_50cm_pct": 54.26,
+      "acc_sub_1m_pct": 69.96,
+      "acc_sub_1_5m_pct": 76.08
+    },
+    "Gradient Boosting (Coord)": {
+      "mean_2d_error_m": 0.9619,
+      "median_2d_error_m": 0.6088,
+      "rmse_2d_error_m": 1.3671,
+      "p95_2d_error_m": 2.9785,
+      "mae_x_m": 0.5996,
+      "mae_y_m": 0.5951,
+      "r2_x": -0.0859,
+      "r2_y": -0.608,
+      "acc_sub_50cm_pct": 46.91,
+      "acc_sub_1m_pct": 60.02,
+      "acc_sub_1_5m_pct": 73.33
+    },
+    "XGBoost (Coord)": {
+      "mean_2d_error_m": 0.9079,
+      "median_2d_error_m": 0.4568,
+      "rmse_2d_error_m": 1.326,
+      "p95_2d_error_m": 2.9195,
+      "mae_x_m": 0.5388,
+      "mae_y_m": 0.5914,
+      "r2_x": 0.0715,
+      "r2_y": -0.6156,
+      "acc_sub_50cm_pct": 51.35,
+      "acc_sub_1m_pct": 64.25,
+      "acc_sub_1_5m_pct": 73.99
+    },
+    "CatBoost (Coord)": {
+      "mean_2d_error_m": 0.9028,
+      "median_2d_error_m": 0.53,
+      "rmse_2d_error_m": 1.3289,
+      "p95_2d_error_m": 2.9783,
+      "mae_x_m": 0.5273,
+      "mae_y_m": 0.6219,
+      "r2_x": 0.1115,
+      "r2_y": -0.671,
+      "acc_sub_50cm_pct": 48.5,
+      "acc_sub_1m_pct": 69.71,
+      "acc_sub_1_5m_pct": 76.03
+    },
+    "LightGBM (Coord)": {
+      "mean_2d_error_m": 0.9392,
+      "median_2d_error_m": 0.5685,
+      "rmse_2d_error_m": 1.3368,
+      "p95_2d_error_m": 2.8186,
+      "mae_x_m": 0.5616,
+      "mae_y_m": 0.6231,
+      "r2_x": 0.0556,
+      "r2_y": -0.6411,
+      "acc_sub_50cm_pct": 47.37,
+      "acc_sub_1m_pct": 64.05,
+      "acc_sub_1_5m_pct": 75.62
+    }
+  },
+  "approach_2_multi_anchor_ranging_trilateration": {
+    "Random Forest Ranging": {
+      "mean_2d_error_m": 0.9335,
+      "median_2d_error_m": 0.2386,
+      "rmse_2d_error_m": 1.52,
+      "p95_2d_error_m": 3.5355,
+      "range_mae_m": 0.5909,
+      "acc_sub_50cm_pct": 56.55,
+      "acc_sub_1m_pct": 67.67,
+      "acc_sub_1_5m_pct": 74.25
+    },
+    "Extra Trees Ranging": {
+      "mean_2d_error_m": 0.9107,
+      "median_2d_error_m": 0.4053,
+      "rmse_2d_error_m": 1.4276,
+      "p95_2d_error_m": 3.3062,
+      "range_mae_m": 0.571,
+      "acc_sub_50cm_pct": 55.53,
+      "acc_sub_1m_pct": 70.17,
+      "acc_sub_1_5m_pct": 76.29
+    },
+    "Gradient Boosting Ranging": {
+      "mean_2d_error_m": 0.9556,
+      "median_2d_error_m": 0.3009,
+      "rmse_2d_error_m": 1.5295,
+      "p95_2d_error_m": 3.5456,
+      "range_mae_m": 0.6132,
+      "acc_sub_50cm_pct": 56.35,
+      "acc_sub_1m_pct": 67.72,
+      "acc_sub_1_5m_pct": 73.58
+    },
+    "XGBoost Ranging": {
+      "mean_2d_error_m": 0.9296,
+      "median_2d_error_m": 0.2363,
+      "rmse_2d_error_m": 1.5233,
+      "p95_2d_error_m": 3.5462,
+      "range_mae_m": 0.5967,
+      "acc_sub_50cm_pct": 58.13,
+      "acc_sub_1m_pct": 68.59,
+      "acc_sub_1_5m_pct": 74.35
+    },
+    "CatBoost Ranging": {
+      "mean_2d_error_m": 0.9348,
+      "median_2d_error_m": 0.4089,
+      "rmse_2d_error_m": 1.4543,
+      "p95_2d_error_m": 3.3521,
+      "range_mae_m": 0.5979,
+      "acc_sub_50cm_pct": 56.09,
+      "acc_sub_1m_pct": 68.54,
+      "acc_sub_1_5m_pct": 74.35
+    },
+    "LightGBM Ranging": {
+      "mean_2d_error_m": 1.0438,
+      "median_2d_error_m": 0.4277,
+      "rmse_2d_error_m": 1.5752,
+      "p95_2d_error_m": 3.4882,
+      "range_mae_m": 0.6547,
+      "acc_sub_50cm_pct": 51.5,
+      "acc_sub_1m_pct": 62.42,
+      "acc_sub_1_5m_pct": 70.47
+    }
+  },
+  "statistical_hypothesis_test": {
+    "best_direct_model": "Extra Trees (Coord)",
+    "best_direct_mean_2d_m": 0.8853,
+    "best_ranging_model": "Extra Trees Ranging",
+    "best_ranging_mean_2d_m": 0.9107,
+    "paired_t_statistic": -3.106,
+    "paired_t_p_value": 0.0019236,
+    "wilcoxon_statistic": 900350.0,
+    "wilcoxon_p_value": 0.01416,
+    "statistically_significant": true,
+    "winner": "Extra Trees (Coord)"
+  },
+  "zone_classifier_benchmark": {
+    "model": "Bagging Classifier",
+    "accuracy_pct": 92.15,
+    "weighted_f1": 0.9216,
+    "status": "Proximity Zone Benchmark Retained"
+  }
+}

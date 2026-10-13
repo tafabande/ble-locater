@@ -27,12 +27,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Unity Build Cache & Editor State
-Unity_BLE_Simulator/Library/
-Unity_BLE_Simulator/Temp/
-Unity_BLE_Simulator/Logs/
-Unity_BLE_Simulator/UserSettings/
-Unity_BLE_Simulator/Build/
+# Firmware & C Intermediate Build Outputs
+build/
+**/build/
+esp32_anchor/build/
+esp32_wifi_anchor/build/
+sdkconfig.old
 
 # OS Metadata & IDE Temporary Files
 .DS_Store

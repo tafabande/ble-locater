@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 from server.app import (
     serve_index,
     get_control_status,

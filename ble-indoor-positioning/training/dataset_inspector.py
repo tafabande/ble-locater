@@ -6,7 +6,7 @@ detects missing/infinite values, and summarizes distance distributions.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 import pandas as pd
 
 

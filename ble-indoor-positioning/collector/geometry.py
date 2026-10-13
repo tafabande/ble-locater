@@ -8,7 +8,7 @@ and Non-Line-of-Sight (NLOS) experimental annotation.
 from __future__ import annotations
 
 import math
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 
 class PhysicalCoordinateSystem:

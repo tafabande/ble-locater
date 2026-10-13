@@ -7,12 +7,10 @@ Delegates network monitoring to ConnectionMonitor and system checks to Diagnosti
 from __future__ import annotations
 
 import datetime
-import json
 import sys
 import threading
-import time
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 import tkinter as tk
 
 # Ensure project root is in sys.path
@@ -23,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from core.config import BACKEND_URL, load_anchor_config, load_anchor_metadata
 from core.telemetry import SystemTelemetryManager
+from core.theme import ZINC_THEME, apply_base_ttk_styles
 from admin.connection_monitor import ConnectionMonitor, ConnectionStatus
 from admin.diagnostics import DiagnosticEngine, DiagnosticCheckResult
 
@@ -30,21 +29,8 @@ from admin.diagnostics import DiagnosticEngine, DiagnosticCheckResult
 class SystemAdminApp:
     """Dedicated desktop GUI for system administration and telemetry monitoring."""
 
-    THEME = {
-        "bg": "#121214",          # Deep Zinc
-        "panel": "#18181B",       # Zinc 900
-        "card": "#27272A",        # Zinc 800
-        "border": "#3F3F46",      # Zinc 700
-        "text": "#FAFAFA",        # Zinc 50
-        "subtext": "#A1A1AA",     # Zinc 400
-        "accent": "#E4E4E7",      # Crisp neutral Zinc 200
-        "green": "#10B981",       # Emerald 500
-        "green_dark": "#064E3B",
-        "amber": "#F59E0B",       # Amber 500
-        "amber_dark": "#78350F",
-        "red": "#EF4444",         # Rose 500
-        "red_dark": "#7F1D1D",
-    }
+    # Preserves intentional crisp neutral Zinc 200 accent for administrative console
+    THEME = {**ZINC_THEME, "accent": "#E4E4E7"}
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -75,15 +61,10 @@ class SystemAdminApp:
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self.root)
-        style.theme_use("clam")
+        apply_base_ttk_styles(style, self.THEME)
         t = self.THEME
 
-        style.configure("TFrame", background=t["bg"])
-        style.configure("Panel.TFrame", background=t["panel"])
-        style.configure("Card.TFrame", background=t["card"])
-        style.configure("TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 9))
         style.configure("Header.TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 12, "bold"))
-        style.configure("Muted.TLabel", background=t["panel"], foreground=t["subtext"], font=("Segoe UI", 8))
 
         style.configure("TNotebook", background=t["bg"], borderwidth=0)
         style.configure("TNotebook.Tab", background=t["panel"], foreground=t["subtext"], padding=(16, 8), font=("Segoe UI", 9, "bold"))

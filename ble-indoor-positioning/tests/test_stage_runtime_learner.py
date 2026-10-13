@@ -1,7 +1,5 @@
 import os
 import sys
-import json
-import pytest
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 from learning.stage_runtime_learner import StageRuntimeLearner

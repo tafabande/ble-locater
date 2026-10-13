@@ -6,12 +6,16 @@ and logical positioning nodes (Node A, Node B, Node C, Node D) located at the ro
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
+import time
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("NODE_REGISTRY")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = PROJECT_ROOT / "config"
@@ -161,19 +165,31 @@ def load_node_registry() -> Dict[str, Dict[str, Any]]:
 
 
 def save_node_registry(registry: Dict[str, Dict[str, Any]]) -> None:
-    """Save the node registry to disk and update anchors_metadata companion."""
+    """Save the node registry to disk and update anchors_metadata companion atomically."""
     global _registry_cache
-    _registry_cache["data"] = None
+    _registry_cache = {"path": "", "mtime": None, "data": None}
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
+    temp_file = CONFIG_DIR / f"node_registry.{os.getpid()}_{time.time_ns()}.tmp"
+    with open(temp_file, "w", encoding="utf-8") as f:
         json.dump(registry, f, indent=2)
+    for attempt in range(5):
+        try:
+            os.replace(temp_file, REGISTRY_FILE)
+            break
+        except OSError:
+            if attempt == 4:
+                if temp_file.exists():
+                    try: temp_file.unlink()
+                    except Exception: pass
+                raise
+            time.sleep(0.05)
 
     # Automatically synchronize anchors_metadata.json for the rest of the ecosystem
     sync_anchors_metadata(registry)
 
 
 def sync_anchors_metadata(registry: Optional[Dict[str, Dict[str, Any]]] = None) -> None:
-    """Synchronize anchors_metadata.json with the node registry."""
+    """Synchronize anchors_metadata.json with the node registry atomically."""
     if registry is None:
         registry = load_node_registry()
 
@@ -190,10 +206,22 @@ def sync_anchors_metadata(registry: Optional[Dict[str, Dict[str, Any]]] = None) 
         }
 
     try:
-        with open(METADATA_FILE, "w", encoding="utf-8") as f:
+        temp_file = CONFIG_DIR / f"anchors_metadata.{os.getpid()}_{time.time_ns()}.tmp"
+        with open(temp_file, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
-    except Exception:
-        pass
+        for attempt in range(5):
+            try:
+                os.replace(temp_file, METADATA_FILE)
+                break
+            except OSError:
+                if attempt == 4:
+                    if temp_file.exists():
+                        try: temp_file.unlink()
+                        except Exception: pass
+                    raise
+                time.sleep(0.05)
+    except Exception as e:
+        logger.warning(f"Failed to sync anchors metadata: {e}")
 
 
 def is_node_locked(node_key: str) -> bool:

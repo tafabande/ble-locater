@@ -1,5 +1,4 @@
 import os
-import sys
 import json
 import logging
 import argparse
@@ -11,18 +10,16 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 try:
-    from feature_engineering.engineer import process_all_raw_csvs
     HAS_ENGINEER = True
 except Exception:
     HAS_ENGINEER = False
 try:
-    import seaborn as sns
     HAS_SEABORN = True
 except ImportError:
     HAS_SEABORN = False
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
-from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor, HistGradientBoostingRegressor, AdaBoostRegressor, BaggingRegressor, StackingRegressor, VotingRegressor, RandomForestClassifier, ExtraTreesClassifier, HistGradientBoostingClassifier, AdaBoostClassifier, BaggingClassifier, VotingClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor, HistGradientBoostingRegressor, AdaBoostRegressor, BaggingRegressor, StackingRegressor, VotingRegressor, RandomForestClassifier, ExtraTreesClassifier, HistGradientBoostingClassifier, AdaBoostClassifier, BaggingClassifier, GradientBoostingClassifier
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
@@ -30,7 +27,7 @@ from sklearn.linear_model import RidgeCV, BayesianRidge, ElasticNet
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold, KFold, GroupKFold, GroupShuffleSplit, StratifiedGroupKFold
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, median_absolute_error, accuracy_score, classification_report, confusion_matrix, f1_score
-from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.preprocessing import RobustScaler
 from sklearn.feature_selection import SelectFromModel
 from sklearn.pipeline import Pipeline
 from sklearn.inspection import permutation_importance
@@ -59,7 +56,8 @@ TEMPORAL_FEATURE_COLUMNS = ['rssi_slope', 'rssi_trend_strength', 'rssi_ema_diff'
 CROSS_WINDOW_FEATURE_COLUMNS = ['rssi_mean_delta', 'rssi_mean_slope_3w', 'rssi_mean_slope_5w', 'rssi_rolling_mean_3w', 'rssi_rolling_std_3w', 'rssi_rolling_mean_5w', 'rssi_rolling_std_5w', 'rssi_ema_cross_window', 'rssi_velocity', 'rssi_acceleration', 'signal_stability_index', 'rssi_rolling_mean_10w', 'rssi_rolling_std_10w', 'rssi_motion_direction', 'rssi_snr_rolling_5w']
 ENVIRONMENTAL_INTERACTION_COLUMNS = ['obstacle_factor', 'rssi_x_height', 'pathloss_div_obstacle_factor', 'pathloss_free_div_obstacle_factor', 'rssi_div_height']
 PHYSICAL_METADATA_COLUMNS = ['height_m']
-ALL_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + CROSS_WINDOW_FEATURE_COLUMNS + PHYSICAL_METADATA_COLUMNS + ENVIRONMENTAL_INTERACTION_COLUMNS
+MULTIPATH_DISPERSION_COLUMNS = ['packet_rate', 'rssi_bin_neg100_90', 'rssi_bin_neg90_80', 'rssi_bin_neg80_70', 'rssi_bin_neg70_60', 'rssi_bin_neg60_50', 'rssi_bin_neg50_30']
+ALL_FEATURE_COLUMNS = BASE_FEATURE_COLUMNS + TEMPORAL_FEATURE_COLUMNS + CROSS_WINDOW_FEATURE_COLUMNS + PHYSICAL_METADATA_COLUMNS + ENVIRONMENTAL_INTERACTION_COLUMNS + MULTIPATH_DISPERSION_COLUMNS
 TARGET_COLUMN = 'distance_m'
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
@@ -73,11 +71,14 @@ def detect_available_features(df: pd.DataFrame) -> list:
     n_temporal = sum((1 for c in TEMPORAL_FEATURE_COLUMNS if c in available))
     n_cross_window = sum((1 for c in CROSS_WINDOW_FEATURE_COLUMNS if c in available))
     n_environmental = sum((1 for c in ENVIRONMENTAL_INTERACTION_COLUMNS if c in available))
-    print(f'\n[FEATURE DETECTION] Found {len(available)} features: {n_base} base + {n_temporal} temporal + {n_cross_window} cross-window + {n_environmental} environmental interactions')
+    n_multipath = sum((1 for c in MULTIPATH_DISPERSION_COLUMNS if c in available))
+    print(f'\n[FEATURE DETECTION] Found {len(available)} features: {n_base} base + {n_temporal} temporal + {n_cross_window} cross-window + {n_environmental} environmental interactions + {n_multipath} multipath dispersion')
     if n_environmental > 0:
         print(f'  [OK] Environmental Interaction Terms Active: {[c for c in ENVIRONMENTAL_INTERACTION_COLUMNS if c in available]}')
     else:
         print('  [INFO] No environmental interaction features detected — generating on-the-fly for compatibility.')
+    if n_multipath > 0:
+        print(f'  [OK] RF Multipath Power Density Dispersion Active ({n_multipath}/{len(MULTIPATH_DISPERSION_COLUMNS)} bins): Resolves NLOS attenuation.')
     return available
 
 def assign_session_ids(df: pd.DataFrame) -> pd.DataFrame:
@@ -391,89 +392,157 @@ def load_dataset(dataset_path: str) -> pd.DataFrame:
     print(f"{'=' * 75}\n")
     return df
 
-def instantiate_candidates() -> dict:
+def instantiate_candidates(preset: str = 'best_fit') -> dict:
+    """Instantiate ML model candidates according to requested tournament preset.
+
+    Presets:
+      - 'best_fit': Focused on Dissertation Chapter 4 champions & key benchmarks (fast ~15-20s, high accuracy)
+      - 'fast_baseline': Ultra-fast regression baseline verification (~3s)
+      - 'strict_nlos': Robust against high obstacle interference and wall attenuation
+      - 'all' / 'full': Full 19-candidate super learner tournament
+    """
+    preset_norm = (preset or 'best_fit').lower().strip()
+
     rf = RandomForestRegressor(n_estimators=400, max_depth=20, min_samples_split=3, min_samples_leaf=2, max_features='sqrt', random_state=RANDOM_STATE, n_jobs=-1)
     et = ExtraTreesRegressor(n_estimators=400, max_depth=20, min_samples_split=3, min_samples_leaf=2, max_features='sqrt', random_state=RANDOM_STATE, n_jobs=-1)
-    gb = GradientBoostingRegressor(n_estimators=300, learning_rate=0.05, max_depth=5, subsample=0.8, min_samples_leaf=5, random_state=RANDOM_STATE)
+    gb = GradientBoostingRegressor(n_estimators=250, learning_rate=0.05, max_depth=5, subsample=0.8, min_samples_leaf=5, random_state=RANDOM_STATE)
     hgb = HistGradientBoostingRegressor(max_iter=300, learning_rate=0.05, max_depth=6, min_samples_leaf=10, l2_regularization=0.1, random_state=RANDOM_STATE)
     ada = AdaBoostRegressor(estimator=DecisionTreeRegressor(max_depth=5), n_estimators=200, learning_rate=0.05, random_state=RANDOM_STATE)
     knn = KNeighborsRegressor(n_neighbors=7, weights='distance', metric='minkowski', p=2, n_jobs=-1)
-    mlp = MLPRegressor(hidden_layer_sizes=(128, 64, 32), activation='relu', solver='adam', learning_rate='adaptive', learning_rate_init=0.001, max_iter=500, early_stopping=True, validation_fraction=0.15, n_iter_no_change=20, random_state=RANDOM_STATE)
-    svr = SVR(C=10.0, epsilon=0.05, kernel='rbf', max_iter=3000)
+    mlp = MLPRegressor(hidden_layer_sizes=(128, 64, 32), activation='relu', solver='adam', learning_rate='adaptive', learning_rate_init=0.001, max_iter=400, early_stopping=True, validation_fraction=0.15, n_iter_no_change=20, random_state=RANDOM_STATE)
+    svr = SVR(C=10.0, epsilon=0.05, kernel='rbf', max_iter=2000, cache_size=500)
     bayesian = BayesianRidge(alpha_1=1e-06, alpha_2=1e-06, lambda_1=1e-06, lambda_2=1e-06)
     elastic = ElasticNet(alpha=0.01, l1_ratio=0.5, max_iter=1000, random_state=RANDOM_STATE)
     bagging = BaggingRegressor(estimator=DecisionTreeRegressor(max_depth=10), n_estimators=200, max_samples=0.8, max_features=0.8, random_state=RANDOM_STATE, n_jobs=-1)
-    candidates = {'Random Forest (400 Trees)': rf, 'Extra Trees (400 Trees)': et, 'Gradient Boosting (300)': gb, 'Hist Gradient Boosting': hgb, 'AdaBoost Regressor': ada, 'KNN Regressor (k=7)': knn, 'MLP Neural Network': mlp, 'SVR (RBF Kernel)': svr, 'Bayesian Ridge': bayesian, 'ElasticNet': elastic, 'Bagging Ensemble': bagging}
+
+    xgb = None
+    xgb_tuned = None
     if HAS_XGBOOST:
         xgb = XGBRegressor(n_estimators=400, learning_rate=0.05, max_depth=6, subsample=0.8, colsample_bytree=0.8, reg_alpha=0.1, reg_lambda=1.0, min_child_weight=3, gamma=0.1, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0)
         xgb_tuned = XGBRegressor(n_estimators=600, learning_rate=0.03, max_depth=8, subsample=0.7, colsample_bytree=0.7, reg_alpha=0.5, reg_lambda=2.0, min_child_weight=5, gamma=0.2, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0)
-        candidates['XGBoost Regressor'] = xgb
-        candidates['XGBoost (Deep Tuned)'] = xgb_tuned
+
+    cat = None
+    cat_deep = None
     if HAS_CATBOOST:
         cat = CatBoostRegressor(iterations=400, learning_rate=0.05, depth=6, l2_leaf_reg=3.0, random_seed=RANDOM_STATE, verbose=0, allow_writing_files=False)
         cat_deep = CatBoostRegressor(iterations=600, learning_rate=0.03, depth=8, l2_leaf_reg=5.0, bagging_temperature=0.5, random_seed=RANDOM_STATE, verbose=0, allow_writing_files=False)
-        candidates['CatBoost Regressor'] = cat
-        candidates['CatBoost (Deep Tuned)'] = cat_deep
+
+    lgbm = None
+    lgbm_tuned = None
     if HAS_LIGHTGBM:
         lgbm = LGBMRegressor(n_estimators=400, learning_rate=0.05, max_depth=6, num_leaves=31, subsample=0.8, colsample_bytree=0.8, reg_alpha=0.1, reg_lambda=1.0, min_child_samples=10, random_state=RANDOM_STATE, n_jobs=-1, verbose=-1)
         lgbm_tuned = LGBMRegressor(n_estimators=600, learning_rate=0.03, max_depth=8, num_leaves=63, subsample=0.7, colsample_bytree=0.7, reg_alpha=0.5, reg_lambda=2.0, min_child_samples=5, random_state=RANDOM_STATE, n_jobs=-1, verbose=-1)
+
+    # Fast Baseline Preset
+    if preset_norm in ('fast_baseline', 'quick', 'fast'):
+        return {
+            'Bayesian Ridge': bayesian,
+            'KNN Regressor (k=7)': knn,
+            'Hist Gradient Boosting': hgb,
+            'Bagging Ensemble': bagging,
+        }
+
+    # Strict NLOS / Obstacle Robustness Preset
+    if preset_norm in ('strict_nlos', 'obstacle', 'nlos'):
+        c = {
+            'Bagging Ensemble': bagging,
+            'Hist Gradient Boosting': hgb,
+            'Random Forest (400 Trees)': rf,
+            'MLP Neural Network': mlp,
+            'Bayesian Ridge': bayesian,
+        }
+        if cat:
+            c['CatBoost Regressor'] = cat
+        if xgb:
+            c['XGBoost Regressor'] = xgb
+        return c
+
+    # Best Fit Scenario Preset (Recommended — Aligned with Dissertation Defense)
+    if preset_norm in ('best_fit', 'champion', 'dissertation'):
+        c = {
+            'Bagging Ensemble': bagging,
+            'Random Forest (400 Trees)': rf,
+            'Hist Gradient Boosting': hgb,
+            'MLP Neural Network': mlp,
+            'KNN Regressor (k=7)': knn,
+            'Bayesian Ridge': bayesian,
+        }
+        if xgb:
+            c['XGBoost Regressor'] = xgb
+        if cat:
+            c['CatBoost Regressor'] = cat
+        if lgbm:
+            c['LightGBM Regressor'] = lgbm
+
+        # Voting ensemble combining top paradigms
+        voting_estimators = [
+            ('rf', RandomForestRegressor(n_estimators=150, max_depth=12, random_state=RANDOM_STATE, n_jobs=-1)),
+            ('hgb', HistGradientBoostingRegressor(max_iter=150, max_depth=5, random_state=RANDOM_STATE)),
+            ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance', n_jobs=-1))
+        ]
+        if xgb:
+            voting_estimators.append(('xgb', XGBRegressor(n_estimators=150, max_depth=5, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0)))
+        c['Voting Ensemble'] = VotingRegressor(estimators=voting_estimators, n_jobs=-1)
+        return c
+
+    # Full 19-Candidate Super Learner Tournament Preset
+    candidates = {
+        'Random Forest (400 Trees)': rf,
+        'Extra Trees (400 Trees)': et,
+        'Gradient Boosting (300)': gb,
+        'Hist Gradient Boosting': hgb,
+        'AdaBoost Regressor': ada,
+        'KNN Regressor (k=7)': knn,
+        'MLP Neural Network': mlp,
+        'SVR (RBF Kernel)': svr,
+        'Bayesian Ridge': bayesian,
+        'ElasticNet': elastic,
+        'Bagging Ensemble': bagging
+    }
+    if xgb:
+        candidates['XGBoost Regressor'] = xgb
+        candidates['XGBoost (Deep Tuned)'] = xgb_tuned
+    if cat:
+        candidates['CatBoost Regressor'] = cat
+        candidates['CatBoost (Deep Tuned)'] = cat_deep
+    if lgbm:
         candidates['LightGBM Regressor'] = lgbm
         candidates['LightGBM (Deep Tuned)'] = lgbm_tuned
+
     stacking_estimators = [
-        ('rf', RandomForestRegressor(n_estimators=100, max_depth=10, random_state=RANDOM_STATE, n_jobs=1)),
-        ('et', ExtraTreesRegressor(n_estimators=100, max_depth=10, random_state=RANDOM_STATE, n_jobs=1)),
-        ('hgb', HistGradientBoostingRegressor(max_iter=100, max_depth=5, random_state=RANDOM_STATE)),
+        ('rf', RandomForestRegressor(n_estimators=80, max_depth=8, random_state=RANDOM_STATE, n_jobs=1)),
+        ('et', ExtraTreesRegressor(n_estimators=80, max_depth=8, random_state=RANDOM_STATE, n_jobs=1)),
+        ('hgb', HistGradientBoostingRegressor(max_iter=80, max_depth=5, random_state=RANDOM_STATE)),
         ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance', n_jobs=1))
     ]
-    if HAS_XGBOOST:
-        stacking_estimators.append(('xgb', XGBRegressor(n_estimators=100, max_depth=5, random_state=RANDOM_STATE, n_jobs=1, verbosity=0)))
-    if HAS_LIGHTGBM:
-        stacking_estimators.append(('lgbm', LGBMRegressor(n_estimators=100, max_depth=5, random_state=RANDOM_STATE, n_jobs=1, verbose=-1)))
-    stacking = StackingRegressor(estimators=stacking_estimators, final_estimator=RidgeCV(), cv=3, n_jobs=1)
-    candidates['Stacking Super Learner'] = stacking
-    voting_estimators = [('rf', RandomForestRegressor(n_estimators=200, max_depth=15, random_state=RANDOM_STATE, n_jobs=-1)), ('hgb', HistGradientBoostingRegressor(max_iter=200, max_depth=5, random_state=RANDOM_STATE)), ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance', n_jobs=-1))]
-    if HAS_XGBOOST:
+    if xgb:
+        stacking_estimators.append(('xgb', XGBRegressor(n_estimators=80, max_depth=5, random_state=RANDOM_STATE, n_jobs=1, verbosity=0)))
+    if lgbm:
+        stacking_estimators.append(('lgbm', LGBMRegressor(n_estimators=80, max_depth=5, random_state=RANDOM_STATE, n_jobs=1, verbose=-1)))
+    candidates['Stacking Super Learner'] = StackingRegressor(estimators=stacking_estimators, final_estimator=RidgeCV(), cv=2, n_jobs=1)
+
+    voting_estimators = [
+        ('rf', RandomForestRegressor(n_estimators=200, max_depth=15, random_state=RANDOM_STATE, n_jobs=-1)),
+        ('hgb', HistGradientBoostingRegressor(max_iter=200, max_depth=5, random_state=RANDOM_STATE)),
+        ('knn', KNeighborsRegressor(n_neighbors=7, weights='distance', n_jobs=-1))
+    ]
+    if xgb:
         voting_estimators.append(('xgb', XGBRegressor(n_estimators=200, max_depth=5, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0)))
-    voting = VotingRegressor(estimators=voting_estimators, n_jobs=-1)
-    candidates['Voting Ensemble'] = voting
+    candidates['Voting Ensemble'] = VotingRegressor(estimators=voting_estimators, n_jobs=-1)
     return candidates
 
-def evaluate_error_tolerances(y_true, y_pred) -> dict:
-    try:
-        errors = np.abs(y_true - y_pred)
-        total = max(1, len(errors))
-        return {'within_10cm': round(np.sum(errors <= 0.1) / total * 100, 2), 'within_25cm': round(np.sum(errors <= 0.25) / total * 100, 2), 'within_50cm': round(np.sum(errors <= 0.5) / total * 100, 2), 'within_75cm': round(np.sum(errors <= 0.75) / total * 100, 2), 'within_100cm': round(np.sum(errors <= 1.0) / total * 100, 2), 'within_150cm': round(np.sum(errors <= 1.5) / total * 100, 2)}
-    except Exception:
-        return {'within_10cm': 0.0, 'within_25cm': 0.0, 'within_50cm': 0.0, 'within_75cm': 0.0, 'within_100cm': 0.0, 'within_150cm': 0.0}
+from core.metrics import evaluate_error_tolerances, evaluate_extended_metrics, compute_regression_metrics
 
-def evaluate_extended_metrics(y_true, y_pred) -> dict:
+def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int=CV_FOLDS, groups: np.ndarray=None, y_strat: np.ndarray=None, precomputed_splits=None) -> dict:
     try:
-        errors = np.abs(y_true - y_pred)
-        nonzero_mask = np.abs(y_true) > 0.01
-        if np.sum(nonzero_mask) > 0:
-            mape = float(np.mean(np.abs((y_true[nonzero_mask] - y_pred[nonzero_mask]) / y_true[nonzero_mask])) * 100)
-        else:
-            mape = 0.0
-        max_error = float(np.max(errors))
-        p95_error = float(np.percentile(errors, 95))
-        ss_res = np.sum((y_true - y_pred) ** 2)
-        ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
-        explained_var = float(1.0 - ss_res / (ss_tot + 1e-10)) if ss_tot > 0 else 0.0
-        unique_dists = sorted(np.unique(np.round(y_true, 1)))
-        per_distance_mae = {}
-        for dist in unique_dists:
-            mask = np.abs(y_true - dist) < 0.05
-            if np.sum(mask) > 0:
-                per_distance_mae[f'{dist:.1f}m'] = round(float(np.mean(np.abs(y_true[mask] - y_pred[mask]))), 4)
-        return {'mape': round(mape, 2), 'max_error': round(max_error, 4), 'p95_error': round(p95_error, 4), 'explained_variance': round(explained_var, 4), 'per_distance_mae': per_distance_mae}
-    except Exception as e:
-        logger.warning(f'Extended metrics computation failed: {e}')
-        return {'mape': 0.0, 'max_error': 0.0, 'p95_error': 0.0, 'explained_variance': 0.0, 'per_distance_mae': {}}
-
-def run_cross_validation(model, X_scaled, y, model_name: str, cv_folds: int=CV_FOLDS, groups: np.ndarray=None, y_strat: np.ndarray=None) -> dict:
-    try:
-        cv_n_jobs = 1 if ('SVR' in model_name or 'Stacking' in model_name) else -1
-        if groups is not None and len(np.unique(groups)) >= 2:
+        cv_n_jobs = 1  # Sequential folds avoid Windows multiprocessing pickle/memory allocations
+        cv_type = 'Cross-Validation'
+        if precomputed_splits is not None:
+            cv_splits = precomputed_splits
+            cv_type = f'Cached StratifiedGroupKFold({len(cv_splits)} folds)'
+            mae_scores = -cross_val_score(model, X_scaled, y, cv=cv_splits, scoring='neg_mean_absolute_error', n_jobs=cv_n_jobs)
+            r2_scores = cross_val_score(model, X_scaled, y, cv=cv_splits, scoring='r2', n_jobs=cv_n_jobs)
+        elif groups is not None and len(np.unique(groups)) >= 2:
             n_groups = len(np.unique(groups))
             folds = min(cv_folds, n_groups)
             if y_strat is None:
@@ -623,6 +692,7 @@ def train_model(
     outlier_method: str=None,     # 'isolation_forest', 'iqr', 'zscore', 'mad', 'none'
     missing_data_handling: str=None,  # 'drop', 'interpolate', 'fill'
     feature_source: str=None,     # 'raw', 'existing'
+    preset: str='best_fit',       # 'best_fit', 'fast_baseline', 'strict_nlos', 'all'
 ) -> dict:
     # ── Apply data-selection / experimental-condition filters ─────────────────
     df = filter_dataset(
@@ -647,10 +717,11 @@ def train_model(
         dist_bucket_raw = df['distance_bucket'].values
     else:
         dist_bucket_raw = np.round(y_raw * 2) / 2
-    print(f"\n{'=' * 75}")
-    print(f'  [STAGE 1] OUTLIER DETECTION & DATA CLEANING')
-    print(f"{'=' * 75}")
-    X_clean, y_clean, groups_clean, dist_bucket_clean, n_outliers = detect_and_remove_outliers(X_raw, y_raw, groups_raw, dist_bucket_raw, outlier_method=outlier_method)
+    # NOTE: Outlier detection is deferred to AFTER train/test split to prevent
+    # data snooping (IsolationForest/IQR fitted only on training partition).
+    # See: model_portfolio_audit.md — Defect #2 (Preprocessing Leakage).
+    X_clean, y_clean, groups_clean, dist_bucket_clean = X_raw, y_raw, groups_raw, dist_bucket_raw
+    n_outliers = 0  # Will be updated after split
     try:
         y_strat = dist_bucket_clean.astype(str)
     except Exception:
@@ -710,12 +781,40 @@ def train_model(
                 X_train, X_test, y_train, y_test = train_test_split(X_clean, y_clean, test_size=TEST_SIZE, random_state=RANDOM_STATE)
         except Exception:
             X_train, X_test, y_train, y_test = train_test_split(X_clean, y_clean, test_size=TEST_SIZE, random_state=RANDOM_STATE)
-    candidates = instantiate_candidates()
+    # ── Post-split outlier detection: fit ONLY on training partition ──
     print(f"\n{'=' * 75}")
-    print(f'  [STAGE 3] SUPER LEARNER TOURNAMENT ({len(candidates)} CANDIDATES)')
+    print(f'  [STAGE 1b] OUTLIER DETECTION (Training Data Only — No Snooping)')
+    print(f"{'=' * 75}")
+    if groups_train is not None:
+        _g_train = groups_train
+    else:
+        _g_train = np.arange(len(y_train))
+    _db_train = (np.round(y_train * 2) / 2)
+    X_train, y_train, _g_out, _db_out, n_outliers = detect_and_remove_outliers(
+        X_train, y_train, _g_train, _db_train, outlier_method=outlier_method
+    )
+    if groups_train is not None:
+        groups_train = _g_out
+    print(f'  Post-split training samples after outlier removal: {len(y_train)}')
+    candidates = instantiate_candidates(preset=preset)
+    print(f"\n{'=' * 75}")
+    print(f'  [STAGE 3] SUPER LEARNER TOURNAMENT ({len(candidates)} CANDIDATES | PRESET: {preset.upper()})')
     print(f'  Training: {len(X_train)} samples | Testing: {len(X_test)} samples')
     print(f'  Available Features: {len(feature_cols)} | CV Folds: {CV_FOLDS}')
     print(f"{'=' * 75}")
+
+    # Precompute StratifiedGroupKFold splits once for all tournament models
+    precomputed_splits = None
+    if groups_train is not None and len(np.unique(groups_train)) >= 2:
+        folds = min(CV_FOLDS, len(np.unique(groups_train)))
+        try:
+            sgkf = StratifiedGroupKFold(n_splits=folds, shuffle=True, random_state=RANDOM_STATE)
+            precomputed_splits = list(sgkf.split(X_train, y_strat_train, groups=groups_train))
+            print(f'  [CV PRECOMPUTE] Cached StratifiedGroupKFold across {folds} session folds (Zero Leakage).')
+        except Exception as e:
+            print(f'  [CV PRECOMPUTE WARN] Group split fallback: {e}')
+            precomputed_splits = None
+
     baseline_metrics = evaluate_path_loss_baseline(X_test, y_test, feature_cols)
     print(f"\n[PHYSICAL BASELINE] > {baseline_metrics['name']}")
     print(f"  -> Classical Path Loss MAE: {baseline_metrics['mae']:.4f}m | RMSE: {baseline_metrics['rmse']:.4f}m | R2: {baseline_metrics['r2']:.4f}")
@@ -749,7 +848,7 @@ def train_model(
                 steps.append(('scaler', RobustScaler()))
             steps.append(('model', raw_model))
             pipeline = Pipeline(steps)
-            cv_results = run_cross_validation(pipeline, X_train, y_train, name, cv_folds=CV_FOLDS, groups=groups_train, y_strat=y_strat_train)
+            cv_results = run_cross_validation(pipeline, X_train, y_train, name, cv_folds=CV_FOLDS, groups=groups_train, y_strat=y_strat_train, precomputed_splits=precomputed_splits)
             pipeline.fit(X_train, y_train)
             y_pred = pipeline.predict(X_test)
             mae = float(mean_absolute_error(y_test, y_pred))
@@ -876,7 +975,25 @@ def train_model(
     scaler_obj = champion_model.named_steps.get('scaler', None) if hasattr(champion_model, 'named_steps') else None
     selector_obj = champion_model.named_steps.get('selector', None) if hasattr(champion_model, 'named_steps') else None
     keep_mask = selector_obj.get_support() if selector_obj and hasattr(selector_obj, 'get_support') else np.ones(len(feature_cols), dtype=bool)
-    metrics = {'train_mae': round(float(mean_absolute_error(y_train, champion_model.predict(X_train))), 4), 'test_mae': round(champion['mae'], 4), 'test_rmse': round(champion['rmse'], 4), 'test_r2': round(champion['r2'], 4), 'test_median_ae': round(champion['med_ae'], 4), 'tolerances': champion['tolerances'], 'extended': ext_metrics, 'champion_name': champion_name, 'cv_metrics': champion.get('cv', {}), 'n_outliers_removed': n_outliers, 'n_features_active': int(np.sum(keep_mask)), 'n_features_total': len(feature_cols)}
+    metrics = {
+        'train_mae': round(float(mean_absolute_error(y_train, champion_model.predict(X_train))), 4),
+        'test_mae': round(champion['mae'], 4),
+        'test_rmse': round(champion['rmse'], 4),
+        'test_r2': round(champion['r2'], 4),
+        'test_median_ae': round(champion['med_ae'], 4),
+        'tolerances': champion['tolerances'],
+        'extended': ext_metrics,
+        'champion_name': champion_name,
+        'cv_metrics': champion.get('cv', {}),
+        'n_outliers_removed': n_outliers,
+        'n_features_active': int(np.sum(keep_mask)),
+        'n_features_total': len(feature_cols),
+        'physics_baseline': baseline_metrics,
+        'physics_improvement_pct': round(improvement_pct, 2),
+        'tournament_preset': preset,
+        'eval_mode': eval_mode,
+        'zero_leakage_verified': (len(train_sess_set.intersection(test_sess_set)) == 0) if (groups_train is not None and groups_test is not None) else False,
+    }
     return {'model': champion_model, 'scaler': scaler_obj, 'metrics': metrics, 'importances': perm_importances, 'y_test': y_test, 'y_pred_test': champion['y_pred'], 'y_train': y_train, 'feature_cols': feature_cols, 'all_feature_cols': feature_cols, 'keep_mask': keep_mask.tolist(), 'model_type': champion_name, 'tournament': [{k: v for k, v in res.items() if k != 'y_pred'} for res in tournament_results]}
 
 def instantiate_classification_candidates() -> dict:
@@ -1001,8 +1118,8 @@ def generate_plots(result: dict, output_dir: str, zone_result: dict=None):
         if y_test is None or y_pred_test is None:
             return
         has_zones = zone_result and zone_result.get('confusion_matrix') is not None and (zone_result['confusion_matrix'].size > 0)
-        fig, axes = plt.subplots(4, 2, figsize=(16, 26))
-        fig.suptitle(f"BLE Champion: {result.get('model_type', 'Ensemble')} — V2 Diagnostics", fontsize=16, fontweight='bold')
+        fig, axes = plt.subplots(4, 2, figsize=(14, 18))
+        fig.suptitle(f"BLE Champion: {result.get('model_type', 'Ensemble')} — V2 Diagnostics", fontsize=14, fontweight='bold')
         ax = axes[0, 0]
         ax.scatter(y_test, y_pred_test, alpha=0.6, edgecolors='k', linewidths=0.5, s=45, color='#89b4fa')
         lims = [min(y_test.min(), y_pred_test.min()) - 0.5, max(y_test.max(), y_pred_test.max()) + 0.5]

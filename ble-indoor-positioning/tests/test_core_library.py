@@ -14,11 +14,11 @@ from core.config import (
     load_anchor_config, load_anchor_metadata, get_python_executable
 )
 from core.ble import (
-    parse_stream_line, calculate_log_distance, RawPacket, WindowObservation
+    parse_stream_line, calculate_log_distance
 )
 from core.telemetry import NodeTelemetry, SystemTelemetryManager
-from core.inference import validate_feature_schema, predict_distance
-from core.data import init_raw_dataset_file, append_raw_record, validate_dataset_for_training
+from core.inference import validate_feature_schema
+from core.data import init_raw_dataset_file, append_raw_record
 
 
 def test_core_config_defaults():

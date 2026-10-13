@@ -9,14 +9,12 @@ from __future__ import annotations
 
 import csv
 import json
-import math
 import queue
-import random
 import socket
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import sys
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -24,9 +22,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.ble import parse_stream_line
-from core.config import get_experiment_receiver_ip, load_anchor_config
+from core.config import get_experiment_receiver_ip
 from collector.session_manager import SessionConfig, CANONICAL_RAW_HEADERS
-from collector.validation import DataQualityValidator, QualityVerdict
+from collector.validation import DataQualityValidator
 from collector.node_registry import get_node_by_mac, get_node_by_anchor_id, load_node_registry
 
 

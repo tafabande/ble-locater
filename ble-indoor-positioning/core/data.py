@@ -7,15 +7,13 @@ from __future__ import annotations
 
 import csv
 import datetime
-import glob
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from .config import DATASETS_DIR, RAW_DATA_DIR
+from .config import RAW_DATA_DIR
 
 
 RAW_CSV_HEADERS = [

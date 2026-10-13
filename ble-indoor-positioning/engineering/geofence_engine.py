@@ -1,12 +1,11 @@
 import os
 import json
 import time
-import sqlite3
 import logging
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional
 from sqlmodel import SQLModel, Session, select
-from server.db import create_db_engine, GeofenceAlert
+from server.db import create_db_engine, GeofenceAlert, transaction_scope
 
 logger = logging.getLogger('GEOFENCE_ENGINE')
 
@@ -34,22 +33,59 @@ class AlertHistoryDB:
             logger.error(f'Failed to initialize alerts database: {e}')
 
     def log_alert(self, alert_event: dict):
-        try:
-            alert = GeofenceAlert(
-                timestamp=alert_event.get('timestamp_ms', int(time.time() * 1000)),
-                time_str=alert_event.get('time', time.strftime('%H:%M:%S')),
-                patient_id=alert_event.get('patient', 'TAG_01'),
-                from_room=alert_event.get('from', 'Unknown'),
-                to_room=alert_event.get('to', 'Unknown'),
-                severity=alert_event.get('severity', 'LOW'),
-                message=alert_event.get('message', ''),
-                acknowledged=0
-            )
-            with Session(self.engine) as session:
-                session.add(alert)
-                session.commit()
-        except Exception as e:
-            logger.error(f'Failed to insert alert into SQLite audit log: {e}')
+        max_retries = 3
+        now_ts = alert_event.get('timestamp_ms', int(time.time() * 1000))
+        time_str = alert_event.get('time', time.strftime('%H:%M:%S'))
+        for attempt in range(max_retries):
+            try:
+                alert = GeofenceAlert(
+                    timestamp=now_ts,
+                    time_str=time_str,
+                    patient_id=alert_event.get('patient', 'TAG_01'),
+                    from_room=alert_event.get('from', 'Unknown'),
+                    to_room=alert_event.get('to', 'Unknown'),
+                    severity=alert_event.get('severity', 'LOW'),
+                    message=alert_event.get('message', ''),
+                    acknowledged=0
+                )
+                with transaction_scope(self.engine) as session:
+                    session.add(alert)
+                return
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                logger.error(f'Failed to insert alert into SQLite audit log: {e}')
+                break
+
+    def log_alerts_batch(self, alert_events: List[dict]):
+        if not alert_events:
+            return
+        max_retries = 3
+        now_ms = int(time.time() * 1000)
+        time_str = time.strftime('%H:%M:%S')
+        for attempt in range(max_retries):
+            try:
+                with transaction_scope(self.engine) as session:
+                    for ev in alert_events:
+                        alert = GeofenceAlert(
+                            timestamp=ev.get('timestamp_ms', now_ms),
+                            time_str=ev.get('time', time_str),
+                            patient_id=ev.get('patient', 'TAG_01'),
+                            from_room=ev.get('from', 'Unknown'),
+                            to_room=ev.get('to', 'Unknown'),
+                            severity=ev.get('severity', 'LOW'),
+                            message=ev.get('message', ''),
+                            acknowledged=0
+                        )
+                        session.add(alert)
+                return
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                logger.error(f'Failed to insert alerts batch into SQLite audit log: {e}')
+                break
 
     def get_recent_alerts(self, limit: int=50) -> List[dict]:
         try:
@@ -62,14 +98,20 @@ class AlertHistoryDB:
             return []
 
     def clear_history(self):
-        try:
-            with Session(self.engine) as session:
-                alerts = session.exec(select(GeofenceAlert)).all()
-                for a in alerts:
-                    session.delete(a)
-                session.commit()
-        except Exception as e:
-            logger.error(f'Failed to clear alerts database: {e}')
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with transaction_scope(self.engine) as session:
+                    alerts = session.exec(select(GeofenceAlert)).all()
+                    for a in alerts:
+                        session.delete(a)
+                return
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                logger.error(f'Failed to clear alerts database: {e}')
+                break
 
 class GeofenceEngine:
 

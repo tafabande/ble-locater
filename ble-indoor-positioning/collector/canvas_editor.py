@@ -7,7 +7,7 @@ and real-time Line-of-Sight (LOS) propagation raycast visualization.
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 import tkinter as tk
 
 from collector.geometry import (
@@ -18,7 +18,6 @@ from collector.geometry import (
     snap_to_grid,
 )
 from collector.environment import (
-    AnchorNode,
     BarrierObject,
     EnvironmentLayout,
     TargetNode,

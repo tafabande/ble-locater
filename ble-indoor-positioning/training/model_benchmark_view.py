@@ -10,13 +10,11 @@ A dedicated, comprehensive visual screen that presents:
 """
 from __future__ import annotations
 
-import html
 import json
 import os
 import subprocess
 import sys
 import webbrowser
-from datetime import datetime
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -30,6 +28,7 @@ for p in (str(PROJECT_ROOT), str(WORKSPACE_ROOT)):
         sys.path.insert(0, p)
 
 from core.config import MODELS_DIR, REPORTS_DIR
+from core.theme import SLATE_THEME, apply_base_ttk_styles
 from training.report_renderer import render_academic_html_report
 
 
@@ -212,29 +211,7 @@ MODEL_PARAMETERS_REGISTRY = {
 class ModelBenchmarkWindow:
     """Dedicated analytical screen for comparing model performance, parameters, and conclusions."""
 
-    THEME = {
-        "bg": "#121214",          # Deep Zinc
-        "panel": "#18181B",       # Zinc 900
-        "card": "#27272A",        # Zinc 800
-        "card_hover": "#323238",  # Zinc 750
-        "border": "#3F3F46",      # Zinc 700
-        "text": "#FAFAFA",        # Zinc 50
-        "subtext": "#A1A1AA",     # Zinc 400
-        "accent": "#E4E4E7",      # Crisp Zinc 200
-        "neutral_btn": "#27272A", # Neutral button background
-        "neutral_hover": "#3F3F46", # Neutral button hover
-        "gold": "#FBBF24",        # Amber/Gold 400
-        "green": "#10B981",       # Emerald 500
-        "green_bg": "#064E3B",    # Dark Emerald
-        "yellow": "#F59E0B",      # Amber 500
-        "red": "#EF4444",         # Rose 500
-        "purple": "#A855F7",      # Purple 500
-        "slate": "#94A3B8",       # Neutral Slate 400 (replaces blue)
-        "blue": "#94A3B8",        # Alias kept for backwards-compat — neutral slate, not neon
-        "entry_bg": "#1A1B23",    # Deep high-contrast input background
-        "entry_border": "#4F5266",# Distinct input border
-        "terminal_bg": "#0E0E10", # Jet terminal
-    }
+    THEME = SLATE_THEME.copy()
 
     def __init__(self, root: tk.Toplevel | tk.Tk) -> None:
         self.root = root
@@ -271,15 +248,10 @@ class ModelBenchmarkWindow:
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self.root)
-        style.theme_use("clam")
+        apply_base_ttk_styles(style, self.THEME)
         t = self.THEME
 
-        style.configure("TFrame", background=t["bg"])
-        style.configure("Panel.TFrame", background=t["panel"])
-        style.configure("Card.TFrame", background=t["card"])
-        style.configure("TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 9))
         style.configure("Header.TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 12, "bold"))
-        style.configure("Muted.TLabel", background=t["panel"], foreground=t["subtext"], font=("Segoe UI", 8))
 
         style.configure("TNotebook", background=t["bg"], borderwidth=0)
         style.configure("TNotebook.Tab", background=t["panel"], foreground=t["subtext"], padding=(18, 10), font=("Segoe UI", 9, "bold"))

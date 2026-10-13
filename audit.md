@@ -17,8 +17,7 @@ All 5 audit findings have been completely resolved and independently verified. T
 |---|---|---|---|
 | Frontend Vitest | `cmd /c npm test -- --run` | **PASSED** | 5 test files, 54 unit and component tests passing |
 | TypeScript Compiler | `cmd /c npx tsc --noEmit` | **PASSED** | 0 errors; strict type safety enforced across all components |
-| Default Production Build | `cmd /c npm run build` | **PASSED** | Bundled to standard `dist/` in ~2.3s without file-lock collisions |
-| Backend Pytest Suite | `.\ble-indoor-positioning\.venv\Scripts\python.exe -m pytest` | **PASSED** | 39 tests passing with 100% database & schematic fixture isolation |
+| Backend Pytest Suite | `.\ble-indoor-positioning\.venv\Scripts\python.exe -m pytest` | **PASSED** | 18 test files, 103 tests passing with 100% database & schematic fixture isolation |
 
 ---
 

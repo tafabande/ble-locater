@@ -88,8 +88,7 @@ Each packet received by an ESP32 anchor adheres to the strict payload specificat
 ### Physical Dataset Provenance
 An evidence audit of `ble-indoor-positioning/datasets/` confirms:
 - **54 Raw Recording CSVs** in `datasets/raw/` containing **34,304 raw packets** captured directly from ESP32 hardware receivers and BLE beacon tags.
-- **`observations.csv`**: Contains **33,741 windowed observations** across **52 distinct physical recording sessions**, with explicit ground-truth distance labels (`distance_m`), physical heights (`height_m`), obstacle tags (`obstacle: Yes/No`), and motion tags (`stationary`, `approaching`, `moving_away`).
-- **`synthetic_observations.csv` (3.46M lines)**: Generated via `simulate_demo.py` and the Unity simulator for load and stress testing; kept **strictly separate** from empirical model training.
+- **Synthetic Simulation (Decommissioned)**: Legacy synthetic simulation datasets and simulators have been permanently retired; the entire system operates exclusively on 100% physical ESP32 empirical observations.
 
 ### Empirical Range Breakdown & Error Distribution (Active Model Artifact)
 Evaluated on unseen physical test data from `observations.csv` across measured distances:

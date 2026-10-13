@@ -1,0 +1,67 @@
+{
+  "model_type": "MultiOutputRegressor(ExtraTreesRegressor)",
+  "prediction_target": "direct_xy_coordinates",
+  "feature_cols": [
+    "ANCHOR_01_rssi",
+    "ANCHOR_02_rssi",
+    "ANCHOR_03_rssi",
+    "ANCHOR_04_rssi",
+    "ANCHOR_01_age_s",
+    "ANCHOR_02_age_s",
+    "ANCHOR_03_age_s",
+    "ANCHOR_04_age_s",
+    "ANCHOR_01_present",
+    "ANCHOR_02_present",
+    "ANCHOR_03_present",
+    "ANCHOR_04_present",
+    "rssi_diff_x_south",
+    "rssi_diff_x_north",
+    "rssi_diff_y_west",
+    "rssi_diff_y_east",
+    "rssi_diag_diff_1",
+    "rssi_diag_diff_2",
+    "rssi_mean_all",
+    "rssi_std_all",
+    "n_anchors_active"
+  ],
+  "target_cols": [
+    "target_x",
+    "target_y"
+  ],
+  "n_estimators": 250,
+  "max_depth": 12,
+  "training_windows": 1961,
+  "training_sessions": 33,
+  "cross_validated_metrics": {
+    "mean_2d_error_m": 0.8853,
+    "median_2d_error_m": 0.4059,
+    "rmse_2d_error_m": 1.369,
+    "acc_sub_50cm_pct": 54.26,
+    "acc_sub_1m_pct": 69.96,
+    "acc_sub_1_5m_pct": 76.08,
+    "validation_strategy": "5-Fold GroupKFold on session_id (Zero Session Leakage)",
+    "statistical_significance": "p = 0.0019 vs Trilateration (paired t-test)"
+  },
+  "anchor_coordinates": {
+    "ANCHOR_01": [
+      0.0,
+      0.0
+    ],
+    "ANCHOR_02": [
+      5.0,
+      0.0
+    ],
+    "ANCHOR_03": [
+      0.0,
+      5.0
+    ],
+    "ANCHOR_04": [
+      5.0,
+      5.0
+    ]
+  },
+  "in_sample_metrics": {
+    "mean_2d_m": 0.1041,
+    "median_2d_m": 0.0244
+  }
+}

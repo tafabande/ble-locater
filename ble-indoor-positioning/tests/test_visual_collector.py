@@ -10,7 +10,6 @@ Tests:
 - SessionManager environment layout metadata persistence and reconstruction.
 - RecordingEngine dynamic observation labelling using environment layout geometry.
 """
-import json
 import math
 import queue
 import tempfile
@@ -22,9 +21,6 @@ from collector.geometry import (
     PhysicalCoordinateSystem,
     compute_path_obstruction,
     euclidean_distance,
-    get_oriented_box_corners,
-    point_in_polygon,
-    rotate_point,
     segment_intersects_circle,
     segment_intersects_oriented_box,
     segment_intersects_segment,
@@ -37,7 +33,7 @@ from collector.environment import (
     EnvironmentLayout,
     TargetNode,
 )
-from collector.session_manager import SessionManager, SessionConfig
+from collector.session_manager import SessionManager
 from collector.recording import RecordingEngine
 
 

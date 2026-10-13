@@ -1,6 +1,4 @@
 """Unit tests for ESP32 Node Registry, Hardware MAC binding, and configuration persistence."""
-import json
-import os
 import tempfile
 from pathlib import Path
 import pytest
@@ -8,11 +6,9 @@ import pytest
 from collector.node_registry import (
     normalize_mac,
     load_node_registry,
-    save_node_registry,
     bind_mac_to_node,
     get_node_by_mac,
     get_node_by_anchor_id,
-    sync_anchors_metadata,
 )
 
 

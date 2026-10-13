@@ -11,13 +11,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sqlite3
-import uuid
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # Ensure project root in sys.path
 BASE_DIR = Path(__file__).resolve().parent
@@ -34,19 +32,23 @@ def get_db_connection(db_path: Optional[Path | str] = None) -> sqlite3.Connectio
     """Open a thread-safe connection to the SQLite model registry."""
     path = Path(db_path) if db_path else DEFAULT_DB_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(str(path), timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA cache_size=-64000")
+    conn.execute("PRAGMA temp_store=MEMORY")
     return conn
 
 
 def init_db(db_path: Optional[Path | str] = None) -> None:
     """Initialize schema tables for model tracking and logging."""
     conn = get_db_connection(db_path)
-    with conn:
-        conn.executescript("""
+    try:
+        with conn:
+            conn.executescript("""
         CREATE TABLE IF NOT EXISTS training_sessions (
             session_id TEXT PRIMARY KEY,
             timestamp TEXT NOT NULL,
@@ -129,7 +131,8 @@ def init_db(db_path: Optional[Path | str] = None) -> None:
         CREATE INDEX IF NOT EXISTS idx_features_session ON feature_importances(session_id, rank);
         CREATE INDEX IF NOT EXISTS idx_spatial_session ON spatial_decay_telemetry(session_id, distance_m);
         """)
-    conn.close()
+    finally:
+        conn.close()
 
 
 def log_training_session(metadata: Dict[str, Any], db_path: Optional[Path | str] = None) -> str:
@@ -169,7 +172,7 @@ def log_training_session(metadata: Dict[str, Any], db_path: Optional[Path | str]
     test_samples = int(metadata.get("test_samples", 3049))
     total_windows = int(config.get("n_windows_after_filter", train_samples + test_samples))
 
-    with conn:
+    try:
         # 1. Upsert Training Session
         conn.execute("""
             INSERT INTO training_sessions (
@@ -286,8 +289,12 @@ def log_training_session(metadata: Dict[str, Any], db_path: Optional[Path | str]
             json.dumps(feature_cols),
             datetime.now().isoformat()
         ))
-
-    conn.close()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     return session_id
 
 
@@ -295,56 +302,87 @@ def get_latest_session(db_path: Optional[Path | str] = None) -> Optional[Dict[st
     """Retrieve the most recent logged training session with schematics."""
     init_db(db_path)
     conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM training_sessions ORDER BY timestamp DESC LIMIT 1")
-    row = cursor.fetchone()
-    if not row:
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM training_sessions ORDER BY timestamp DESC LIMIT 1")
+        row = cursor.fetchone()
+        if not row:
+            return None
+        session_data = dict(row)
+
+        # Fetch tournament models
+        cursor.execute("SELECT * FROM tournament_models WHERE session_id = ? ORDER BY rank ASC", (session_data["session_id"],))
+        session_data["tournament"] = [dict(r) for r in cursor.fetchall()]
+
+        # Fetch feature importances
+        cursor.execute("SELECT * FROM feature_importances WHERE session_id = ? ORDER BY rank ASC", (session_data["session_id"],))
+        session_data["feature_importances"] = [dict(r) for r in cursor.fetchall()]
+
+        # Fetch spatial decay
+        cursor.execute("SELECT * FROM spatial_decay_telemetry WHERE session_id = ? ORDER BY distance_m ASC", (session_data["session_id"],))
+        session_data["spatial_decay"] = [dict(r) for r in cursor.fetchall()]
+
+        return session_data
+    finally:
         conn.close()
-        return None
-    session_data = dict(row)
-
-    # Fetch tournament models
-    cursor.execute("SELECT * FROM tournament_models WHERE session_id = ? ORDER BY rank ASC", (session_data["session_id"],))
-    session_data["tournament"] = [dict(r) for r in cursor.fetchall()]
-
-    # Fetch feature importances
-    cursor.execute("SELECT * FROM feature_importances WHERE session_id = ? ORDER BY rank ASC", (session_data["session_id"],))
-    session_data["feature_importances"] = [dict(r) for r in cursor.fetchall()]
-
-    # Fetch spatial decay
-    cursor.execute("SELECT * FROM spatial_decay_telemetry WHERE session_id = ? ORDER BY distance_m ASC", (session_data["session_id"],))
-    session_data["spatial_decay"] = [dict(r) for r in cursor.fetchall()]
-
-    conn.close()
-    return session_data
 
 
 def get_db_stats(db_path: Optional[Path | str] = None) -> Dict[str, Any]:
     """Retrieve database summary statistics for operational telemetry."""
     init_db(db_path)
     conn = get_db_connection(db_path)
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) FROM training_sessions")
-    n_sessions = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM training_sessions")
+        n_sessions = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM tournament_models")
-    n_models = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM tournament_models")
+        n_models = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM feature_importances")
-    n_features = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM feature_importances")
+        n_features = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM spatial_decay_telemetry")
-    n_points = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM spatial_decay_telemetry")
+        n_points = cursor.fetchone()[0]
 
-    conn.close()
-    return {
-        "db_path": str(Path(db_path) if db_path else DEFAULT_DB_PATH),
-        "total_sessions": n_sessions,
-        "total_tournament_entries": n_models,
-        "total_feature_attributions": n_features,
-        "total_spatial_telemetry_points": n_points,
-    }
+        return {
+            "db_path": str(Path(db_path) if db_path else DEFAULT_DB_PATH),
+            "total_sessions": n_sessions,
+            "total_tournament_entries": n_models,
+            "total_feature_attributions": n_features,
+            "total_spatial_telemetry_points": n_points,
+        }
+    finally:
+        conn.close()
+
+
+def check_model_db_integrity(db_path: Optional[Path | str] = None) -> Dict[str, Any]:
+    """Execute quick_check and report SQLite ACID PRAGMAs for model registry."""
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA quick_check")
+        qc = cursor.fetchone()[0]
+        cursor.execute("PRAGMA journal_mode")
+        jm = cursor.fetchone()[0]
+        cursor.execute("PRAGMA foreign_keys")
+        fk = bool(cursor.fetchone()[0])
+        cursor.execute("PRAGMA synchronous")
+        sync_code = cursor.fetchone()[0]
+        sync_map = {0: "OFF", 1: "NORMAL", 2: "FULL", 3: "EXTRA"}
+        return {
+            "status": "healthy" if qc == "ok" else "degraded",
+            "quick_check": qc,
+            "journal_mode": str(jm).upper(),
+            "foreign_keys": fk,
+            "synchronous": sync_map.get(sync_code, str(sync_code)),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+    finally:
+        conn.close()
 
 
 def migrate_metadata_json_if_needed(json_path: Path | str, db_path: Optional[Path | str] = None) -> Optional[str]:

@@ -9,7 +9,6 @@ import json
 import os
 import queue
 import re
-import socket
 import subprocess
 import sys
 import threading
@@ -26,6 +25,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.ble import list_serial_ports
+from core.theme import ZINC_THEME, apply_base_ttk_styles
 from core.config import (
     get_active_lan_interfaces,
     get_experiment_receiver_ip,
@@ -33,14 +33,11 @@ from core.config import (
 )
 from collector.node_registry import (
     load_node_registry,
-    save_node_registry,
     bind_mac_to_node,
     get_node_by_mac,
     normalize_mac,
-    is_node_locked,
     lock_node,
     unlock_node,
-    set_node_lock,
 )
 
 try:
@@ -204,22 +201,7 @@ def get_esptool_cmd() -> Optional[List[str]]:
 class SetupApp:
     """Dedicated minimalist desktop GUI for ESP32 wireless setup, flashing & debugging."""
 
-    # Modern Minimalist Neutral Zinc Palette (Strictly NO purple/blue gradients)
-    THEME = {
-        "bg": "#121214",          # Deep Neutral Dark
-        "panel": "#18181B",       # Zinc 900
-        "card": "#27272A",        # Zinc 800
-        "card_hover": "#323238",
-        "border": "#3F3F46",      # Zinc 700
-        "text": "#FAFAFA",        # Zinc 50
-        "subtext": "#A1A1AA",     # Zinc 400
-        "accent": "#10B981",      # Emerald 500 (Clean, professional green)
-        "accent_hover": "#059669",
-        "danger": "#EF4444",      # Rose 500
-        "warning": "#F59E0B",     # Amber 500
-        "terminal_bg": "#09090B", # Jet Black
-        "terminal_text": "#E4E4E7",
-    }
+    THEME = ZINC_THEME.copy()
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -274,15 +256,8 @@ class SetupApp:
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self.root)
-        style.theme_use("clam")
+        apply_base_ttk_styles(style, self.THEME)
         t = self.THEME
-
-        style.configure("TFrame", background=t["bg"])
-        style.configure("Panel.TFrame", background=t["panel"])
-        style.configure("Card.TFrame", background=t["card"])
-        style.configure("TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 9))
-        style.configure("Header.TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 11, "bold"))
-        style.configure("Muted.TLabel", background=t["panel"], foreground=t["subtext"], font=("Segoe UI", 8))
 
         style.configure("TCombobox", fieldbackground=t["card"], background=t["card"], foreground=t["text"], padding=4)
         style.configure("TEntry", fieldbackground=t["card"], foreground=t["text"], padding=4)
@@ -1663,7 +1638,8 @@ class SetupApp:
                 else:
                     time.sleep(0.02)
         except Exception as e:
-            self.root.after(0, lambda: self._log_debug(f"[MONITOR ERROR] {e}"))
+            err_msg = str(e)
+            self.root.after(0, lambda m=err_msg: self._log_debug(f"[MONITOR ERROR] {m}"))
         finally:
             if self.ser_handle and self.ser_handle.is_open:
                 self.ser_handle.close()

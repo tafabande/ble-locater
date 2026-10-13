@@ -1,9 +1,7 @@
 """Unit and integration tests for architectural decoupling, modular components, and error resilience."""
-import os
 import sys
 import tempfile
 from pathlib import Path
-import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WORKSPACE_ROOT = PROJECT_ROOT.parent
@@ -12,8 +10,8 @@ for p in (str(PROJECT_ROOT), str(WORKSPACE_ROOT)):
         sys.path.insert(0, p)
 
 # 1. Collector Modular Components
-from collector.session_manager import SessionManager, SessionConfig
-from collector.validation import DataQualityValidator, QualityVerdict
+from collector.session_manager import SessionManager
+from collector.validation import DataQualityValidator
 
 def test_collector_session_manager():
     with tempfile.TemporaryDirectory() as tmpdir:

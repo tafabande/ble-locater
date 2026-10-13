@@ -1,9 +1,5 @@
-import argparse
-import json
 import math
-import random
 import sys
-import time
 
 def calculate_stats(packets: list[dict], anchor_id: str, mac: str, window_start_time_ms: int) -> dict:
     count = len(packets)

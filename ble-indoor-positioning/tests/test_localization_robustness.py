@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from localization.trilateration import TrilaterationEngine, KalmanFilter2D
-from feature_engineering.engineer import compute_window_features, _safe_float
+from feature_engineering.engineer import compute_window_features
 from server.app import predict_distance_for_anchor
 
 @pytest.fixture

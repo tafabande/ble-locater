@@ -1,0 +1,47 @@
+{
+  "evaluation_dimension": [
+    "Sample Scope",
+    "Model Artifact Evaluated",
+    "Data Split Strategy",
+    "Scaler & Preprocessing Fit",
+    "Evaluation Nature",
+    "Mean 2D Error",
+    "Median 2D Error",
+    "75th Percentile Error",
+    "90th Percentile Error",
+    "95th Percentile Error",
+    "Sub-50cm Accuracy",
+    "Sub-1.0m Accuracy",
+    "Sub-1.5m Accuracy"
+  ],
+  "in_sample_training_replay": [
+    "1,961 windows / 33 sessions",
+    "coordinate_regressor.joblib (100% full dataset)",
+    "No split (100% training data replayed)",
+    "RobustScaler fitted globally on all 1,961 windows",
+    "Descriptive Replay / In-Sample Fit",
+    "0.1041 m",
+    "0.0244 m",
+    "0.1164 m",
+    "0.3272 m",
+    "0.4777 m",
+    "95.21%",
+    "99.34%",
+    "99.69%"
+  ],
+  "out_of_fold_session_cv": [
+    "1,961 windows / 33 sessions",
+    "5-Fold Cross-Validation Models (ExtraTrees)",
+    "GroupKFold(n_splits=5) on session_id",
+    "RobustScaler fitted strictly inside training folds",
+    "Independent Generalization Benchmark",
+    "0.8853 m",
+    "0.4059 m",
+    "1.4552 m",
+    "2.6690 m",
+    "3.2547 m",
+    "54.26%",
+    "69.96%",
+    "76.08%"
+  ]
+}

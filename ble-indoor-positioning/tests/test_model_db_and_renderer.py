@@ -2,14 +2,12 @@
 import re
 import tempfile
 from pathlib import Path
-import pytest
 
 from training.model_db import (
     init_db,
     log_training_session,
     get_latest_session,
-    get_db_stats,
-    get_db_connection
+    get_db_stats
 )
 from training.report_renderer import render_academic_html_report
 
@@ -63,7 +61,21 @@ def test_sqlite_model_db_logging():
 def test_academic_html_report_rendering_no_emojis():
     with tempfile.TemporaryDirectory() as tmp_dir:
         report_dir = Path(tmp_dir)
-        report_path = render_academic_html_report(reports_dir=report_dir)
+        mock_meta = {
+            "champion_model": "XGBoost (Deep Tuned)",
+            "metrics": {
+                "test_mae": 0.4063,
+                "test_rmse": 0.8590,
+                "test_r2": 0.7810,
+                "test_median_ae": 0.1049,
+                "tolerances": {"within_50cm": 77.21, "within_100cm": 88.62, "within_150cm": 92.78}
+            },
+            "effective_config": {"n_windows_after_filter": 33741},
+            "train_samples": 26992,
+            "test_samples": 6749,
+            "feature_cols": ["rssi_mean", "rssi_std"]
+        }
+        report_path = render_academic_html_report(metadata=mock_meta, reports_dir=report_dir)
         assert report_path.exists()
 
         content = report_path.read_text(encoding="utf-8")

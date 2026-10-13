@@ -24,12 +24,11 @@ PROJECT_ROOT = BASE_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.config import RAW_DATA_DIR, load_anchor_config
-from core.ble import list_serial_ports, calculate_log_distance
-from collector.geometry import snap_to_grid, euclidean_distance
+from core.config import RAW_DATA_DIR
+from core.ble import list_serial_ports
+from core.theme import ZINC_THEME, DEFAULT_ANCHOR_COLORS, apply_base_ttk_styles
 from collector.environment import (
     EnvironmentLayout,
-    ExperimentArea,
     AnchorNode,
     TargetNode,
     BarrierObject,
@@ -37,7 +36,7 @@ from collector.environment import (
     BARRIER_SHAPES,
 )
 from collector.canvas_editor import CanvasEditor
-from collector.session_manager import SessionManager, SessionConfig, TARGET_DISTANCES
+from collector.session_manager import SessionManager, SessionConfig
 from collector.recording import RecordingEngine
 from collector.validation import QualityVerdict
 
@@ -45,31 +44,8 @@ from collector.validation import QualityVerdict
 class DataCollectorApp:
     """Dedicated desktop GUI for BLE experimental layout building and dataset acquisition."""
 
-    THEME = {
-        "bg": "#121214",          # Deep Neutral Dark
-        "panel": "#18181B",       # Zinc 900
-        "card": "#27272A",        # Zinc 800
-        "card_hover": "#323238",
-        "border": "#3F3F46",      # Zinc 700
-        "text": "#FAFAFA",        # Zinc 50
-        "subtext": "#A1A1AA",     # Zinc 400
-        "accent": "#10B981",      # Emerald 500
-        "accent_hover": "#059669",
-        "green": "#10B981",       # Emerald 500
-        "green_dark": "#064E3B",
-        "red": "#EF4444",         # Rose 500
-        "red_dark": "#7F1D1D",
-        "amber": "#F59E0B",       # Amber 500
-        "amber_dark": "#78350F",
-        "terminal_bg": "#09090B",
-    }
-
-    ANCHOR_COLORS = {
-        "ANCHOR_01": "#10B981",  # Node A (SW) - Emerald
-        "ANCHOR_02": "#F59E0B",  # Node B (SE) - Amber
-        "ANCHOR_03": "#F43F5E",  # Node C (NW) - Rose
-        "ANCHOR_04": "#14B8A6",  # Node D (NE) - Teal
-    }
+    THEME = ZINC_THEME.copy()
+    ANCHOR_COLORS = DEFAULT_ANCHOR_COLORS.copy()
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -173,15 +149,8 @@ class DataCollectorApp:
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self.root)
-        style.theme_use("clam")
+        apply_base_ttk_styles(style, self.THEME)
         t = self.THEME
-
-        style.configure("TFrame", background=t["bg"])
-        style.configure("Panel.TFrame", background=t["panel"])
-        style.configure("Card.TFrame", background=t["card"])
-        style.configure("TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 9))
-        style.configure("Header.TLabel", background=t["panel"], foreground=t["text"], font=("Segoe UI", 11, "bold"))
-        style.configure("Muted.TLabel", background=t["panel"], foreground=t["subtext"], font=("Segoe UI", 8))
 
         style.configure("TCombobox", fieldbackground=t["card"], background=t["card"], foreground=t["text"], padding=3)
         style.configure("TEntry", fieldbackground=t["card"], foreground=t["text"], padding=3)

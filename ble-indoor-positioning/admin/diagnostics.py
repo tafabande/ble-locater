@@ -6,17 +6,16 @@ and maintains diagnostic event logging.
 from __future__ import annotations
 
 import sqlite3
-import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
 import sys
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.config import MODELS_DIR, DATASETS_DIR, RAW_DATA_DIR, BACKEND_URL
+from core.config import MODELS_DIR, DATASETS_DIR, BACKEND_URL
 from core.inference import load_distance_model, load_zone_model
 
 
@@ -105,31 +104,55 @@ class DiagnosticEngine:
                 details="observations.csv not found. Collect data with Sensor Collector.",
             ))
 
-        # 5. Position Database
-        db_path = MODELS_DIR / "position_history.db"
-        if db_path.exists():
-            try:
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-                tables = [r[0] for r in cursor.fetchall()]
-                conn.close()
+        # 5. Enterprise ACID Database Suite
+        databases = [
+            ("Position History DB", MODELS_DIR / "position_history.db"),
+            ("Asset Registry DB", MODELS_DIR / "asset_registry.db"),
+            ("Alerts Audit DB", MODELS_DIR / "alerts.db"),
+            ("Model Registry DB", MODELS_DIR / "model_registry.db"),
+        ]
+        for comp_name, db_path in databases:
+            if db_path.exists():
+                conn = None
+                try:
+                    conn = sqlite3.connect(str(db_path), timeout=5.0)
+                    cursor = conn.cursor()
+                    cursor.execute("PRAGMA quick_check;")
+                    chk = cursor.fetchone()[0]
+                    cursor.execute("PRAGMA journal_mode;")
+                    jm = str(cursor.fetchone()[0]).upper()
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                    tables = [r[0] for r in cursor.fetchall() if not r[0].startswith("sqlite_")]
+
+                    if chk == "ok":
+                        results.append(DiagnosticCheckResult(
+                            component=comp_name,
+                            status="PASS",
+                            details=f"ACID Nominal (Mode: {jm}, Integrity: OK). Tables: {', '.join(tables) or 'none'}",
+                        ))
+                    else:
+                        results.append(DiagnosticCheckResult(
+                            component=comp_name,
+                            status="FAIL",
+                            details=f"ACID Degraded (quick_check: {chk})",
+                        ))
+                except Exception as e:
+                    results.append(DiagnosticCheckResult(
+                        component=comp_name,
+                        status="FAIL",
+                        details=f"Database error: {e}",
+                    ))
+                finally:
+                    if conn:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+            else:
                 results.append(DiagnosticCheckResult(
-                    component="Position SQLite DB",
+                    component=comp_name,
                     status="PASS",
-                    details=f"Database nominal. Tables: {', '.join(tables) or 'ready'}",
+                    details="Database will initialize automatically on first startup.",
                 ))
-            except Exception as e:
-                results.append(DiagnosticCheckResult(
-                    component="Position SQLite DB",
-                    status="FAIL",
-                    details=f"Database corrupted: {e}",
-                ))
-        else:
-            results.append(DiagnosticCheckResult(
-                component="Position SQLite DB",
-                status="PASS",
-                details="Database will initialize automatically on first tracking packet.",
-            ))
 
         return results

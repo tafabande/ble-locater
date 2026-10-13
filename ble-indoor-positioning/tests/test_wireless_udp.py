@@ -5,7 +5,6 @@ import socket
 import tempfile
 import time
 from pathlib import Path
-import pytest
 
 from collector.recording import RecordingEngine
 from collector.session_manager import SessionConfig

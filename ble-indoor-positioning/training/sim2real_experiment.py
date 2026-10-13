@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import datetime
 if sys.platform == 'win32':
     try:
@@ -12,12 +11,9 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import joblib
-from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
-from sklearn.neighbors import KNeighborsRegressor
+from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import StratifiedGroupKFold
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REAL_DATA_PATH = os.path.join(PROJECT_ROOT, 'datasets', 'observations.csv')
 SYNTHETIC_DATA_PATH = os.path.join(PROJECT_ROOT, 'datasets', 'synthetic_observations.csv')

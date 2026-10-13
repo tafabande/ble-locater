@@ -54,6 +54,7 @@ def main():
     parser.add_argument('--outlier-method', type=str, choices=['isolation_forest', 'iqr', 'zscore', 'mad', 'none'], default=None, help='Outlier detection method')
     parser.add_argument('--missing-data', type=str, choices=['drop', 'interpolate', 'fill'], default=None, help='Missing data handling strategy')
     parser.add_argument('--feature-source', type=str, choices=['raw', 'existing'], default=None, help='Data source: raw observations (re-engineer) or existing engineered features')
+    parser.add_argument('--preset', type=str, choices=['best_fit', 'full', 'fast_baseline', 'strict_nlos', 'custom'], default='best_fit', help='Dissertation tournament preset')
 
     args = parser.parse_args()
 
@@ -78,20 +79,14 @@ def main():
     dataset_path = os.path.join(PROJECT_ROOT, 'datasets', 'observations.csv')
     model_dir = os.path.join(PROJECT_ROOT, 'models')
     reports_dir = os.path.join(PROJECT_ROOT, 'reports')
-    progress('Scanning & Engineering Features from Raw CSVs...', 5)
+    progress('Scanning & Ingesting RF Observations Dataset...', 5)
     print('=' * 70)
-    print('  STEP 1: FEATURE ENGINEERING (60 Features)')
+    print('  STEP 1: FEATURE ENGINEERING & INGESTION (66 Features)')
     print('=' * 70)
-    if args.feature_source == 'existing':
-        # ── New: Load existing engineered features directly ──────────────────
-        print(f'  [FEATURE SOURCE] Loading existing engineered dataset: {dataset_path}')
-        if not os.path.exists(dataset_path):
-            raise FileNotFoundError(f'Existing engineered dataset not found: {dataset_path}')
+    should_use_existing = (args.feature_source == 'existing') or (args.feature_source != 'raw' and os.path.exists(dataset_path) and os.path.getsize(dataset_path) > 1000)
+    if should_use_existing:
+        print(f'  [FEATURE SOURCE] Rapid loading verified engineered observations: {dataset_path}')
         df = load_dataset(dataset_path)
-        # ── New: Validate schema compatibility before training ───────────────
-        print('\n' + '=' * 70)
-        print('  [SCHEMA VALIDATION] Existing engineered dataset compatibility check')
-        print('=' * 70)
         validate_existing_dataset(
             df,
             dataset_path,
@@ -119,17 +114,17 @@ def main():
             )
         except Exception as e:
             if os.path.exists(dataset_path):
-                print(f"  [INFO] Raw dataset scan notice ({e}). Auto-loading real observation dataset: {dataset_path}")
+                print(f"  [INFO] Raw scan notice ({e}). Auto-loading real observation dataset: {dataset_path}")
                 df = load_dataset(dataset_path)
             else:
                 raise e
-    progress('Dataset Engineered. Loading Observations...', 35)
+    progress('Dataset Ready. Initializing Dissertation Tournament...', 35)
     print('\n' + '=' * 70)
-    print('  STEP 2: MODEL TRAINING')
+    print(f'  STEP 2: MODEL TRAINING (PRESET: {args.preset.upper()})')
     print('=' * 70)
 
-    # ── New: Apply data-selection filters once so both regression & zone
-    #         classifier consume the same filtered dataset ─────────────────────
+    # ── Apply data-selection filters once so both regression & zone
+    #    classifier consume the same filtered dataset
     df = filter_dataset(
         df,
         anchors=anchors,
@@ -147,7 +142,7 @@ def main():
     if args.mode in ('regression', 'both'):
         progress('Running Super Learner Regression Tournament...', 45)
         print('\n' + '-' * 70)
-        print('  STEP 2a: REGRESSION TOURNAMENT')
+        print(f'  STEP 2a: REGRESSION TOURNAMENT ({args.preset.upper()})')
         print('-' * 70)
         result = train_model(
             df,
@@ -167,13 +162,14 @@ def main():
             outlier_method=args.outlier_method,
             missing_data_handling=args.missing_data,
             feature_source=args.feature_source,
+            preset=args.preset,
         )
     if args.mode in ('classification', 'both'):
         progress('Running Zone Classification Tournament...', 85)
         print('\n' + '-' * 70)
         print('  STEP 2b: ZONE CLASSIFICATION TOURNAMENT')
         print('-' * 70)
-        zone_result = train_zone_classifier(df, progress_callback=progress)
+        zone_result = train_zone_classifier(df, eval_mode=args.eval_mode, progress_callback=progress)
     progress('Saving Champion Artifacts & Diagnostic Plots...', 90)
     print('\n' + '=' * 70)
     print('  STEP 3: SAVING MODEL & GENERATING REPORTS')

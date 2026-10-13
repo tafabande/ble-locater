@@ -1,11 +1,10 @@
 import os
 import time
-import sqlite3
 import logging
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict
 from dataclasses import dataclass
 from sqlmodel import SQLModel, Session, select, col
-from server.db import create_db_engine, Asset
+from server.db import create_db_engine, Asset, transaction_scope
 
 logger = logging.getLogger('ASSET_REGISTRY')
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -46,7 +45,7 @@ def get_adjacent_rooms(room_name: str) -> List[dict]:
 
 class AssetRegistry:
 
-    def __init__(self, db_path: str=None):
+    def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
             db_path = os.environ.get("BLE_ASSET_DB_PATH", os.path.join(PROJECT_ROOT, 'models', 'asset_registry.db'))
         self.db_path = db_path
@@ -60,11 +59,11 @@ class AssetRegistry:
             with Session(self.engine) as session:
                 count = len(session.exec(select(Asset)).all())
                 if count == 0:
-                    self._seed_demo_data(session)
+                    self._seed_demo_data()
         except Exception as e:
             logger.error(f'Failed to initialize asset registry: {e}')
 
-    def _seed_demo_data(self, session: Session):
+    def _seed_demo_data(self):
         now = int(time.time() * 1000)
         demo_assets = [
             ('EQUIP-001', 'Laser Scanner #01', 'facility_equipment', 'Executive Suite', 1, 'Room A (Executive Suite 1)', 'EC:G1:00:00:00:01', 'active', 'Portable 3D Scanner'),
@@ -81,10 +80,10 @@ class AssetRegistry:
             ('PAT-002', 'Personnel Tag — Desk 2B', 'personnel', 'Meeting Room', 1, 'Room B (Meeting Room 2)', 'PA:TN:00:00:00:12', 'active', 'General occupant tag')
         ]
         try:
-            for a in demo_assets:
-                asset_obj = Asset(id=a[0], name=a[1], type=a[2], department=a[3], floor=a[4], room=a[5], ble_mac=a[6], status=a[7], notes=a[8], created_at=now)
-                session.add(asset_obj)
-            session.commit()
+            with transaction_scope(self.engine) as session:
+                for a in demo_assets:
+                    asset_obj = Asset(id=a[0], name=a[1], type=a[2], department=a[3], floor=a[4], room=a[5], ble_mac=a[6], status=a[7], notes=a[8], created_at=now)
+                    session.add(asset_obj)
             logger.info(f'🏷️ Seeded {len(demo_assets)} demo assets into registry.')
         except Exception as e:
             logger.error(f'Failed to seed demo assets: {e}')
@@ -119,47 +118,64 @@ class AssetRegistry:
             return None
 
     def create(self, asset_data: dict) -> dict:
-        try:
-            with Session(self.engine) as session:
-                if 'created_at' not in asset_data or not asset_data['created_at']:
-                    asset_data['created_at'] = int(time.time() * 1000)
-                asset = Asset(**asset_data)
-                session.add(asset)
-                session.commit()
-                session.refresh(asset)
-                return asset.model_dump()
-        except Exception as e:
-            logger.error(f'Failed to create asset: {e}')
-            raise
-
-    def update(self, asset_id: str, updates: dict) -> Optional[dict]:
-        try:
-            with Session(self.engine) as session:
-                asset = session.get(Asset, asset_id)
-                if asset:
-                    for k, v in updates.items():
-                        if hasattr(asset, k) and k != 'id':
-                            setattr(asset, k, v)
-                    session.commit()
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with transaction_scope(self.engine) as session:
+                    if 'created_at' not in asset_data or not asset_data['created_at']:
+                        asset_data['created_at'] = int(time.time() * 1000)
+                    asset = Asset(**asset_data)
+                    session.add(asset)
+                    session.flush()
                     session.refresh(asset)
                     return asset.model_dump()
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                logger.error(f'Failed to create asset: {e}')
+                raise
+        raise RuntimeError("Failed to create asset after retry attempts.")
+
+    def update(self, asset_id: str, updates: dict) -> Optional[dict]:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with transaction_scope(self.engine) as session:
+                    asset = session.get(Asset, asset_id)
+                    if asset:
+                        for k, v in updates.items():
+                            if hasattr(asset, k) and k != 'id':
+                                setattr(asset, k, v)
+                        session.flush()
+                        session.refresh(asset)
+                        return asset.model_dump()
+                    return None
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                logger.error(f'Failed to update asset {asset_id}: {e}')
                 return None
-        except Exception as e:
-            logger.error(f'Failed to update asset {asset_id}: {e}')
-            return None
+        return None
 
     def delete(self, asset_id: str) -> bool:
-        try:
-            with Session(self.engine) as session:
-                asset = session.get(Asset, asset_id)
-                if asset:
-                    session.delete(asset)
-                    session.commit()
-                    return True
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with transaction_scope(self.engine) as session:
+                    asset = session.get(Asset, asset_id)
+                    if asset:
+                        session.delete(asset)
+                        return True
+                    return False
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                logger.error(f'Failed to delete asset {asset_id}: {e}')
                 return False
-        except Exception as e:
-            logger.error(f'Failed to delete asset {asset_id}: {e}')
-            return False
+        return False
 
     def get_by_room(self, room_name: str) -> List[dict]:
         try:
@@ -200,7 +216,8 @@ class SearchEngine:
         if not isinstance(query, str) or not query.strip():
             return []
         if hasattr(user_room, 'default'):
-            user_room = user_room.default if isinstance(user_room.default, str) else None
+            default_val = getattr(user_room, 'default', None)
+            user_room = str(default_val) if isinstance(default_val, str) else None
         elif not isinstance(user_room, str):
             user_room = None
         if hasattr(limit, 'default'):
@@ -360,7 +377,7 @@ class SearchEngine:
             if room_key not in assets_by_room:
                 assets_by_room[room_key] = []
             assets_by_room[room_key].append(item)
-        rooms = [{'room_id': user_room_id, 'name': user_meta.get('full_name', user_room), 'short': user_meta.get('short', 'You'), 'distance': 0, 'is_user_room': True, 'icon': user_meta.get('icon', '📍'), 'color': user_meta.get('color', '#89b4fa'), 'x': user_meta.get('x', 5.0), 'y': user_meta.get('y', 5.0), 'assets': assets_by_room.get(user_meta.get('full_name', ''), [])}]
+        rooms = [{'room_id': user_room_id, 'name': user_meta.get('full_name', user_room), 'short': user_meta.get('short', 'You'), 'distance': 0, 'is_user_room': True, 'icon': user_meta.get('icon', '📍'), 'color': user_meta.get('color', '#89b4fa'), 'x': user_meta.get('x', 5.0), 'y': user_meta.get('y', 5.0), 'assets': assets_by_room.get(str(user_meta.get('full_name', '')), [])}]
         for n in neighbors:
             rooms.append({**n, 'is_user_room': False, 'assets': assets_by_room.get(n['name'], [])})
         return {'user_room': user_meta.get('full_name', user_room), 'user_room_id': user_room_id, 'rooms': rooms, 'total_nearby_assets': len(nearby_assets)}
