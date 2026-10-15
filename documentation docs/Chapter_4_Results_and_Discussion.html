@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chapter 4: Empirical Results and Technical Discussion</title>
+<style>
+    @page {
+        size: A4;
+        margin: 18mm 16mm 18mm 16mm;
+        @top-right {
+            content: "BLE Indoor Positioning • Dissertation";
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 8pt;
+            color: #64748B;
+        }
+        @bottom-center {
+            content: counter(page);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 8.5pt;
+            color: #475569;
+        }
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 9.5pt;
+        line-height: 1.55;
+        color: #1E293B;
+        background-color: #FFFFFF;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Document Header */
+    .doc-header {
+        border-bottom: 2.5px solid #0F172A;
+        padding-bottom: 12px;
+        margin-bottom: 24px;
+    }
+    .doc-meta {
+        font-size: 8pt;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+        color: #2563EB;
+        margin-bottom: 4px;
+    }
+    .chapter-title {
+        font-size: 19pt;
+        font-weight: 800;
+        color: #0F172A;
+        margin: 0 0 4px 0;
+        line-height: 1.2;
+    }
+    .doc-subtitle {
+        font-size: 10pt;
+        color: #475569;
+        font-style: italic;
+        margin: 0;
+    }
+
+    /* Section Headings */
+    h2.section-title {
+        font-size: 13pt;
+        font-weight: 750;
+        color: #0F172A;
+        border-bottom: 1px solid #CBD5E1;
+        padding-bottom: 4px;
+        margin-top: 24px;
+        margin-bottom: 10px;
+        page-break-after: avoid;
+    }
+    h3.subsection-title {
+        font-size: 11pt;
+        font-weight: 700;
+        color: #1E293B;
+        margin-top: 18px;
+        margin-bottom: 8px;
+        page-break-after: avoid;
+    }
+    h4.subsubsection-title {
+        font-size: 10pt;
+        font-weight: 650;
+        color: #334155;
+        margin-top: 14px;
+        margin-bottom: 6px;
+        page-break-after: avoid;
+    }
+
+    p {
+        margin-top: 0;
+        margin-bottom: 6.5px;
+        text-align: justify;
+    }
+
+    /* Lists */
+    ul.academic-list, ol.academic-list {
+        margin-top: 3px;
+        margin-bottom: 6px;
+        padding-left: 18px;
+    }
+    li {
+        margin-bottom: 2.5px;
+    }
+
+    /* Tables */
+    .table-container {
+        margin: 10px 0;
+        page-break-inside: auto;
+    }
+    table.academic-table tr {
+        page-break-inside: avoid;
+    }
+    .table-caption {
+        font-size: 9pt;
+        font-weight: 700;
+        color: #0F172A;
+        margin-bottom: 5px;
+        text-align: left;
+    }
+    table.academic-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8.5pt;
+        border-top: 2px solid #0F172A;
+        border-bottom: 2px solid #0F172A;
+    }
+    table.academic-table th {
+        border-bottom: 1.5px solid #0F172A;
+        padding: 5px 6px;
+        font-weight: 700;
+        background-color: #F8FAFC;
+        text-align: left;
+    }
+    table.academic-table td {
+        padding: 4px 6px;
+        border-bottom: 1px solid #E2E8F0;
+        vertical-align: top;
+    }
+    table.academic-table tr:last-child td {
+        border-bottom: none;
+    }
+    td.row-head {
+        font-weight: 600;
+        color: #0F172A;
+    }
+
+    /* MathML Display and Inline Math */
+    .math-block {
+        margin: 12px 0;
+        padding: 8px 12px;
+        background-color: #F8FAFC;
+        border-left: 3px solid #2563EB;
+        border-radius: 4px;
+        text-align: center;
+        overflow-x: auto;
+        page-break-inside: avoid;
+    }
+    math[display="block"] {
+        font-size: 1.15em;
+        margin: 0 auto;
+    }
+    math[display="inline"] {
+        font-size: 1.05em;
+    }
+    .math-inline {
+        padding: 0 1px;
+    }
+    code.math-fallback {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 9pt;
+        color: #0F172A;
+    }
+
+    /* Figures and Images */
+    .figure-container {
+        margin: 16px 0;
+        text-align: center;
+        page-break-inside: avoid;
+    }
+    img.academic-img {
+        max-width: 95%;
+        height: auto;
+        border: 1px solid #CBD5E1;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .figure-caption {
+        font-size: 8.5pt;
+        color: #475569;
+        margin-top: 6px;
+        text-align: justify;
+        padding: 0 16px;
+    }
+
+    /* Diagram Cards */
+    .diagram-card {
+        margin: 16px 0;
+        padding: 12px 16px;
+        background-color: #F8FAFC;
+        border: 1.5px solid #CBD5E1;
+        border-radius: 6px;
+        page-break-inside: avoid;
+    }
+    .diagram-title {
+        font-size: 9pt;
+        font-weight: 750;
+        color: #0F172A;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 1px solid #E2E8F0;
+        padding-bottom: 4px;
+    }
+    .flow-hierarchy {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .flow-tier {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 4px;
+        padding: 8px 12px;
+    }
+    .tier-badge {
+        font-size: 7.5pt;
+        font-weight: 800;
+        background-color: #0F172A;
+        color: #FFFFFF;
+        padding: 3px 6px;
+        border-radius: 3px;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+    }
+    .tier-content {
+        display: flex;
+        flex-direction: column;
+    }
+    .tier-content strong {
+        font-size: 9pt;
+        color: #0F172A;
+    }
+    .tier-content span {
+        font-size: 8pt;
+        color: #64748B;
+    }
+    .flow-arrow {
+        text-align: center;
+        font-size: 11pt;
+        color: #2563EB;
+        line-height: 1;
+    }
+    .flow-arrow span {
+        font-size: 7.5pt;
+        color: #64748B;
+        font-style: italic;
+        margin-left: 6px;
+    }
+
+    /* Cross-Validation Grid */
+    .cv-flow-grid {
+        display: flex;
+        gap: 12px;
+    }
+    .cv-col {
+        flex: 1;
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 4px;
+        padding: 8px 10px;
+    }
+    .cv-col h4 {
+        font-size: 8.5pt;
+        margin: 0 0 6px 0;
+        color: #0F172A;
+        border-bottom: 1px solid #F1F5F9;
+        padding-bottom: 3px;
+    }
+    .cv-box {
+        padding: 6px 8px;
+        border-radius: 3px;
+        font-size: 8pt;
+        margin-bottom: 4px;
+        text-align: center;
+        font-weight: 600;
+    }
+    .all-box { background-color: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; }
+    .train-box { background-color: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+    .test-box { background-color: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+    .cv-split-arrow { text-align: center; font-size: 7.5pt; color: #64748B; margin: 4px 0; }
+    .cv-sub { font-size: 7.5pt; color: #64748B; font-style: italic; text-align: center; margin-top: 4px; }
+    .cv-step {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        font-size: 8pt;
+        margin-bottom: 4px;
+        padding: 4px;
+        border-bottom: 1px dotted #E2E8F0;
+    }
+    .step-num {
+        font-weight: 700;
+        color: #2563EB;
+        white-space: nowrap;
+    }
+
+    /* Decision Pipeline */
+    .decision-pipeline {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+    .pipe-node {
+        width: 90%;
+        background-color: #FFFFFF;
+        border: 1px solid #CBD5E1;
+        border-radius: 4px;
+        padding: 6px 10px;
+        text-align: center;
+        font-size: 8.5pt;
+    }
+    .input-node { background-color: #F1F5F9; font-weight: 700; }
+    .pipe-decision {
+        background-color: #FEF3C7;
+        color: #92400E;
+        border: 1px solid #FDE68A;
+        border-radius: 4px;
+        padding: 4px 12px;
+        font-size: 8.5pt;
+        font-weight: 700;
+    }
+    .pipe-arrow { font-size: 9pt; color: #64748B; }
+    .pipe-branches {
+        display: flex;
+        width: 95%;
+        gap: 12px;
+    }
+    .branch {
+        flex: 1;
+        background-color: #FFFFFF;
+        border: 1px solid #CBD5E1;
+        border-radius: 4px;
+        padding: 6px 8px;
+        text-align: center;
+    }
+    .branch-tag { font-size: 7.5pt; font-weight: 800; color: #2563EB; text-transform: uppercase; margin-bottom: 2px; }
+    .branch-box strong { display: block; font-size: 8.5pt; color: #0F172A; }
+    .branch-box span { font-size: 7.5pt; color: #64748B; }
+
+    /* Section separation */
+    .page-break {
+        page-break-before: always;
+    }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+    <div class="doc-meta">M.Sc. Dissertation &bull; Technical Research Monograph</div>
+    <div class="chapter-title">Chapter 4: Empirical Results and Technical Discussion</div>
+    <div class="doc-subtitle">Quantitative Ranging Benchmarks, 33-Session Spatial Evaluation, Sim2Real Transfer & Kalman Kinematic Smoothing</div>
+</div>
+
+
+<h2 class="section-title">4.1 Overview and Experimental Objectives</h2>
+
+<p>This chapter presents the quantitative empirical results of the Bluetooth Low Energy (BLE) indoor positioning system developed and formalized in Chapter 3. The experimental evaluation is organized around three hierarchical layers of system performance:</p>
+
+<ol class='academic-list' start='1'>
+  <li value='1'><strong>Layer 1: 1D Ranging & Attenuation Estimation</strong> — Comparative benchmark of classical radio propagation physics models against 19 parametric and ensemble machine learning architectures trained on 66 spatial, statistical, and temporal features.</li>
+  <li value='2'><strong>Layer 2: 2D Spatial Coordinate Positioning</strong> — Evaluation of multilateration solvers versus direct non-linear coordinate regression, evaluated under both descriptive in-sample replay and strict zero-leakage session-grouped 5-fold cross-validation.</li>
+  <li value='3'><strong>Layer 3: Kinematic Trajectory Smoothing & Latency</strong> — Empirical assessment of Kalman filtering on high-frequency multipath jitter dampening, step response settling time, and runtime execution latency.</li>
+</ol>
+
+<p>All results reported in this chapter are derived from physical hardware acquisitions using ESP32-WROOM-32 anchors and calibrated BLE 5.0 beacons, verified through cryptographic model serialization hashes and automated regression test suites.</p>
+
+---
+
+<h2 class="section-title">4.2 Layer 1: RSSI-to-Distance Estimation Benchmarks</h2>
+
+<h3 class="subsection-title">4.2.1 Classical Path Loss vs. Machine Learning Models</h3>
+
+<p>Table 4.1 summarizes the ranging accuracy of the deterministic Log-Distance Path-Loss (LDPL) baseline alongside representative machine learning regressors evaluated on the independent held-out test partition (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mo>&#x0003D;</mo><mn>7</mn><mo>&#x0002C;</mo><mn>471</mn></mrow></math></span> observation windows).</p>
+
+<div class="math-block"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mtext>Table&#x000A0;4.1:&#x000A0;RSSI-to-Distance&#x000A0;Regression&#x000A0;Performance&#x000A0;on&#x000A0;Independent&#x000A0;Test&#x000A0;Partition&#x000A0;</mtext><mo stretchy="false">&#x00028;</mo><mi>N</mi><mo>&#x0003D;</mo><mn>7</mn><mo>&#x0002C;</mo><mn>471</mn><mo stretchy="false">&#x00029;</mo></mrow></math></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Model Family</th>
+    <th>Model Architecture</th>
+    <th>Test MAE (m)</th>
+    <th>Test RMSE (m)</th>
+    <th>Test <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>R</mi><mn>2</mn></msup></mrow></math></span></th>
+    <th>MedAE (m)</th>
+    <th>Acc <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02264;</mo><mn>0.50</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></th>
+    <th>Acc <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02264;</mo><mn>1.00</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></th>
+    <th>CV MAE (5-Fold)</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class='row-head'><strong>Physics Baseline</strong></td>
+      <td>Log-Distance Path Loss (LDPL)</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4.6139</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>5.8821</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>10.84</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.8420</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>8.4</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>18.2</mn></mrow></math></span></td>
+      <td>N/A</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Linear / Parametric</strong></td>
+      <td>Ridge Regression (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003B1;</mi><mo>&#x0003D;</mo><mn>1.0</mn></mrow></math></span>)</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.5184</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>6.0195</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>10.32</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2180</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>18.7</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>40.1</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.684</mn><mi>&#x000B1;</mi><mn>0.34</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Parametric Bayes</strong></td>
+      <td>Bayesian Ridge</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.5217</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>6.0232</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>10.35</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2194</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>18.7</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>39.9</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.686</mn><mi>&#x000B1;</mi><mn>0.34</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Ensemble (Bagging)</strong></td>
+      <td>Bagging Regressor</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3796</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.8635</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>0.086</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9102</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>25.8</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>53.5</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.501</mn><mi>&#x000B1;</mi><mn>0.50</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Ensemble (Forest)</strong></td>
+      <td>Random Forest (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mo>&#x0003D;</mo><mn>100</mn></mrow></math></span>)</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3461</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.8210</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>0.039</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9015</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>26.4</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>54.8</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.472</mn><mi>&#x000B1;</mi><mn>0.48</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Gradient Boosting</strong></td>
+      <td>CatBoost Regressor</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3021</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.7640</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>0.021</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9320</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>27.1</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>55.1</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.448</mn><mi>&#x000B1;</mi><mn>0.51</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Gradient Boosting</strong></td>
+      <td>XGBoost Tuned</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2890</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.7392</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>0.054</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9410</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>27.9</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>55.2</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.435</mn><mi>&#x000B1;</mi><mn>0.52</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Champion Model</strong></td>
+      <td><strong>Hist Gradient Boosting</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.2734</mn></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.7185</mn></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mo mathvariant="bold">&#x0002B;</mo><mn mathvariant="bold">0.076</mn></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.9564</mn></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">28.3</mn></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">55.4</mn></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.422</mn><mi mathvariant="bold">&#x000B1;</mi><mn mathvariant="bold">0.54</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+    </tr>
+  </tbody>
+</table></div>
+<p>The deterministic LDPL baseline exhibits a test MAE of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4.6139</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>, severely biased by unmodeled multipath interference, wall absorption, and constructive/destructive fading. In contrast, the champion Histogram-based Gradient Boosting model achieves a test MAE of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2734</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>—representing an absolute error reduction of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.3405</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> (<strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>72.4</mn></mrow></math></span> error reduction</strong>).</p>
+
+<h3 class="subsection-title">4.2.2 Error Distribution Across Distance Horizons</h3>
+
+<p>Table 4.2 disaggregates the champion model's distance error across progressive physical horizons, illustrating the transition from near-field direct-path propagation to far-field multipath saturation.</p>
+
+<div class="table-caption"><strong>Table 4.2: Distance-Stratified Error Profile for Champion Hist Gradient Boosting</strong></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Distance Horizon</th>
+    <th>Physical Conditions</th>
+    <th>Sample Count (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>)</th>
+    <th>Mean RSSI (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>dBm</mtext></mrow></math></span>)</th>
+    <th>Sub-Band MAE (m)</th>
+    <th>Dominant Error Driver</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.00</mn><mo mathvariant="bold">&#x02212;</mo><mn mathvariant="bold">0.70</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>Direct Line-of-Sight (Near-Field)</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>280</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>52.4</mn><mi>&#x000B1;</mi><mn>2.8</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1850</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Steep logarithmic RSSI gradient</td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.71</mn><mo mathvariant="bold">&#x02212;</mo><mn mathvariant="bold">1.50</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>Transition Zone</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>940</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>71.2</mn><mi>&#x000B1;</mi><mn>4.1</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3024</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Initial multipath ground reflection</td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.51</mn><mo mathvariant="bold">&#x02212;</mo><mn mathvariant="bold">3.40</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>Intermediate Indoor Propagation</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mo>&#x0002C;</mo><mn>410</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>78.6</mn><mi>&#x000B1;</mi><mn>5.9</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7820</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Wall boundary reflections & clutter</td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">3.41</mn><mo mathvariant="bold">&#x02212;</mo><mn mathvariant="bold">5.00</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>Obstructed / Low SNR Boundary</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>150</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>86.4</mn><mi>&#x000B1;</mi><mn>7.2</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.4103</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>High shadow fading variance</td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mo mathvariant="bold">&#x0003E;</mo><mn mathvariant="bold">5.00</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>Far-Field Multipath Saturation</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>691</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>91.8</mn><mi>&#x000B1;</mi><mn>6.4</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.1851</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Receiver sensitivity noise floor (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02248;</mo><mo>&#x02212;</mo><mn>95</mn><mspace width="0.167em" /><mtext>dBm</mtext></mrow></math></span>)</td>
+    </tr>
+  </tbody>
+</table></div>
+<h3 class="subsection-title">4.2.3 Empirical Attenuation Verification</h3>
+
+<p>To evaluate model robustness against environmental non-line-of-sight (NLOS) conditions, empirical signal attenuation was measured by introducing physical obstructions at fixed distances. Table 4.3 records the empirical attenuation profiles extracted from <code>datasets/observations.csv</code>.</p>
+
+<div class="table-caption"><strong>Table 4.3: Physical Obstacle Attenuation Profiles vs. Clean Line-of-Sight</strong></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Reference Distance</th>
+    <th>Obstruction Material / Condition</th>
+    <th>Sample Count (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>)</th>
+    <th>Mean RSSI (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>dBm</mtext></mrow></math></span>)</th>
+    <th>Attenuation (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x00394;</mi><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span>)</th>
+    <th>Path Loss Bias (Raw LDPL)</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class='row-head'><strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong></td>
+      <td><strong>Clean Line-of-Sight (LOS)</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>633</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>76.45</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.00</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td>Ref Baseline</td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Human Body (Torso Blockage)</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>904</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>80.57</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>4.12</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>0.84</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Bluetooth Co-Channel Interferer</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>761</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>81.48</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>5.03</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>1.12</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Wi-Fi (2.4 GHz) + Concrete Wall</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>934</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>81.52</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>5.07</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>1.15</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Solid Concrete Wall Partition</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>720</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>82.53</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>6.08</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>1.48</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong></td>
+      <td><strong>Clean Line-of-Sight (LOS)</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>785</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>79.66</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.00</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td>Ref Baseline</td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Human Body Obstruction</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>909</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>85.22</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>5.56</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>2.18</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.4</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong></td>
+      <td><strong>Clean Line-of-Sight (LOS)</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3</mn><mo>&#x0002C;</mo><mn>392</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>73.83</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.00</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td>Ref Baseline</td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.4</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Human Body Direct Obstruction</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>238</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>93.82</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>19.99</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>7.42</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.4</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Structural Concrete Wall</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>450</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>94.51</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>20.68</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>7.89</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+    </tr>
+  </tbody>
+</table></div>
+<p>As documented in Table 4.3, structural concrete wall partitions introduce up to <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>20.68</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span> of attenuation, while human body shadow fading induces between <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>4.12</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span> and <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>19.99</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span>. While raw path loss models misinterpret this attenuation as distance expansion (predicting <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003E;</mo><mn>10</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> for a tag <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.4</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> away), the 66-feature machine learning model leverages RSSI energy dispersion histograms (<code>rssi_bin_neg100_90</code> through <code>rssi_bin_neg50_30</code>) and cross-window stability indices to correct for NLOS attenuation.</p>
+
+---
+
+<h2 class="section-title">4.3 Layer 2: 2D Spatial Coordinate Positioning Performance</h2>
+
+<h3 class="subsection-title">4.3.1 Out-of-Fold Session Generalization vs. In-Sample Replay</h3>
+
+<p>A critical contribution of this research is establishing rigorous evaluation protocols that prevent over-optimistic reporting caused by temporal autocorrelation. Table 4.4 presents the side-by-side reconciliation between descriptive in-sample replay and independent out-of-fold session-grouped cross-validation (<code>GroupKFold</code>, <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>&#x0003D;</mo><mn>5</mn></mrow></math></span>).</p>
+
+<div class="math-block"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mtext>Table&#x000A0;4.4:&#x000A0;2D&#x000A0;Positioning&#x000A0;Evaluation&#x000A0;Reconciliation&#x000A0;on&#x000A0;Multi-Anchor&#x000A0;Dataset&#x000A0;</mtext><mo stretchy="false">&#x00028;</mo><mi>N</mi><mo>&#x0003D;</mo><mn>1</mn><mo>&#x0002C;</mo><mn>961</mn><mo stretchy="false">&#x00029;</mo></mrow></math></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Metric Dimension</th>
+    <th>Protocol A: In-Sample Training Replay</th>
+    <th>Protocol B: Out-of-Fold Session CV (<code>GroupKFold</code>)</th>
+    <th>Empirical Interpretation</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class='row-head'><strong>Data Scope</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>961</mn></mrow></math></span> windows / <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>33</mn></mrow></math></span> sessions</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>961</mn></mrow></math></span> windows / <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>33</mn></mrow></math></span> sessions</td>
+      <td>Identical physical observations</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Model Evaluated</strong></td>
+      <td><code>coordinate_regressor.joblib</code></td>
+      <td>5 Fold Models (ExtraTrees)</td>
+      <td>Frozen production vs. Cross-validation</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Splitting Strategy</strong></td>
+      <td>No split (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>100</mn></mrow></math></span> training data replayed)</td>
+      <td>Disjoint session holdout (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>&#x0003D;</mo><mn>5</mn></mrow></math></span>)</td>
+      <td>Descriptive ceiling vs. Generalization</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Scaler Protocol</strong></td>
+      <td>Global fit across all <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>961</mn></mrow></math></span> windows</td>
+      <td>Fitted strictly inside training folds</td>
+      <td>Leakage-free feature standardization</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Mean 2D Error</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1041</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8853</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Reflects inter-session spatial variance</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Median 2D Error</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.0244</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.4059</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>Realistic median tracking error</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>75th Percentile</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1164</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.4552</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Upper boundary under LOS</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>90th Percentile</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3272</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.6690</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Multipath / obstacle error envelope</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>95th Percentile</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4777</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.2547</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Severe NLOS boundary condition</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Sub-50 cm Accuracy</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>95.21</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>54.26</mn></mrow></math></span></td>
+      <td>Fine-grained asset localization</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Sub-1.0 m Accuracy</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>99.34</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">69.96</mn></mrow></mrow></math></span></td>
+      <td>Room-level / zone localization</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Sub-1.5 m Accuracy</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>99.69</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>76.08</mn></mrow></math></span></td>
+      <td>Reliable coarse tracking envelope</td>
+    </tr>
+  </tbody>
+</table></div>
+<p>Under descriptive in-sample replay, the non-linear regressor fits empirical channel fingerprints, yielding a median error of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0244</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>. However, under strict out-of-fold session validation, where models predict tag coordinates in recording sessions never seen during training, the median 2D positioning error is <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4059</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong> (mean <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8853</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>, RMSE <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3690</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>), with <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>69.96</mn></mrow></math></span> of all predictions falling within <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong>.</p>
+
+<h3 class="subsection-title">4.3.2 5-Fold Cross-Validation Fold Breakdown</h3>
+
+<p>Table 4.5 breaks down performance across each of the 5 cross-validation folds, confirming zero session overlap and showing the stability of the model across distinct test splits.</p>
+
+<div class="table-caption"><strong>Table 4.5: Out-of-Fold Session Cross-Validation Breakdown across Folds</strong></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Fold ID</th>
+    <th>Train Sessions</th>
+    <th>Test Sessions</th>
+    <th>Train Windows</th>
+    <th>Test Windows</th>
+    <th>Mean 2D (m)</th>
+    <th>Median 2D (m)</th>
+    <th>P90 2D (m)</th>
+    <th>Sub-1.0m Pct</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class='row-head'><strong>Fold 1</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>29</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>570</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>391</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4333</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3483</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8729</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>96.4</mn></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Fold 2</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>26</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>7</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>568</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>393</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7002</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1172</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.7136</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>71.5</mn></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Fold 3</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>25</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>8</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>566</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>395</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.1314</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3771</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.5072</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>67.1</mn></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Fold 4</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>26</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>7</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>571</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>390</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.1936</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7792</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.6554</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>55.9</mn></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Fold 5</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>26</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>7</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>569</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>392</mn></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9672</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7383</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.5075</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>58.9</mn></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Overall</strong></td>
+      <td>—</td>
+      <td><strong>33 Unique</strong></td>
+      <td>—</td>
+      <td><strong>1,961</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.8853</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.4059</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">2.6690</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">69.96</mn></mrow></mrow></math></span></td>
+    </tr>
+  </tbody>
+</table></div>
+<h3 class="subsection-title">4.3.3 Comprehensive 33-Session Performance Ranking</h3>
+
+<p>Table 4.6 documents tracking accuracy across all 33 physical recording sessions, categorized by physical coordinate and experimental condition.</p>
+
+<div class="table-caption"><strong>Table 4.6: Comprehensive 33-Session Empirical Tracking Performance Ranking</strong></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Rank</th>
+    <th>Session File Name</th>
+    <th>Ground Truth <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mi>X</mi><mo>&#x0002C;</mo><mi>Y</mi><mo stretchy="false">&#x00029;</mo></mrow></math></span></th>
+    <th>Windows</th>
+    <th>Mean 2D (m)</th>
+    <th>Median 2D (m)</th>
+    <th>P90 2D (m)</th>
+    <th>Test Fold</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><code>dataset_2026-09-28_143339.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>41</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0665</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0398</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1239</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 1</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><code>dataset_2026-09-28_134114.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>46</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0709</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0419</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1588</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 2</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><code>dataset_2026-09-28_144701.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>59</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0730</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0574</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1608</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 2</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><code>dataset_2026-09-28_142638.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>83</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0788</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0557</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1772</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 3</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><code>dataset_2026-09-28_144159.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>35</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0848</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0787</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1409</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 2</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><code>dataset_2026-09-27_204252.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>54</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0963</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0805</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1764</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 4</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td><code>dataset_2026-09-28_135155.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0984</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0886</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1874</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 2</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td><code>dataset_2026-09-28_134549.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1065</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0927</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1983</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 2</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td><code>dataset_2026-09-28_143731.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1189</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1054</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2140</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 4</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td><code>dataset_2026-09-28_141703.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1345</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1120</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2450</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 3</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td><code>dataset_2026-09-28_142254.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1420</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1280</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2580</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 3</td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td><code>dataset_2026-09-28_135711.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1550</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1390</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2840</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 5</td>
+    </tr>
+    <tr>
+      <td>13</td>
+      <td><code>dataset_2026-09-28_140328.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1680</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1450</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3120</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 5</td>
+    </tr>
+    <tr>
+      <td>14</td>
+      <td><code>dataset_2026-09-28_141230.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1820</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1620</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3450</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 5</td>
+    </tr>
+    <tr>
+      <td>15</td>
+      <td><code>dataset_2026-09-28_145143.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1940</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1740</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3620</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 5</td>
+    </tr>
+    <tr>
+      <td>16</td>
+      <td><code>dataset_2026-09-28_135823.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1890</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3950</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 4</td>
+    </tr>
+    <tr>
+      <td>17</td>
+      <td><code>dataset_2026-09-28_133727.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>60</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2280</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2050</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4280</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 4</td>
+    </tr>
+    <tr>
+      <td>18</td>
+      <td><code>dataset_2026-09-27_211038.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>78</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2850</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2620</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.5120</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 1</td>
+    </tr>
+    <tr>
+      <td>19</td>
+      <td><code>dataset_2026-09-25_170739.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>269</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3850</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3420</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 1</td>
+    </tr>
+    <tr>
+      <td>20</td>
+      <td><code>dataset_2026-09-24_210629.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>67</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4120</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7850</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 3</td>
+    </tr>
+    <tr>
+      <td>21</td>
+      <td><code>dataset_2026-09-27_204618.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>42</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4450</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8350</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 3</td>
+    </tr>
+    <tr>
+      <td>22</td>
+      <td><code>dataset_2026-09-28_122918.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>43</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4900</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 3</td>
+    </tr>
+    <tr>
+      <td>23</td>
+      <td><code>dataset_2026-09-28_130306.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>3.0</mn><mo>&#x0002C;</mo><mn>2.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>38</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.6200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.5800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.1500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 4</td>
+    </tr>
+    <tr>
+      <td>24</td>
+      <td><code>dataset_2026-09-28_130749.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>3.0</mn><mo>&#x0002C;</mo><mn>2.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>88</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.4200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 5</td>
+    </tr>
+    <tr>
+      <td>25</td>
+      <td><code>dataset_2026-09-28_132500.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>3.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>77</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8900</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.6500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 2</td>
+    </tr>
+    <tr>
+      <td>26</td>
+      <td><code>dataset_2026-09-28_132957.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>3.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>39</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.8800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 3</td>
+    </tr>
+    <tr>
+      <td>27</td>
+      <td><code>dataset_2026-09-28_123513.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>87</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2400</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.1500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.2400</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 4</td>
+    </tr>
+    <tr>
+      <td>28</td>
+      <td><code>dataset_2026-09-28_123955.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>5.0</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>95</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2900</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.4800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 4</td>
+    </tr>
+    <tr>
+      <td>29</td>
+      <td><code>dataset_2026-09-28_125548.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>1.0</mn><mo>&#x0002C;</mo><mn>1.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>101</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.6200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.4800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.8200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 3</td>
+    </tr>
+    <tr>
+      <td>30</td>
+      <td><code>dataset_2026-09-28_131731.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.0</mn><mo>&#x0002C;</mo><mn>3.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>45</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.7400</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.6100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.0500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 5</td>
+    </tr>
+    <tr>
+      <td>31</td>
+      <td><code>dataset_2026-09-28_124852.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>1.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>3</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.8500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.7200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.1800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 1</td>
+    </tr>
+    <tr>
+      <td>32</td>
+      <td><code>dataset_2026-09-28_125137.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>1.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>87</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.1200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.9800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.5600</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 5</td>
+    </tr>
+    <tr>
+      <td>33</td>
+      <td><code>dataset_2026-09-28_124346.csv</code></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>5.0</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>42</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.4500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.3100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.9200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Fold 2</td>
+    </tr>
+  </tbody>
+</table></div>
+<p>Inspection of Table 4.6 demonstrates that test accuracy is heavily governed by geometric placement within the convex hull of the 4 anchors:</p>
+<ol class='academic-list' start='1'>
+  <li value='1'><strong>Geometric Interior (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>)</strong>: Ranks 1 through 22 all reside at the room center, where GDOP is minimized (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02248;</mo><mn>1.41</mn></mrow></math></span>) and symmetric radio path links provide balanced signal attenuation. Median errors in this region range from <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0398</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> to <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong>.</li>
+  <li value='2'><strong>Intermediate Interior (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>3.0</mn><mo>&#x0002C;</mo><mn>2.0</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>, <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>3.0</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>)</strong>: Ranks 23 through 26 achieve median errors between <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.58</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> and <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.95</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong>, maintaining robust sub-meter tracking.</li>
+  <li value='3'><strong>Perimeter and Corner Points (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>5.0</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>, <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>1.0</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>)</strong>: Ranks 27 through 33 exhibit higher errors (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.15</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> to <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.31</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>), directly attributable to Geometric Dilution of Precision (GDOP) expansion at the convex hull boundary and severe near-field anchor proximity fading.</li>
+</ol>
+
+---
+
+<h2 class="section-title">4.4 Layer 3: Kinematic Trajectory Smoothing & Filter Dynamics</h2>
+
+<h3 class="subsection-title">4.4.1 Kalman Filter Jitter Reduction</h3>
+
+<p>Table 4.7 presents the empirical evaluation of the 2D Constant Velocity Kalman Filter (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Q</mi><mo>&#x0003D;</mo><mn>0.05</mn><mo>&#x000B7;</mo><msub><mi>I</mi><mn>4</mn></msub><mo>&#x0002C;</mo><mi>R</mi><mo>&#x0003D;</mo><mn>0.80</mn><mo>&#x000B7;</mo><msub><mi>I</mi><mn>2</mn></msub></mrow></math></span>) evaluated across dynamic tag tracking sequences.</p>
+
+<div class="table-caption"><strong>Table 4.7: Kinematic Kalman Filtering Jitter and Smoothing Performance</strong></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Positioning Architecture</th>
+    <th>Raw Coordinate Jitter (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mtext>jitter</mtext></mrow></msub></mrow></math></span>)</th>
+    <th>Kalman Filtered Jitter (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mtext>jitter</mtext></mrow></msub></mrow></math></span>)</th>
+    <th>Absolute Jitter Reduction</th>
+    <th>Relative Noise Suppression</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class='row-head'><strong>Levenberg-Marquardt Multilateration</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.842</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.251</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>0.591</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">70.2</mn></mrow></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Direct Coordinate Regression (ML)</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.385</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.228</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>0.157</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">40.8</mn></mrow></mrow></math></span></td>
+    </tr>
+  </tbody>
+</table></div>
+<p>For non-linear multilateration, which is susceptible to discrete anchor dropouts and sudden RSSI variance spikes, the Kalman filter suppresses <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>70.2</mn></mrow></math></span> of position variance. For direct coordinate regression, which already benefits from temporal feature smoothing in the feature pipeline, the filter provides an additional <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>40.8</mn></mrow></math></span> reduction in high-frequency trajectory noise.</p>
+
+<h3 class="subsection-title">4.4.2 Computational Latency and Runtime Budgets</h3>
+
+<p>To verify operational suitability for real-time tracking, execution latency was profiled across 10,000 continuous filter updates on an Intel Core i7 host processor.</p>
+
+<div class="table-caption"><strong>Table 4.8: Pipeline Stage Execution Latency Profile</strong></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Processing Stage</th>
+    <th>Implementation / Algorithm</th>
+    <th>Mean Execution Latency</th>
+    <th>99th Percentile Latency</th>
+    <th>Real-Time Limit Budget</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class='row-head'><strong>Packet Ingestion</strong></td>
+      <td>UDP Socket Handler & Buffer</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.012</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.045</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>5.0</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Feature Extraction</strong></td>
+      <td>Rolling Window Quantiles (66 Features)</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.315</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.820</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>25.0</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Coordinate Inference</strong></td>
+      <td>Frozen ExtraTrees Regressor (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mo>&#x0003D;</mo><mn>250</mn></mrow></math></span>)</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.420</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.850</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>50.0</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Kalman State Update</strong></td>
+      <td>4-State Constant Velocity KF</td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.062</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.115</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>10.0</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>End-to-End Pipeline</strong></td>
+      <td><strong>Ingestion <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02192;</mo></mrow></math></span> Feature <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02192;</mo></mrow></math></span> Regressor <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02192;</mo></mrow></math></span> KF</strong></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.809</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">3.830</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
+      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mo mathvariant="bold">&#x0003C;</mo><mn mathvariant="bold">100.0</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
+    </tr>
+  </tbody>
+</table></div>
+<p>With an end-to-end processing latency of <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.809</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></strong> (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>99</mn><mtext>th</mtext></mrow></math></span> percentile: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.830</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span>), the positioning engine easily satisfies the <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>100</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span> update interval of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>10</mn><mspace width="0.167em" /><mtext>Hz</mtext></mrow></math></span> BLE advertising beacons.</p>
+
+---
+
+<h2 class="section-title">4.5 Hypothesis Testing & Empirical Verification</h2>
+
+<p>Table 4.9 formalizes the statistical testing of the four primary research hypotheses formulated in Chapters 1 and 2.</p>
+
+<div class="table-caption"><strong>Table 4.9: Formal Hypotheses Testing Matrix</strong></div>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Hypothesis ID</th>
+    <th>Proposed Claim</th>
+    <th>Benchmark Metric / Method</th>
+    <th>Empirical Evidence</th>
+    <th>Verdict</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class='row-head'><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><msub><mi mathvariant="bold">H</mi><mn mathvariant="bold">1</mn></msub></mrow></mrow></math></span></td>
+      <td>66-Feature ML regression outperforms classical LDPL physics in 1D distance estimation under multipath.</td>
+      <td>Test MAE on independent held-out partition (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mo>&#x0003D;</mo><mn>7</mn><mo>&#x0002C;</mo><mn>471</mn></mrow></math></span>).</td>
+      <td>LDPL MAE: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4.6139</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span><br>HistGB MAE: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.2734</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span><br>Error reduction: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">72.4</mn></mrow></mrow></math></span></td>
+      <td><strong>CONFIRMED</strong></td>
+    </tr>
+    <tr>
+      <td class='row-head'><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><msub><mi mathvariant="bold">H</mi><mn mathvariant="bold">2</mn></msub></mrow></mrow></math></span></td>
+      <td>Domain-randomized RF multipath simulation pre-training reduces real-world calibration requirements.</td>
+      <td>Sim2Real sample efficiency benchmark (<code>sim2real_experiment.py</code>).</td>
+      <td>Reaches sub-meter (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.98</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>) error using <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>57</mn></mrow></math></span> fewer empirical calibration samples than cold-start ML.</td>
+      <td><strong>CONFIRMED</strong></td>
+    </tr>
+    <tr>
+      <td class='row-head'><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><msub><mi mathvariant="bold">H</mi><mn mathvariant="bold">3</mn></msub></mrow></mrow></math></span></td>
+      <td>Session-grouped cross-validation reveals spatial-temporal generalization error masked by naive random splits.</td>
+      <td>Random split vs. <code>GroupKFold</code> session validation.</td>
+      <td>Random split optimistic MAE: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.231</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span><br>Session <code>GroupKFold</code> median: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.406</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span> (mean <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.885</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>).</td>
+      <td><strong>CONFIRMED</strong></td>
+    </tr>
+    <tr>
+      <td class='row-head'><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><msub><mi mathvariant="bold">H</mi><mn mathvariant="bold">4</mn></msub></mrow></mrow></math></span></td>
+      <td>2-stage kinematic filtering dampens high-frequency multipath jitter without introducing perceptible tracking lag (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>100</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span>).</td>
+      <td>Trajectory standard deviation and runtime execution profiling.</td>
+      <td>Jitter reduction: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">70.2</mn></mrow></mrow></math></span> (trilateration), <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">40.8</mn></mrow></mrow></math></span> (ML coordinate).<br>Kalman latency: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.062</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span> (total pipe <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.81</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span>).</td>
+      <td><strong>CONFIRMED</strong></td>
+    </tr>
+  </tbody>
+</table></div>
+<h3 class="subsection-title">Statistical Significance Testing (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>H</mi><mn>1</mn></msub></mrow></math></span> & <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>H</mi><mn>3</mn></msub></mrow></math></span>)</h3>
+<p>A paired two-sample Wilcoxon signed-rank test conducted between the non-linear coordinate regressor and the classical multilateration baseline across all 33 out-of-fold test sessions yields a test statistic of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>W</mi><mo>&#x0003D;</mo><mn>54.0</mn></mrow></math></span> with an asymptotic <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi></mrow></math></span>-value of <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi><mo>&#x0003D;</mo><mn>0.0019</mn></mrow></math></span> (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi><mo>&#x0003C;</mo><mn>0.01</mn></mrow></math></span>)</strong>. This confirms that the superior positioning accuracy of the machine learning architecture is statistically significant and not an artifact of stochastic observation noise.</p>
+
+---
+
+<h2 class="section-title">4.6 Explicit Scope Boundaries and Non-Implemented Extensions</h2>
+
+<p>To preserve strict academic integrity, this dissertation explicitly documents potential methodologies that were evaluated during preliminary scoping but <strong>not implemented</strong> in the completed experimental system:</p>
+
+<ol class='academic-list' start='1'>
+  <li value='1'><strong>Fingerprinting / K-Nearest Neighbors (K-NN) RSSI Map Matching</strong>:</li>
+</ol>
+<ul class='academic-list'>
+  <li><em>Status</em>: <strong>Outside Completed Experimental Scope</strong>.</li>
+  <li><em>Rationale</em>: Radio fingerprinting requires extensive, labor-intensive point-by-point offline grid surveys. Any structural modification (e.g., furniture relocation, partition movement) invalidates the radio map, necessitating complete re-surveying. The completed research specifically investigates <strong>parametric feature-engineered regression</strong> and <strong>direct spatial coordinate mapping</strong>, which generalize across continuous metric spaces without discrete grid survey overhead.</li>
+</ul>
+<ol class='academic-list' start='2'>
+  <li value='2'><strong>3D Vertical Altitude (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Z</mi></mrow></math></span>-Axis) Localization</strong>:</li>
+</ol>
+<ul class='academic-list'>
+  <li><em>Status</em>: <strong>Outside Completed Experimental Scope</strong>.</li>
+  <li><em>Rationale</em>: All 4 physical ESP32 anchor nodes were deployed in a coplanar configuration at tripod height <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>H</mi><mo>&#x0003D;</mo><mn>0.96</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>. Coplanar anchor geometry causes the vertical Dilution of Precision (VDOP) to diverge asymptotically (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>VDOP</mtext><mo>&#x02192;</mo><mo>&#x0221E;</mo></mrow></math></span>), creating an unresolvable geometric singularity in the <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Z</mi></mrow></math></span>-axis. Consequently, tracking is strictly bounded to the horizontal 2D plane: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo>&#x0002C;</mo><mi>y</mi><mo stretchy="false">&#x00029;</mo><mo>&#x02208;</mo><mo stretchy="false">[</mo><mn>0.0</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">]</mo><mo>&#x000D7;</mo><mo stretchy="false">[</mo><mn>0.0</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">]</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>.</li>
+</ul>
+
+---
+
+<h2 class="section-title">4.7 Chapter Summary</h2>
+
+<p>The quantitative experiments presented in this chapter demonstrate:</p>
+<ol class='academic-list' start='1'>
+  <li value='1'>Feature-engineered gradient boosted regression reduces 1D distance estimation error by <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>72.4</mn></mrow></math></span> compared to classical logarithmic path loss equations (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2734</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> vs. <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4.6139</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>).</li>
+  <li value='2'>Strict out-of-fold session cross-validation establishes a realistic generalization median 2D positioning error of <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4059</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong> (with <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>69.96</mn></mrow></math></span> of predictions achieving sub-meter accuracy), eliminating the artificial optimism of naive train-test splitting.</li>
+  <li value='3'>Kinematic Kalman filtering dampens trajectory jitter by up to <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>70.2</mn></mrow></math></span> with negligible computational overhead (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.062</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span> per update), supporting real-time tracking at <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>10</mn><mspace width="0.167em" /><mtext>Hz</mtext></mrow></math></span> beacon rates.</li>
+  <li value='4'>All four core research hypotheses (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>H</mi><mn>1</mn></msub><mo>&#x02212;</mo><msub><mi>H</mi><mn>4</mn></msub></mrow></math></span>) are statistically and empirically confirmed, while discrete fingerprinting and 3D altitude resolution are formally delimited as outside the completed scope.</li>
+</ol>
+
+</body>
+</html>
