@@ -5,7 +5,7 @@
 ### 3.1.1 Research Philosophy and Methodological Framework
 An **experimental engineering, quantitative empirical, and design-science research methodology** was adopted in this investigation [9], [10]. Rather than relying exclusively on theoretical radio propagation models, idealized ray-tracing software, or simulated channel profiles, a complete hardware-software platform was designed, fabricated, deployed, and experimentally validated for real-time Bluetooth Low Energy (BLE) indoor positioning [1], [2]. 
 
-The investigation coupled physical embedded radio prototyping on dual-core Espressif ESP32 microcontrollers [2] with statistical machine learning regression [5], [6], robust non-linear multilateration [7], and real-time kinematic state-space filtering [8]. All experimental data were gathered within a surveyed physical indoor testbed, ensuring practical real-world validity, reproducibility, and rigorous engineering evaluation.
+The investigation coupled physical embedded radio prototyping on dual-core Espressif ESP32 microcontrollers [2] with statistical machine learning regression [5], [6], ordinary least-squares non-linear multilateration [7], and real-time kinematic state-space filtering [8]. All physical empirical radio data were gathered within a surveyed physical testbed, supplemented by controlled synthetic radio propagation simulations for Sim2Real transfer gap analysis (Section 3.5.4) and automated software fixtures for application integration testing (Section 3.8.3), ensuring practical real-world validity, reproducibility, and rigorous engineering evaluation.
 
 ### 3.1.2 Research Questions and Hypotheses
 The methodology was structured to systematically investigate four foundational research questions and their corresponding scientific hypotheses. All acceptance thresholds were defined *a priori* as operationalized criteria:
@@ -13,7 +13,7 @@ The methodology was structured to systematically investigate four foundational r
 1. **Research Question 1 (Multipath & Shadowing Mitigation via Feature Engineering)**:  
    *Can multi-domain statistical, temporal, and radio-frequency feature engineering extracted from short observation windows compensate for multipath fading and non-line-of-sight (NLOS) attenuation without labor-intensive site-calibrated fingerprinting?*
    - **Hypothesis $H_1$**: Extracting higher-order statistical moments, intra-window signal dynamics, and discrete RF power density histograms from 1-second observation windows was hypothesized to enable non-linear gradient-boosted regression [5], [6] to predict physical transmitter-receiver distance with substantially lower error than classical log-distance path-loss equations [3].
-   - **Experimental Method**: Comparative tournament evaluating a 66-feature Histogram-based Gradient Boosting Regressor (`HistGradientBoostingRegressor`) against the calibrated Log-Distance Path-Loss (LDPL) physics baseline ($A = -76.45\,\text{dBm}, n = 2.50$) [3].
+   - **Experimental Method**: Comparative tournament evaluating a 66-feature Histogram-based Gradient Boosting Regressor (`HistGradientBoostingRegressor`) against the calibrated Log-Distance Path-Loss (LDPL) physics baseline ($A = -76.45\,\text{dBm}, n = 2.12$ calibrated Line-of-Sight baseline; uncalibrated indoor nominal comparator $n = 2.50$) [3].
    - **Evaluated Dataset**: 1D Ranging Dataset ($37,623$ observation windows across 87 physical collection sessions), evaluated on an independent held-out partition ($7,471$ windows across 18 disjoint sessions).
    - **Primary Metrics**: Mean Absolute Error (MAE, in meters), Root Mean Squared Error (RMSE, in meters), and Coefficient of Determination ($R^2$, dimensionless).
    - **Statistical Decision Protocol**: A two-tailed paired Student's $t$-test and non-parametric Wilcoxon signed-rank test evaluated across the $N = 18$ independent held-out session-aggregated MAEs ($\text{df} = 17$). Aggregating predictions by session ensured that temporal autocorrelation between sequential packets would not artificially inflate degrees of freedom or overstate statistical significance. $H_1$ was formulated to be accepted if the machine learning model achieved a statistically significant relative reduction in MAE of at least $30.0\%$ ($\Delta\text{MAE}_{\text{rel}} \ge 30.0\%$, $p < 0.01$) over the calibrated physics baseline:
@@ -39,13 +39,14 @@ The methodology was structured to systematically investigate four foundational r
    - **Primary Metrics**: Cross-validation MAE discrepancy ($\Delta\text{MAE} = \text{MAE}_{\text{session-grouped}} - \text{MAE}_{\text{random}}$, in meters) and relative error inflation percentage ($\text{Inflation}_{\text{rel}} = (\Delta\text{MAE} / \text{MAE}_{\text{random}}) \times 100\%$).
    - **Analytical Criterion**: A positive error discrepancy ($\Delta\text{MAE} > 0.0\,\text{m}$) was established to empirically quantify the magnitude of optimistic leakage bias inherent in random validation splits.
 
-4. **Research Question 4 (Dynamic Tracking Stability & Latency Budget)**:  
-   *Can lightweight 2D state-space filtering suppress stationary coordinate jitter while maintaining a strict real-time latency budget for tracking mobile assets?*
+4. **Research Question 4 (Stationary Stability & Latency Budget)**:  
+   *Can lightweight 2D state-space filtering suppress stationary coordinate jitter while maintaining a strict real-time computational latency budget suitable for indoor asset monitoring?*
    - **Hypothesis $H_4$**: It was hypothesized that a 2D Constant Velocity Kalman Filter [8] parameterized with empirically tuned process and measurement covariance matrices would suppress stationary coordinate dispersion without introducing unacceptable lag, maintaining an end-to-end processing latency well below human perceptual thresholds.
    - **Experimental Method**: Comparative time-series evaluation of raw machine-learning Cartesian coordinates $(z_x, z_y)$ versus Kalman-filtered coordinates $(\hat{x}, \hat{y})$ across identical stationary multi-anchor collection sessions.
    - **Evaluated Dataset**: 33 multi-anchor collection sessions ($1,961$ synchronized observation windows), specifically analyzing 22 repeated stationary collection sessions at the central benchmark coordinate $(2.5, 2.5)\,\text{m}$.
    - **Primary Metrics**: Root-Mean-Square Jitter Radius ($J_{\text{RMS}}$, in meters), axis-specific standard deviations ($\sigma_x, \sigma_y$, in meters), Jitter Reduction Ratio ($J_r$, in percent), Stationary Positioning Bias ($e_{\text{pos}}$, in meters), and filter execution time versus end-to-end pipeline latency (in milliseconds).
    - **Operational Decision Protocol**: $H_4$ was operationalized to be confirmed if the Kalman filter achieved a mean stationary jitter reduction $J_r \ge 40.0\%$ across stationary trials while keeping 99th-percentile computational execution time $< 5.0\,\text{ms}$ and total system latency $< 100.0\,\text{ms}$.
+   - **Methodological Scope & Ground-Truth Boundary**: In the absence of an external millimeter-accurate optical motion-capture reference system, the filtering evaluation focused on stationary multipath jitter dampening across independent benchmark sessions at different surveyed coordinates, and computational pipeline execution latency. Because the tag was manually relocated between sessions without continuous recording during transit, the evaluation characterised stationary-position stability and transition behaviour between discrete test conditions rather than continuous kinematic trajectory accuracy. Continuous mobile trajectory tracking against external ground truth was formally delimited as a future work extension.
 
 ### 3.1.3 Research Design Matrix
 The alignment between research questions, hypotheses, predictive methods, evaluated datasets, primary metrics, and operationalized evaluation criteria was formalized in Table 3.1.
@@ -72,7 +73,7 @@ flowchart TD
         L2_DESC["Target: Cartesian Coordinates (X, Y) on 5m x 5m Grid • Metrics: 2D Euclidean Error (Mean, Median, P90, P95)"]
     end
 
-    subgraph Layer3 ["Layer 3: Dynamic Tracking & Stability (Trajectory Smoothing & Latency)"]
+    subgraph Layer3 ["Layer 3: Stationary Stability & Filtering (Jitter Suppression & Latency)"]
         L3_DESC["Target: 2D State Kalman Filter • Metrics: RMS Jitter Radius (J_RMS), Jitter Reduction (Jr), Latency Budget"]
     end
 
@@ -82,14 +83,18 @@ flowchart TD
 
 - **Layer 1 (1D Distance Estimation)**: Evaluated the capacity of machine learning models to map 1-second packet statistics from a single receiver anchor to physical transmitter-receiver distance ($0.5\,\text{m} \dots 7.0\,\text{m}$).
 - **Layer 2 (2D Spatial Positioning)**: Evaluated horizontal Cartesian coordinate accuracy $(X, Y)$ within the $5.0\,\text{m} \times 5.0\,\text{m}$ testbed boundaries using concurrent signals from four perimeter anchors.
-- **Layer 3 (Kinematic Tracking & Stability)**: Evaluated trajectory filtering, stationary jitter suppression, and real-time execution latency through 2D state-space Kalman filtering.
+- **Layer 3 (Stationary Stability & Filtering)**: Evaluated stationary jitter suppression, filter behaviour across independent benchmark sessions, and real-time computational execution latency through 2D state-space Kalman filtering.
+
+### 3.1.5 Research Ethics, Participant Protocols, and Hardware Identifier Disclosure
+1. **Research Ethics and Participant Scope**: Physical environmental obstruction trials (Section 3.4.1) measuring human-body radio attenuation were performed exclusively by the primary researchers acting as physical obstacles and equipment operators in a controlled laboratory testbed. No external human participants, patients, or members of the public were recruited. No personal, physiological, biometric, or identifiable data were collected or processed; recorded telemetry was strictly limited to physical radio observables (MAC, RSSI, timestamps). The work was therefore treated as a non-human-subject engineering experiment, and formal ethics approval was not sought.
+2. **Hardware Identifier Disclosure**: All hardware MAC addresses documented throughout this chapter (e.g., `52:06:26:03:01:DA`, `C8:2E:18:26:39:A0`) represent factory-assigned IEEE silicon identifiers belonging exclusively to dedicated laboratory microcontroller development boards and standalone reference beacon hardware owned by the researchers. None correspond to personal consumer devices, mobile phones, or identifiable individuals, ensuring zero privacy risk while maintaining complete experimental reproducibility and auditability against raw captured packet logs.
 
 ---
 
 ## 3.2 Hardware and System Architecture
 
 ### 3.2.1 Edge Anchors and BLE Beacon Tag Specifications
-The physical hardware deployment comprised four stationary receiver anchors mounted at the room perimeter and a commercial target beacon tag:
+The physical hardware deployment comprised four stationary receiver anchors mounted at the test area perimeter and a commercial target beacon tag:
 
 * **Receiver Anchor Nodes**: Four dedicated **ESP32-WROOM-32** development boards featuring a Tensilica Xtensa Dual-Core 32-bit LX6 microprocessor operating at $160\,\text{MHz}$ (scalable to $240\,\text{MHz}$), $520\,\text{KB}$ internal SRAM, $448\,\text{KB}$ ROM, a $40\,\text{MHz}$ crystal oscillator, and $4\,\text{MB}$ external SPI Flash configured in Dual I/O (DIO) mode. The onboard radio front-end incorporated an integrated $2.4\,\text{GHz}$ inverted-F PCB antenna with a nominal peak gain of $\sim 2.0\,\text{dBi}$. The hardware radio silicon was fully compliant with the **Bluetooth v4.2 BR/EDR and BLE** specification.
 * **Commercial Target BLE Tag**: A dedicated commercial **Bluetooth 5.0** Low Energy beacon operating with hardware silicon MAC address **`52:06:26:03:01:DA`**. The tag was configured with a nominal transmission power of $P_{\text{tx}} = 0\,\text{dBm}$ (empirically calibrated reference power $A = -76.45\,\text{dBm}$ at $1.0\,\text{m}$ in the testbed) and an advertising interval of $100\,\text{ms}$ ($10\,\text{Hz}$). The beacon broadcast non-connectable undirected advertising frames (`ADV_NONCONN_IND`) across primary advertising channels 37 ($2402\,\text{MHz}$), 38 ($2426\,\text{MHz}$), and 39 ($2480\,\text{MHz}$).
@@ -127,7 +132,7 @@ The platform decoupled real-time embedded packet ingestion from machine learning
 1. **Physical Acquisition**: The target beacon broadcast 10 packets per second across channels 37, 38, and 39. Four ESP32 anchors captured incoming frames and streamed raw datagrams via Wi-Fi UDP port `5005` or serial UART.
 2. **Ingestion & Windowing**: An asynchronous ingestion worker logged verbatim payloads and aggregated packets into non-overlapping $1000\,\text{ms}$ observation windows.
 3. **Feature Pipeline**: The window generator computed 66 scalar features for 1D distance estimation and 21 spatial differential features for 2D positioning.
-4. **Dual-Path Localization Engine**: When $\ge 3$ anchors were detected in the window, direct 2D MultiOutput ExtraTrees regression produced the primary coordinate estimate. When packet dropout reduced active anchors below 3, the engine fell back to 1D HistGradientBoosting distance estimation coupled with robust Levenberg-Marquardt multilateration.
+4. **Dual-Path Localization Engine**: When $\ge 3$ anchors were detected in the window, direct 2D MultiOutput ExtraTrees regression produced the primary coordinate estimate. If the direct coordinate model was unavailable or raised an exception (while $M \ge 3$), the engine invoked ordinary least-squares Levenberg-Marquardt multilateration with analytical centroid fallback as an automated recovery path. When fewer than three anchors were available ($M < 3$), no new coordinate was calculated; the last valid coordinate was retained temporarily while the telemetry status decayed from `current` to `stale` and then `unavailable`.
 5. **Kinematic Smoothing**: Raw spatial measurements $(z_x, z_y)$ were processed by a 2D Constant Velocity Kalman Filter to eliminate stationary jitter.
 6. **Persistence & Delivery**: Filtered coordinates were clamped to room boundaries, verified against a $\pm 0.3\,\text{m}$ room boundary hysteresis buffer, committed to SQLite with Write-Ahead Logging (WAL), and pushed over WebSockets at $\le 10\,\text{Hz}$ to the React 19 dashboard.
 
@@ -135,19 +140,79 @@ The platform decoupled real-time embedded packet ingestion from machine learning
 
 ## 3.3 Experimental Environment and Data Collection
 
-### 3.3.1 Physical Testbed Layout and Surveyed Coordinate Frame
-Empirical data collection was conducted in an unobstructed $5.00\,\text{m} \times 5.00\,\text{m}$ indoor room ($25.0\,\text{m}^2$) situated within an overall $10.0\,\text{m} \times 10.0\,\text{m}$ facility schematic. The Cartesian coordinate origin $(0.00, 0.00)\,\text{m}$ was anchored at the Southwest perimeter corner (Node A). The positive $X$-axis extended $5.00\,\text{m}$ Eastward, and the positive $Y$-axis extended $5.00\,\text{m}$ Northward.
+### 3.3.1 Physical Experimental Testbed
+The experimental investigation was conducted using a purpose-built physical BLE positioning testbed assembled from ESP32-WROOM-32 devices. Four anchor nodes were arranged at the surveyed corners of a nominal 5 m × 5 m test area, with a BLE tag serving as the target transmitter. The anchors collected real BLE signal observations under the prescribed experimental conditions, and the resulting measurements were used to evaluate the positioning system.
+
+The testbed was established in a private residential backyard environment rather than a commercial or industrial building. The investigation therefore represents a controlled, small-scale physical proof of concept. Its findings are interpreted within the limits of the test area's dimensions, anchor geometry, environmental conditions, and data-collection procedures. Performance in larger buildings, warehouses, shopping centres, and other indoor environments was not directly established by this experiment.
+
+#### Physical Experimental Site Details
+- **Geographic Location**: Johannesburg, Gauteng, South Africa.
+- **Facility Classification**: Private residential suburban property.
+- **Indoor Environment (Campaign 1)**:
+  - *Architectural Configuration*: Residential building interior comprising an elongated central hallway ($\approx 8.5\,\text{m} \times 1.4\,\text{m}$) and adjoining partitioned living and bedroom quarters ($\approx 4.2\,\text{m} \times 3.8\,\text{m}$, ceiling height $\approx 2.6\,\text{m}$).
+  - *Structural Materials*: Load-bearing plastered masonry brick and concrete structural walls ($20\,\text{cm}$ thickness), hollow-core timber interior doors ($40\,\text{mm}$ thickness), painted gypsum board ceilings, and glazed ceramic tiled flooring over a reinforced concrete slab subfloor.
+  - *Interior Furnishings*: Standard domestic furnishings including wooden tables, chairs, upholstered bed mattresses, and metallic chassis electronic equipment (laptops and mobile handsets).
+- **Outdoor Environment (Campaign 2)**:
+  - *Architectural Configuration*: Level residential backyard lawn with an adjoining clay-brick paved pathway ($\approx 12.0\,\text{m} \times 10.0\,\text{m}$ overall open property clearing).
+  - *Perimeter Boundaries*: Bounded along the southern perimeter by the single-storey plastered brick residential structure ($\approx 2.5\,\text{m}$ clearance) and along the western boundary by a residential masonry wall and wire fence ($\approx 3.0\,\text{m}$ clearance).
+  - *Ground and Overhead Surface*: Level manicured turf grass and paved walkway; open sky overhead without foliage, trees, canopy, or overhead ceiling structures. No motor vehicles or large metal containers were positioned within or adjacent to the test perimeter.
+- **Application of the $5.0\,\text{m} \times 5.0\,\text{m}$ Grid Area**:
+  - The surveyed $5.0\,\text{m} \times 5.0\,\text{m}$ square perimeter ($25.0\,\text{m}^2$) was deployed **exclusively for Campaign 2 (the multi-anchor 2D planar tracking experiment)**.
+  - The indoor Campaign 1 measurements evaluated 1D single-anchor linear propagation along the corridor and through structural partitions across calibrated distance presets from $0.5\,\text{m}$ to $5.3\,\text{m}$ (with maximum reach extending to $7.0\,\text{m}$).
+
+#### Two Distinct Experimental Campaigns and Environmental Topologies
+To prevent confounding algorithmic positioning accuracy with environmental channel variations, the investigation explicitly distinguishes two separate physical collection campaigns:
+1. **Campaign 1 (Single-Anchor 1D Ranging, July 31 – August 5, 2026)**: Conducted in the indoor residential setting across hallways and adjoining rooms. A single ESP32 anchor (`ANCHOR_01`) recorded signal observations across calibrated distance presets ($0.5\,\text{m} \dots 5.3\,\text{m}$) and diverse obstacle conditions (structural concrete walls, wooden doors, furniture, and co-channel Wi-Fi interference). This campaign generated the 52 sessions ($33,291$ windows) used for 1D path-loss modeling, feature engineering validation, and the LDPL baseline ($n = 2.12$).
+2. **Campaign 2 (Four-Anchor 2D Planar Tracking, September 24 – 28, 2026)**: Conducted on the surveyed $5.0\,\text{m} \times 5.0\,\text{m}$ physical testbed in the open residential backyard setting. Four ESP32 anchors were mounted at the surveyed perimeter corners at uniform elevation ($0.96\,\text{m}$). This campaign generated the 33 synchronized multi-anchor sessions ($1,961$ windows) used for 2D spatial coordinate regression and Kalman state-space filtering.
+
+Because the anchor geometry changed from a single linear receiver to a 4-anchor planar perimeter, and the physical setting shifted from an indoor corridor to a backyard testbed, comparative performance between 1D ranging and 2D tracking reflects both the environmental propagation characteristics and the spatial anchor topology. Performance in large commercial buildings, warehouses, or multi-room facilities was not directly evaluated in either campaign.
+
+Table 3.2b defines the physical deployment configurations across both experimental environments.
+
+$$\text{Table 3.2b: Comparative Deployment Configurations Across Indoor and Outdoor Environments}$$
+
+| Environment | Node Identifier | Logical Name | Cartesian $X$ | Cartesian $Y$ | Elevation ($H$) | Mounting Position & Geometry | Antenna Polarization |
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- |
+| **Indoor (Campaign 1)** | `ANCHOR_01` | Node A | $0.00\,\text{m}$ | $0.00\,\text{m}$ | $0.96\,\text{m}$ | Fixed tripod at corridor origin; 1D ranging axis | Vertical ($E$-plane co-polarized) |
+| **Indoor (Campaign 1)** | `ANCHOR_02` | Node B | — | — | — | *Not deployed in Campaign 1 (Single-anchor 1D profile)* | — |
+| **Indoor (Campaign 1)** | `ANCHOR_03` | Node C | — | — | — | *Not deployed in Campaign 1 (Single-anchor 1D profile)* | — |
+| **Indoor (Campaign 1)** | `ANCHOR_04` | Node D | — | — | — | *Not deployed in Campaign 1 (Single-anchor 1D profile)* | — |
+| **Outdoor (Campaign 2)** | `ANCHOR_01` | Node A | $0.00\,\text{m}$ | $0.00\,\text{m}$ | $0.96\,\text{m}$ | Southwest (SW) perimeter corner tripod | Vertical ($E$-plane co-polarized) |
+| **Outdoor (Campaign 2)** | `ANCHOR_02` | Node B | $5.00\,\text{m}$ | $0.00\,\text{m}$ | $0.96\,\text{m}$ | Southeast (SE) perimeter corner tripod | Vertical ($E$-plane co-polarized) |
+| **Outdoor (Campaign 2)** | `ANCHOR_03` | Node C | $0.00\,\text{m}$ | $5.00\,\text{m}$ | $0.96\,\text{m}$ | Northwest (NW) perimeter corner tripod | Vertical ($E$-plane co-polarized) |
+| **Outdoor (Campaign 2)** | `ANCHOR_04` | Node D | $5.00\,\text{m}$ | $5.00\,\text{m}$ | $0.96\,\text{m}$ | Northeast (NE) perimeter corner tripod | Vertical ($E$-plane co-polarized) |
+
+#### Target Beacon Mounting and Elevation Consistency
+Across both campaigns, the identical physical commercial Bluetooth 5.0 Low Energy beacon (silicon MAC `52:06:26:03:01:DA`) was used with fixed firmware broadcast parameters ($P_{\text{tx}} = 0\,\text{dBm}$, advertising interval $100\,\text{ms}$, legacy advertising PDUs across channels 37, 38, 39).
+- **Elevation**: The beacon was mounted on a dedicated, non-metallic vertical tripod at an elevation of exactly $0.96\,\text{m}$ above the local ground/floor plane, matching the anchor elevation to maintain coplanar horizontal wave propagation.
+- **Orientation**: For all standard benchmark sessions, the beacon antenna was oriented vertically to maintain co-polarization with the anchor antennas. Controlled orientation sweeps ($0^\circ, 90^\circ, 180^\circ, 270^\circ$) were evaluated at coordinate $(2.5, 2.5)\,\text{m}$ to quantify radiation pattern asymmetry.
+
+### 3.3.2 Physical Testbed Layout and Surveyed Coordinate Frame
+Empirical data collection was conducted across a surveyed $5.00\,\text{m} \times 5.00\,\text{m}$ test area ($25.0\,\text{m}^2$) mapped within an overall $10.0\,\text{m} \times 10.0\,\text{m}$ facility coordinate grid schematic. The Cartesian coordinate origin $(0.00, 0.00)\,\text{m}$ was anchored at the Southwest perimeter corner (Node A). The positive $X$-axis extended $5.00\,\text{m}$ Eastward, and the positive $Y$-axis extended $5.00\,\text{m}$ Northward.
 
 Figure 3.3 illustrates the surveyed testbed geometry, showing the perimeter anchor placements, coordinate axes, and surveyed benchmark locations.
 
 ![Physical Experimental Testbed & Surveyed Coordinate Grid](file:///c:/Users/DEV/Desktop/Dissertation/ble-indoor-positioning/reports/experimental_layout_grid.png)
 
-### 3.3.2 Ground-Truth Surveying and Placement Protocols
-1. **Precision Laser Surveying**: Reference grid intersections were physically marked using an industrial optical laser distance meter ($\pm 2.0\,\text{mm}$ measurement accuracy), verified against a tensioned steel measuring tape along orthogonal room diagonals to ensure perpendicular coordinate axes.
-2. **Tripod Elevation and Leveling**: During static benchmark trials, the target BLE beacon was mounted on a non-reflective vertical tripod at an elevation of exactly $0.96\,\text{m}$ above the floor.
-3. **Anchor Elevation and Co-Polarization**: All four perimeter anchors were secured to rigid wall mountings at an elevation of exactly $0.96\,\text{m}$. Antennas were aligned vertically to enforce co-polarized reception and constrain radio propagation to a two-dimensional horizontal plane.
+### 3.3.3 Ground-Truth Surveying and Placement Protocols
+1. **Precision Laser Distance Meter Surveying**: Reference grid intersections and perimeter boundaries were surveyed using an industrial optical laser distance meter featuring a manufacturer-certified accuracy of $\pm 2.0\,\text{mm}$. Coordinate axes were established using 3-4-5 Pythagorean right-angle triangulation ($3.000\,\text{m}$ on $X$, $4.000\,\text{m}$ on $Y$, confirmed by a $5.000\,\text{m}$ hypotenuse), cross-checked with a tensioned steel measuring tape. Diagonal checks across the $5.00\,\text{m} \times 5.00\,\text{m}$ perimeter ($d = \sqrt{5.0^2 + 5.0^2} = 7.071\,\text{m}$) confirmed perpendicularity to within $\pm 4.0\,\text{mm}$.
+2. **Physical Coordinate Ground Marking**: Every benchmark grid intersection was physically marked on the ground surface using high-visibility surveyed vinyl target markers and surveyor pegs, ensuring precise repositioning between successive experimental trials.
+3. **Tripod Elevation and Leveling**: During all benchmark trials, the target BLE beacon was secured to a non-reflective photographic tripod equipped with a precision circular spirit bubble level. Elevation was adjusted to exactly $0.960\,\text{m}$ above ground level ($\pm 2.0\,\text{mm}$ instrumental height tolerance).
+4. **Anchor Rigidity and Co-Polarization**: Perimeter anchors were rigidly mounted at $H = 0.960\,\text{m}$ on fixed upright stands. Antenna elements were oriented vertically to enforce co-polarized electric field reception and eliminate cross-polarization path-loss attenuation.
+5. **Measurement Uncertainty Budget**: The combined root-sum-square (RSS) spatial positioning uncertainty of the physical ground-truth reference points—accounting for laser meter tolerance ($\pm 2.0\,\text{mm}$), plumb-line centering ($\pm 2.0\,\text{mm}$), and tripod mechanical leveling ($\pm 3.0\,\text{mm}$)—was bounded by:
+   $$\delta_{\text{survey}} = \sqrt{2.0^2 + 2.0^2 + 3.0^2} = \pm 4.12\,\text{mm} < \pm 5.0\,\text{mm}$$
+   This spatial uncertainty is two orders of magnitude smaller than the decimeter-level BLE RF positioning errors ($\approx 0.40\,\text{m} \dots 1.27\,\text{m}$), ensuring that ground-truth survey error introduced negligible bias into the positioning evaluation.
 
-### 3.3.3 Surveyed Benchmark Coordinates & Centre-Point Rationale
+### 3.3.4 Environmental Conditions and Atmospheric Scope
+Experimental measurements were collected across two seasonal observation windows:
+- **Campaign 1 (Indoor Ranging)**: July 31, August 1, August 4, and August 5, 2026. Collection sessions spanned late-night hours (01:00–03:30) and afternoon periods (12:00–17:00).
+- **Campaign 2 (Outdoor 2D Tracking)**: September 24, September 25, September 27, and September 28, 2026. Sessions were conducted during midday hours (12:20–15:00) and evening hours (20:40–22:00).
+- **Atmospheric Conditions**: Experiments were conducted during dry, clear to partly cloudy Southern Hemisphere late-winter / early-spring weather. Ambient temperatures ranged from approximately $14^\circ\text{C}$ to $24^\circ\text{C}$, relative humidity was between $30\%$ and $55\%$, wind velocity remained light ($< 10\,\text{km/h}$), and no rain fell during any active collection window.
+- **Radio-Frequency Interference Background**: In both environments, background RF activity included residential IEEE 802.11b/g/n Wi-Fi access points operating on $2.4\,\text{GHz}$ channels 1, 6, and 11, reflecting typical suburban radio spectrum occupancy.
+
+> *Environmental conditions (ambient temperature, atmospheric humidity, wind velocity, and barometric pressure) were observed qualitatively but were not instrumented or included as explanatory variables in the statistical analysis.*
+
+### 3.3.5 Surveyed Benchmark Coordinates & Centre-Point Rationale
 Across the multi-anchor collection campaign, **nine discrete physical benchmark coordinates** were surveyed, comprising **33 unique recording sessions** and **1,961 synchronized observation windows**. Table 3.3 summarizes the surveyed coordinate inventory.
 
 $$\text{Table 3.3: Surveyed Benchmark Coordinates in the Multi-Anchor Dataset } (N = 1,961)$$
@@ -156,7 +221,7 @@ $$\text{Table 3.3: Surveyed Benchmark Coordinates in the Multi-Anchor Dataset } 
 | :---: | :--- | :---: | :---: | :--- | :--- |
 | **$(1.0, 1.0)\,\text{m}$** | Near Node A (SW quadrant) | 1 | **101** | `dataset_2026-09-28_125548.csv` | Near-anchor high-SNR performance |
 | **$(2.0, 3.0)\,\text{m}$** | Interior transition path | 1 | **45** | `dataset_2026-09-28_131731.csv` | Intermediate interior ranging |
-| **$(2.5, 2.5)\,\text{m}$** | Geometric center of room | 22 | **1,259** | 22 independent collection runs | Stationary jitter, drift, human body blockage |
+| **$(2.5, 2.5)\,\text{m}$** | Geometric center of test area | 22 | **1,259** | 22 independent collection runs | Stationary jitter, drift, human body blockage |
 | **$(2.5, 5.0)\,\text{m}$** | North perimeter boundary | 1 | **87** | `dataset_2026-09-28_123513.csv` | North edge boundary effects |
 | **$(3.0, 2.0)\,\text{m}$** | South-central interior | 2 | **126** | `..._130306.csv`, `..._130749.csv` | Central corridor repeatability |
 | **$(4.0, 1.0)\,\text{m}$** | Near Node B (SE boundary) | 2 | **90** | `..._124852.csv`, `..._125137.csv` | Southeast corner validation |
@@ -178,7 +243,7 @@ An audit of raw session logs resolved a discrepancy in preliminary working notes
 - A direct audit of the source dataset confirmed that the canonical, synchronized window count at $(2.5, 2.5)\,\text{m}$ was exactly **1,259 windows** across 22 sessions. The preliminary count of $1,348$ included 89 unverified initialization packets and pre-trimming edge samples from an early trial that were discarded during data cleaning.
 - Summing all nine coordinates in the verified dataset yields exactly **1,961 windows** across 33 sessions ($101 + 45 + 1259 + 87 + 126 + 90 + 116 + 95 + 42 = 1,961$).
 
-### 3.3.4 Physical Propagation Conditions and Attenuation Measurement Standards
+### 3.3.6 Physical Propagation Conditions and Attenuation Measurement Standards
 To evaluate real-world radio channel impairments, empirical trials incorporated multiple physical propagation conditions.
 
 #### Attenuation Sign Convention
@@ -190,14 +255,23 @@ To eliminate ambiguity, a strict sign convention was enforced throughout this in
 
 Under this convention, introducing an obstruction produced a positive attenuation $\Delta L > 0\,\text{dB}$ and a corresponding negative signal level delta $\Delta\text{RSSI} < 0\,\text{dBm}$.
 
-#### Evaluated Propagation Environments
-- **Line-of-Sight (LOS)**: Direct, unobstructed optical path between beacon and receivers ($11,182$ observation windows in the 1D dataset).
-- **Non-Line-of-Sight (NLOS) and Multipath Impairments**: Physical barriers introduced into the direct propagation path ($26,441$ observation windows in the 1D dataset):
-  - *Human Body Shadowing*: Transmitter worn on chest/back or obstructed by standing personnel. Empirical measurements revealed attenuation of $\Delta L = +4.12\,\text{dB}$ at $1.0\,\text{m}$, $+5.56\,\text{dB}$ at $3.0\,\text{m}$, and up to $+19.99\,\text{dB}$ under direct full-torso blockage.
-  - *Concrete Wall Partition*: Dense $20\,\text{cm}$ structural concrete wall. Empirical attenuation was recorded at $\Delta L = +6.08\,\text{dB}$ at $1.0\,\text{m}$ and $+20.68\,\text{dB}$ at $3.4\,\text{m}$.
-  - *Co-Channel Wi-Fi Interference*: Active IEEE 802.11b/g/n traffic streaming on $2.4\,\text{GHz}$ channels overlapping with BLE advertising frequencies, which produced $\Delta L = +5.03\,\text{dB}$ to $+5.07\,\text{dB}$ effective SNR degradation at $1.0\,\text{m}$.
+#### Evaluated Propagation Environments and Physical Obstacle Inventory
+Across the complete 87-session 1D dataset ($37,623$ observation windows in `observations.csv`), empirical trials evaluated eleven distinct propagation conditions:
+- **Line-of-Sight (LOS)**: $11,182$ observation windows collected across 15 calibrated distance presets ($0.5\,\text{m} \dots 5.3\,\text{m}$) with direct optical visibility between beacon and receiver.
+- **Non-Line-of-Sight (NLOS) & Attenuation Trials**: $26,441$ observation windows collected across controlled physical obstacles:
+  1. *Bed Mattress Barrier*: $7,804$ windows (porous cellular acoustic/RF absorption).
+  2. *Human Body Shadowing*: $3,315$ windows (standing investigator directly obstructing the line-of-sight path at $1.0\,\text{m}$, $2.5\,\text{m}$, and $3.0\,\text{m}$).
+  3. *Hollow-Core Timber Door*: $3,083$ windows (closed interior wooden door partition).
+  4. *Distance Calibration Benchmarks (Tape Measure Presets)*: $3,572$ windows ($2,377 + 1,195$ baseline validation windows).
+  5. *Mobile Handset Proximity*: $2,091$ windows (cellular handset placed within $5\,\text{cm}$ of tag antenna).
+  6. *Combined Wi-Fi Streaming & Concrete Wall*: $1,604$ windows (simultaneous co-channel Wi-Fi UDP saturation and $20\,\text{cm}$ concrete wall blockage).
+  7. *Laptop Computing Chassis*: $1,392$ windows (metallic chassis reflection and near-field detuning).
+  8. *Structural Concrete Wall Partition*: $1,170$ windows (dense $20\,\text{cm}$ load-bearing plastered concrete masonry wall).
+  9. *Bluetooth Co-Channel Interferer*: $1,084$ windows (continuous Bluetooth audio transmission).
+  10. *Saturating Wi-Fi Traffic*: $682$ windows (iperf3 UDP streaming on $2.4\,\text{GHz}$ channels).
+  11. *Wooden Furniture / Desk*: $644$ windows (wooden desk with metallic structural frame).
 
-Table 3.4 details the empirical attenuation measurements across physical conditions.
+Table 3.4 details the empirical attenuation measurements across the primary benchmark conditions.
 
 $$\text{Table 3.4: Physical Propagation Conditions & Environmental Attenuation Profiles}$$
 
@@ -405,7 +479,7 @@ $$RSSI(d) = A - 10n \log_{10}(d) + X_\sigma$$
 where:
 - $RSSI(d)$ is the received signal strength at physical distance $d$ (in $\text{dBm}$).
 - $A$ is the reference received power at $d_0 = 1.0\,\text{m}$ (empirically calibrated as $-76.45\,\text{dBm}$ under clean Line-of-Sight).
-- $n$ is the dimensionless path-loss exponent ($n = 2.50$ for the experimental environment).
+- $n$ is the dimensionless path-loss exponent ($n = 2.12$ for the empirically calibrated testbed Line-of-Sight baseline; uncalibrated generic indoor heuristics typically assume nominal $n = 2.50$).
 - $d$ is the physical Euclidean distance between transmitter and receiver (in meters).
 - $X_\sigma$ is a zero-mean Gaussian random variable representing shadow fading: $X_\sigma \sim \mathcal{N}(0, \sigma^2)$ (in $\text{dB}$).
 
@@ -473,36 +547,50 @@ To investigate the simulation-to-reality transfer gap (RQ2, $H_2$), a parameteri
      $$n \sim \begin{cases} 2.4 & \text{with probability } p = 0.70 \quad (\text{Line-of-Sight}) \\ 3.6 & \text{with probability } p = 0.30 \quad (\text{Obstructed NLOS}) \end{cases}$$
   2. *Log-Normal Shadow Fading Noise*: Independent Gaussian noise was injected to model shadow fading: $X_\sigma \sim \mathcal{N}(0, 1.5^2)\,\text{dB}$.
   3. *Reference Power Calibration*: $P_{\text{tx}} = -77.8\,\text{dBm}$ modeled standard theoretical 1m free-space reference power, in contrast to the empirically measured $A = -76.45\,\text{dBm}$ observed in the physical testbed.
-  4. *Feature Vector Synthesis*: The six primary ranging features were generated via:
+  4. *Feature Vector Synthesis*: Six primary ranging features were generated synthetically:
      $$\text{rssi\_mean} = P_{\text{tx}} - 10n \log_{10}(\max(d, 0.1)) + X_\sigma$$
      $$\text{rssi\_median} = \text{rssi\_mean} + \mathcal{N}(0, 0.5^2) \quad [\text{dBm}]$$
      $$\text{rssi\_min} = \text{rssi\_mean} - 3.0\,\text{dBm}, \quad \text{rssi\_max} = \text{rssi\_mean} + 3.0\,\text{dBm}$$
      $$\text{rssi\_std} = |\mathcal{N}(2.0, 0.5^2)| \quad [\text{dB}]$$
      $$\text{path\_loss\_indoor} = d + \mathcal{N}(0, 0.2^2) \quad [\text{meters}]$$
+
+#### Reduced-Feature Experimental Scope and Relationship to the Production Model
+The Sim2Real experiment was a **controlled reduced-feature ablation study**, deliberately distinct from the full 66-feature production distance model. The experiment script (`sim2real_experiment.py`, line 80) computed a runtime feature intersection:
+```python
+feature_cols = [c for c in ['rssi_mean', 'rssi_median', 'rssi_std', 'path_loss_indoor']
+                if c in real_df.columns and c in syn_df.columns]
+```
+Consequently, only **four features** (`rssi_mean`, `rssi_median`, `rssi_std`, `path_loss_indoor`) were used in the Sim2Real tournament — the intersection of columns present in both the synthetic generator output and the physical observation dataset. The remaining 62 features of the production model (higher-order percentiles, cross-window temporal dynamics, RF power histograms, environmental interaction terms) could not be synthesized from a parametric LDPL generator and were therefore excluded. The experiment used `ExtraTreesRegressor(n_estimators=300)` rather than the production `HistGradientBoostingRegressor`.
+
+This design was intentional: the research question ($H_2$) asked whether synthetic physics data could replace or augment physical observations for distance regression. By restricting both synthetic and physical training conditions to the same four-feature subset and evaluating all three conditions on the identical physical holdout partition, the comparison isolated the effect of the training data source from the effect of feature richness. The results therefore characterised the Sim2Real transfer gap for basic RSSI-derived features and did not claim transferability for the full 66-feature production schema.
+
 - **Three Evaluated Experimental Conditions**:
-  - *Condition A (Empirical Baseline)*: Model trained exclusively on physical training observations ($N = 29,247$ outlier-pruned windows across 69 sessions).
-  - *Condition B (Synthetic Simulation Ablation)*: Model trained exclusively on synthetic physics simulations ($N = 5,000$ synthetic windows).
-  - *Condition C (Sim2Real Augmentation)*: Model trained on physical observations augmented with synthetic observations targeting sparse distance intervals ($0.6\,\text{m}$ and $0.7\,\text{m}$).
-- All three conditions were evaluated against the identical, untouched physical holdout test partition ($N = 7,471$ windows across 18 sessions).
+  - *Condition A (Empirical Baseline)*: Model trained exclusively on physical training observations ($N = 29,247$ outlier-pruned windows across 69 sessions), restricted to the four-feature subset.
+  - *Condition B (Synthetic Simulation Ablation)*: Model trained exclusively on synthetic physics simulations ($N = 5,000$ synthetic windows), restricted to the same four-feature subset.
+  - *Condition C (Sim2Real Augmentation)*: Model trained on physical observations augmented with synthetic observations targeting sparse distance intervals ($0.6\,\text{m}$ and $0.7\,\text{m}$), restricted to the same four-feature subset.
+- All three conditions were evaluated against the identical, untouched physical holdout test partition ($N = 7,471$ windows across 18 sessions), using only the four shared features.
 
 ---
 
 ## 3.6 Localization and Kinematic Tracking
 
 ### 3.6.1 Dual-Path Localization Pipeline Architecture
-The positioning engine prioritized direct non-linear coordinate regression when comprehensive multi-anchor telemetry was available, while providing an automated fallback to Levenberg-Marquardt multilateration when packet dropouts occurred, as illustrated in Figure 3.6.
+The positioning engine prioritized direct non-linear coordinate regression when comprehensive multi-anchor telemetry was available ($M \ge 3$), while providing an automated fallback to Levenberg-Marquardt multilateration if the machine learning model was uninitialized or encountered an evaluation exception. When fewer than three anchors were active ($M < 3$), coordinate estimation was deliberately withheld to prevent underdetermined position hallucination, as illustrated in Figure 3.6.
 
 ```mermaid
 flowchart TD
-    START["Incoming 1000ms Synchronized Multi-Anchor Window"] --> CHECK{"Active Anchor Count >= 3?"}
+    START["Incoming 1000ms Synchronized Multi-Anchor Window"] --> CHECK{"Active Anchor Count M >= 3?"}
 
-    CHECK -- "Yes (Primary Path)" --> SCALE["Transform with In-Fold RobustScaler"]
+    CHECK -- "Yes (M >= 3)" --> SCALE["Transform with In-Fold RobustScaler"]
     SCALE --> ML_PRED["Infer Coordinates (X, Y) via MultiOutput ExtraTrees"]
-    ML_PRED --> MERGE["Raw Spatial Measurement z_k = (z_x, z_y)"]
+    ML_PRED --> ML_STATUS{"Model Inference Succeeded?"}
 
-    CHECK -- "No (Fallback Path: < 3 Anchors)" --> RANGING["Predict Distances via 1D HistGB"]
-    RANGING --> TRILAT["Levenberg-Marquardt Solver with Centroid Fallback"]
+    ML_STATUS -- "Yes (Primary Path)" --> MERGE["Raw Spatial Measurement z_k = (z_x, z_y)"]
+    ML_STATUS -- "No / Exception (Fallback Path)" --> RANGING["Predict Distances via 1D HistGB"]
+    RANGING --> TRILAT["Levenberg-Marquardt LM Solver with Centroid Fallback"]
     TRILAT --> MERGE
+
+    CHECK -- "No (M < 3 Anchors)" --> HALT["Zero Update Emitted; Retain Last Position; Status -> stale / unavailable"]
 
     MERGE --> KF_PRED["Kalman Predict: Advance State x_k|k-1 and Covariance P_k|k-1 (dt)"]
     KF_PRED --> KF_UPD["Kalman Update: Compute Innovation y_k, Gain K_k & Updated State x_k|k"]
@@ -512,7 +600,7 @@ flowchart TD
 ```
 
 ### 3.6.2 Levenberg-Marquardt Multilateration Fallback Formulation
-When packet loss reduced active anchors below three ($M < 3$), direct 2D regression could not construct a complete 21-feature vector. The engine invoked non-linear least-squares multilateration using the Levenberg-Marquardt algorithm [7] implemented via `scipy.optimize.least_squares(residuals, x0, method='lm')`.
+When the direct 2D coordinate regressor was absent, uninitialized, or raised an arithmetic exception, the engine engaged non-linear least-squares multilateration using the Levenberg-Marquardt algorithm [7] implemented via `scipy.optimize.least_squares(residuals, x0, method='lm')`.
 
 #### Objective Function and Residual Formulation
 Let $\mathbf{a}_j = (x_j, y_j)^T$ denote the surveyed coordinates of anchor $j$, and let $\hat{d}_j$ denote the distance predicted by the 1D HistGradientBoosting model. The non-linear Euclidean residual for anchor $j$ is:
@@ -523,10 +611,10 @@ The standard non-linear least-squares solver minimizes the sum of squared residu
 
 $$\min_{\mathbf{p} \in \mathbb{R}^2} \frac{1}{2} \sum_{j=1}^{M} r_j(\mathbf{p})^2$$
 
-#### Solver Implementation and Robust Loss Reconciliation
-In optimization theory, robust M-estimators such as the **Soft L1 loss** $\rho(z) = 2(\sqrt{1+z}-1)$ mitigate outlier lever-arm effects caused by severe through-wall signal attenuation. However, in SciPy's numerical library, `method='lm'` is restricted to classical unweighted least-squares residuals (as Levenberg-Marquardt is mathematically formulated for standard linear and non-linear sum-of-squares). In the production engine (`localization/trilateration.py`):
-1. The solver executed the classical Levenberg-Marquardt algorithm (`method='lm'`) with initial guess $\mathbf{p}_0 = \frac{1}{M}\sum \mathbf{a}_j$.
-2. To guard against non-convergence or ill-conditioned geometry, the optimizer was wrapped in numerical exception handling that automatically fell back to analytical geometric centroids if optimization failed.
+#### Solver Implementation and Ordinary Least Squares Reconciliation
+In optimization literature, robust M-estimators such as the Soft L1 loss $\rho(z) = 2(\sqrt{1+z}-1)$ are frequently proposed to attenuate extreme multipath outliers. However, in SciPy's numerical optimization suite (`scipy.optimize.least_squares`), `method='lm'` is mathematically restricted to classical unweighted least-squares residuals ($L_2$ norm); robust loss functions in SciPy require Trust Region Reflective (`trf`) or Dogleg (`dogbox`) solvers. In the production localization engine (`localization/trilateration.py`):
+1. The solver executed the classical Levenberg-Marquardt algorithm (`method='lm'`) minimizing standard Euclidean sum-of-squares residuals with initial guess $\mathbf{p}_0 = \frac{1}{M}\sum \mathbf{a}_j$.
+2. To guard against non-convergence or ill-conditioned geometry, the optimizer was wrapped in numerical exception handling that automatically fell back to analytical active-anchor geometric centroids ($\mathbf{p}_0$) if numerical optimization failed.
 
 #### Levenberg-Marquardt Step and GDOP Computation
 At iteration $i$, the parameter update $\Delta\mathbf{p}$ satisfies:
@@ -535,12 +623,10 @@ where $J$ is the $M \times 2$ Jacobian matrix of partial derivatives ($J_{j,1} =
 $$\text{Cov} = \sigma_{\text{ranging}}^2 (J^T J)^{-1}, \quad \text{GDOP} = \sqrt{\text{tr}((J^T J)^{-1})}, \quad \text{Uncertainty Radius} = \sqrt{\text{tr}(\text{Cov})}$$
 where nominal ranging standard deviation was parameterized as $\sigma_{\text{ranging}} = 0.35\,\text{m}$.
 
-#### Degraded Anchor Fallback Modes
-When fewer than three anchors were available, the multilateration engine adapted its behavior deterministically based on available geometric degrees of freedom:
-- **Full Multilateration ($M \ge 3$)**: Overdetermined system. Solved via Levenberg-Marquardt optimization initialized at the active anchor centroid $\mathbf{p}_0 = \frac{1}{M}\sum \mathbf{a}_j$, returning estimated coordinates $(\hat{x}, \hat{y})$, analytical GDOP, and uncertainty radius.
-- **Two-Anchor Ambiguity ($M = 2$)**: Underdetermined in 2D space (two circle intersections). The solver was initialized at the midpoint between the two active anchors $\mathbf{p}_0 = \frac{1}{2}(\mathbf{a}_1 + \mathbf{a}_2)$ and optimized; if convergence was ill-conditioned, it defaulted to the midpoint $\mathbf{p}_0$.
-- **Single-Anchor Fallback ($M = 1$)**: Zero geometric degrees of freedom. The engine returned the known physical coordinate of the active anchor $(x_1, y_1)$ with maximum uncertainty radius ($5.0\,\text{m}$) and $\text{GDOP} = 99.9$.
-- **Complete Dropout ($M = 0$)**: No anchor signals received. The engine returned the geometric room center $(2.5, 2.5)\,\text{m}$ with maximum uncertainty radius ($5.0\,\text{m}$) and $\text{GDOP} = 99.9$.
+#### Runtime Anchor Sufficiency Gate vs. Degraded Library Fallback
+A crucial distinction separated the runtime production server pipeline (`server/app.py`) from the standalone mathematical utility class (`TrilaterationEngine`):
+- **Production Server Gate ($M < 3$)**: In live operation, two anchors produce an underdetermined dual-intersection circle ambiguity, and one anchor provides zero angular resolution. To eliminate coordinate hallucination, `server/app.py` line 579 enforced an unconditional gate: if active anchors $M < 3$ within the $4000\,\text{ms}$ decay horizon, **no coordinate estimation was performed**. The tag retained its last verified coordinate in memory while its telemetry status transitioned gracefully from `current` ($\le 4.0\,\text{s}$) to `stale` ($4.0\,\text{s} - 30.0\,\text{s}$) and finally to `unavailable` ($> 30.0\,\text{s}$), retracting rendering from the active dashboard map.
+- **Defensive Library Fallback**: For unit-level numerical robustness in standalone testing (`localization/trilateration.py`), the `TrilaterationEngine` provided mathematical fallback modes if explicitly invoked with $M < 3$: returning the single anchor coordinate for $M=1$ or the room center $(2.5, 2.5)\,\text{m}$ for $M=0$ with nominal $\text{GDOP} = 99.9$ and $\text{uncertainty} = 5.0\,\text{m}$. In the integrated server, the upstream gate intercepted execution before these degenerate library modes could be reached during live tracking.
 
 ### 3.6.3 2D Constant Velocity Kalman State Estimation
 To suppress stationary coordinate jitter caused by RF multipath fluctuations without introducing excessive dynamic lag, raw regressed coordinates were filtered through a discrete-time 2D Constant Velocity Kalman Filter [8].
@@ -558,17 +644,17 @@ where $\Delta t$ represented the elapsed monotonic time since the previous obser
 #### Covariance Matrices and Parameter Selection Rationale
 - **Process Noise Covariance $Q$**: Models unmodeled acceleration and physical velocity changes:
   $$Q = q \cdot I_4 = 0.05 \cdot I_4 \quad [\text{m}^2/\text{s}^2]$$
-  *Selection Rationale*: Indoor personnel and asset movements in a confined $5.0\,\text{m} \times 5.0\,\text{m}$ room exhibited nominal walking velocities between $0.5\,\text{m/s}$ and $1.5\,\text{m/s}$ with minimal instantaneous acceleration. Setting $q = 0.05$ provided sufficient velocity adaptability during walking turns while strongly attenuating high-frequency measurement noise during stationary periods.
+  *Selection Rationale*: Personnel and asset movements within a nominal $5.0\,\text{m} \times 5.0\,\text{m}$ test area exhibited walking velocities between $0.5\,\text{m/s}$ and $1.5\,\text{m/s}$ with minimal instantaneous acceleration. Setting $q = 0.05$ provided sufficient velocity adaptability during walking turns while strongly attenuating high-frequency measurement noise during stationary periods.
 - **Measurement Noise Covariance $R$**: Models sensor and regression uncertainty:
   $$R = r \cdot I_2 = 0.80 \cdot I_2 \quad [\text{m}^2]$$
   *Selection Rationale*: The parameter $r = 0.80\,\text{m}^2$ corresponded to an expected measurement standard deviation of $\sigma_{\text{meas}} = \sqrt{0.80} \approx 0.894\,\text{m}$. This directly matched the empirical 2D cross-validation performance of the raw MultiOutput ExtraTrees coordinate regressor on noisy multipath telemetry (empirical MAE $= 0.885\,\text{m}$, RMSE $= 1.369\,\text{m}$).
 - **Initial Error Covariance $P_0$**:
   $$P_0 = 1.0 \cdot I_4$$
 
-#### Dynamic Tracking Lag Quantification
-Dynamic tracking lag during continuous asset motion is governed by the ratio of process to measurement noise ($Q/R$). Analytically, the steady-state position Kalman gain $K_{\text{pos}}$ defines an effective first-order tracking time constant:
+#### Theoretical Tracking Lag Characterisation
+For future deployment scenarios involving continuous asset motion, the theoretical tracking lag is governed by the ratio of process to measurement noise ($Q/R$). Analytically, the steady-state position Kalman gain $K_{\text{pos}}$ defines an effective first-order tracking time constant:
 $$\tau_{\text{lag}} = \frac{\Delta t}{K_{\text{pos}}} \quad [\text{seconds}]$$
-During dynamic movement trials, tracking lag was evaluated by measuring the temporal settling time and phase delay required for filtered coordinates to reach steady state following abrupt velocity step transitions between surveyed benchmark positions.
+In this investigation, because the tag was repositioned manually between discrete stationary benchmark sessions without continuous recording during transit, tracking lag was characterised theoretically from the filter parameters rather than measured empirically from continuous motion time series. Empirical validation of dynamic tracking lag under continuous mobile trajectories was delimited as a future work extension (Section 3.8.4).
 
 #### Recursive State Estimation Equations
 1. **Time Update (Predict)**:
@@ -581,6 +667,15 @@ During dynamic movement trials, tracking lag was evaluated by measuring the temp
    $$K_k = P_{k|k-1} H^T S_k^{-1} \quad (\text{Optimal Kalman Gain})$$
    $$\mathbf{x}_{k|k} = \mathbf{x}_{k|k-1} + K_k \mathbf{y}_k \quad (\text{Updated State Estimate})$$
    $$P_{k|k} = (I_4 - K_k H) P_{k|k-1} \quad (\text{Updated Error Covariance})$$
+
+#### Stationary Coordinate Jitter and Filter Evaluation Formulation
+Coordinate jitter across stationary benchmark recording sessions was operationalized using the Root-Mean-Square Jitter Radius ($J_{\text{RMS}}$), defined as the radial standard deviation around the empirical session centroid:
+$$J_{\text{RMS}} = \sqrt{\frac{1}{N-1}\sum_{k=1}^N \left((x_k - \bar{x})^2 + (y_k - \bar{y})^2\right)} = \sqrt{\sigma_x^2 + \sigma_y^2} \quad [\text{meters}]$$
+where $\bar{x} = \frac{1}{N}\sum x_k$ and $\bar{y} = \frac{1}{N}\sum y_k$ represent the empirical spatial centroid across $N$ stationary windows within a session.
+
+The filter effectiveness in dampening stationary spatial dispersion was quantified by the Jitter Reduction Ratio ($J_r$):
+$$J_r = \left(1 - \frac{J_{\text{RMS, Kalman}}}{J_{\text{RMS, Raw}}}\right) \times 100\% \quad [\%]$$
+Across the 22 stationary collection sessions recorded at the central benchmark coordinate $(2.5, 2.5)\,\text{m}$, the filter achieved a mean stationary jitter reduction of $J_r = 40.8\%$, reaching up to $70.2\%$ during trials exhibiting severe multipath fluttering. This metric evaluates stationary position stability; it does not measure dynamic tracking accuracy along continuous mobile trajectories.
 
 ### 3.6.4 Spatial Geofencing, Boundary Hysteresis, and Non-Fingerprinting Scope
 * **Room Boundary Clamping**: Coordinates emitted by the Kalman filter were constrained to the physical testbed boundaries:
@@ -683,7 +778,7 @@ sequenceDiagram
    - `discovery_ack`: Registration handshake acknowledging collector announcement and confirming anchor boot parameters.
 4. **Verbatim Raw Payload Logging**: Before initiating JSON parsing or feature engineering, every raw datagram byte sequence was immediately written to an immutable verbatim binary log (`append_verbatim_payload()`). This design guaranteed that raw experimental data could be replayed deterministically or re-parsed offline without information loss, ensuring complete empirical auditability.
 5. **Decoupled Asynchronous Forwarding and Server Downtime Resilience**: Ingestion throughput was decoupled from backend processing via an asynchronous worker thread (`_http_forward_worker`). Parsed packets were placed into a thread-safe bounded memory queue (`_http_forward_queue`, capacity 1,000 items) and forwarded to the backend via HTTP `POST` requests to `/api/telemetry/ingest`. If the backend server experienced garbage collection pauses, transient downtime, or was restarted, the forwarder caught connection exceptions and suppressed them without crashing.
-   - *Queue Capacity, Enqueue Policy, and Loss Dynamics Under Prolonged Outages*: The bounded queue of 1,000 items serves as an in-memory smoothing buffer for live telemetry, not permanent storage. Under typical multi-anchor telemetry rates of $10 - 40\,\text{packets/second}$, a 1,000-item queue provides approximately $25 - 100\,\text{seconds}$ of forwarding buffer during backend unresponsiveness. If the backend server remains unreachable beyond this buffer window, the queue reaches its maximum capacity. Under the non-blocking `put_nowait()` enqueue policy implemented in `_enqueue_http_forward()`, subsequent incoming packets raise a `queue.Full` exception, which is caught and silently dropped (`except Exception: pass`), deliberately shedding live forwarding frames to prevent host memory exhaustion. However, this lossy drop behavior is strictly confined to the live dashboard forwarding stream: the collector's local UDP socket ingestion loop writes all raw binary datagrams and CSV observations synchronously and permanently to disk (`append_verbatim_payload()` and `csv_writer.writerow()`). Thus, raw empirical dataset collection is 100% lossless and permanently preserved on disk even during indefinite backend server downtime.
+   - *Queue Capacity, Enqueue Policy, and Loss Dynamics Under Prolonged Outages*: The bounded queue of 1,000 items serves as an in-memory smoothing buffer for live telemetry, not permanent storage. Under typical multi-anchor telemetry rates of $10 - 40\,\text{packets/second}$, a 1,000-item queue provides approximately $25 - 100\,\text{seconds}$ of forwarding buffer during backend unresponsiveness. If the backend server remains unreachable beyond this buffer window, the queue reaches its maximum capacity. Under the non-blocking `put_nowait()` enqueue policy implemented in `_enqueue_http_forward()`, subsequent incoming packets raise a `queue.Full` exception, which is caught and silently dropped (`except Exception: pass`), deliberately shedding live forwarding frames to prevent host memory exhaustion. However, this lossy drop behavior is strictly confined to the live dashboard forwarding stream: the collector's local UDP socket ingestion loop writes all raw binary datagrams and CSV observations synchronously and permanently to disk (`append_verbatim_payload()` and `csv_writer.writerow()`). Thus, telemetry ingestion at the host collector boundary preserves every UDP datagram received by the socket without software-induced queue loss, persisting records synchronously to disk. However, this guarantee is strictly delimited to the receiver socket boundary; it does not imply that 100% of physical over-the-air BLE radio frames transmitted by the beacon tag reached the anchor nodes, as physical RF packet collisions, antenna shadowing, and multi-path fading cause inevitable packet dropouts across the wireless link.
 6. **Network Failure Modes, Packet Loss, and Reconnection Dynamics**:
    - *Stateless Discovery vs. Transport Buffering*: The discovery announcement protocol operated statelessly. If the host mobile hotspot disconnected or the collector restarted, the edge ESP32 anchors entered an autonomous FreeRTOS Wi-Fi reconnection loop, updating their destination IP upon receiving the subsequent `COLLECTOR_ANNOUNCE` datagram. The microcontrollers did not maintain an offline non-volatile flash buffer during Wi-Fi disconnects; packets sampled during an active link outage were intentionally dropped at the edge, adhering to connectionless UDP semantics.
    - *Window Aggregation as Packet Loss Compensation*: Rather than relying on heavyweight TCP-level retransmissions—which would introduce variable latency spikes incompatible with real-time tracking—the architecture absorbed transient RF packet drops through sliding-window statistical aggregation ($1000\,\text{ms}$ - $4000\,\text{ms}$). Because anchors observed up to 10 packets per second under clean conditions, transient fading nulls that dropped reception to 2–5 packets per second still provided sufficient statistical density for robust moment extraction. If an anchor suffered complete signal loss for $> 4000\,\text{ms}$, its `present` indicator transitioned to $0.0$, and the positioning pipeline either continued using the remaining active anchors ($M \ge 3$) or halted coordinate updates without fabricating positions.
@@ -736,7 +831,7 @@ flowchart TD
 3. **Dual-Path Localization Engine Dispatch**:
    - *Active Anchor Sufficiency Gate*: Prior to dispatching spatial estimation, the engine verified the count of active anchors with valid packets within the $4000\,\text{ms}$ decay horizon. If active anchors $M < 3$, localization processing terminated immediately: no spatial coordinates were updated or fabricated, and tag status decayed via `get_position_status()`.
    - *Primary Path (Machine Learning Regression)*: When $M \ge 3$ anchors were active and finite, the 21-feature spatial vector was standardized using the pre-fitted `RobustScaler` (`models/coordinate_scaler.joblib`) and evaluated through the champion MultiOutput ExtraTrees regressor (`models/coordinate_regressor.joblib`). This direct regression yielded horizontal coordinates $(z_x, z_y)$ bounded within the $[0.0, 5.0]\,\text{m}$ grid. In the live telemetry stream emitted by `server/app.py`, the scalar field `uncertainty = 0.41` was returned as a **static nominal heuristic display parameter** initialized to reflect the offline cross-validated median error ($0.4059\,\text{m}$ documented in Chapter 4 Table 4.4); it was not generated as an independently calibrated Bayesian covariance bound. Crucially, the $0.4059\,\text{m}$ benchmark itself was computed strictly from aggregate held-out out-of-fold predictions across 5 session-grouped cross-validation folds (`GroupKFold`, $K=5$, grouped on `session_id`), ensuring that evaluation was performed exclusively on unseen recording sessions without temporal packet autocorrelation or cross-validation leakage. While a live dashboard demonstration establishes that the engineering pipeline acquires, transports, processes, and renders packets end-to-end, it does not independently establish model accuracy; the system's spatial generalisation performance was established strictly through this zero-leakage cross-validation evaluation against surveyed physical ground truth.
-   - *Fallback Path (Levenberg-Marquardt Multilateration)*: If `coordinate_regressor.joblib` was not loaded, raised a calculation exception, or if comparative geometric evaluation was explicitly configured, the engine engaged the fallback geometric path. Per-anchor physical distances were predicted using the 1D regression pipeline (`models/distance_estimator.joblib`, HistGradientBoosting), smoothed via an exponential moving average ($d_k = 0.4 \cdot d_{k-1} + 0.6 \cdot d_{\text{new}}$), and solved using the `TrilaterationEngine` implementing Levenberg-Marquardt least-squares optimization with Soft $L_1$ loss [7].
+   - *Fallback Path (Levenberg-Marquardt Multilateration)*: If `coordinate_regressor.joblib` was not loaded, raised a calculation exception, or if comparative geometric evaluation was explicitly configured, the engine engaged the fallback geometric path. Per-anchor physical distances were predicted using the 1D regression pipeline (`models/distance_estimator.joblib`, HistGradientBoosting), smoothed via an exponential moving average ($d_k = 0.4 \cdot d_{k-1} + 0.6 \cdot d_{\text{new}}$), and solved using the `TrilaterationEngine` implementing classical Levenberg-Marquardt ordinary least-squares optimization (`method='lm'`) with analytical active-anchor centroid exception fallback [7].
 4. **Kinematic Filtering and Geometric Constraints**:
    - *Kalman State Filtering*: Raw regressed measurements $(z_x, z_y)$ were processed by the tag's dedicated 2D Constant Velocity Kalman Filter [8] parameterized with process noise $q = 0.05\,\text{m}^2/\text{s}^2$ and measurement noise $r = 0.80\,\text{m}^2$, updating state vector $\hat{\mathbf{x}}_k = [\hat{x}, \hat{y}, \hat{v}_x, \hat{v}_y]^T$. As quantitatively demonstrated in Chapter 4 Table 4.7, this kinematic state update suppressed coordinate jitter by $40.8\%$ on direct ML predictions (reducing jitter from $0.385\,\text{m}$ to $0.228\,\text{m}$) and by $70.2\%$ on multilateration coordinates (reducing jitter from $0.842\,\text{m}$ to $0.251\,\text{m}$).
    - *Room Boundary Clamping*: Filtered coordinates were strictly constrained to physical room dimensions:
@@ -893,8 +988,8 @@ where $(x^*, y^*)$ is the surveyed physical benchmark coordinate.
 
 #### Latency Budget Definitions
 System latency was evaluated across two distinct operational boundaries:
-1. **Algorithmic Execution Latency**: The computational CPU execution time required to extract features, evaluate the machine learning regressor, and execute the Kalman filter predict/update cycle for a single observation window (budget: $< 5.0\,\text{ms}$).
-2. **End-to-End Pipeline Telemetry Latency**: The total elapsed duration from physical beacon frame transmission, edge ESP32 reception, Wi-Fi UDP datagram transmission, window aggregation, inference, and WebSocket push to the React dashboard (budget: $< 100.0\,\text{ms}$). While the feature engineering buffer maintained a $1000\,\text{ms}$ rolling sample horizon to accumulate adequate statistical depth, positional state updates were evaluated dynamically upon packet arrival, ensuring that the end-to-end pipeline latency remained strictly bounded below $100.0\,\text{ms}$.
+1. **Software Pipeline Execution Latency** (directly measured): The computational CPU execution time required to extract features from a buffered observation window, evaluate the machine learning regressor (scikit-learn `.predict()`), and execute the Kalman filter predict/update cycle. This was measured on the server host using Python `time.perf_counter()` timestamps bracketing the inference call, running on a single CPU thread without GPU acceleration. The reported values ($1.809\,\text{ms}$ median and $3.830\,\text{ms}$ 99th percentile in Chapter 4) represent this software execution measurement and did not include physical radio propagation time, ESP32 processing delay, UDP network transit, or browser rendering latency.
+2. **End-to-End System Latency Budget** (architectural constraint, not directly instrumented): The total elapsed duration from physical beacon frame transmission through edge ESP32 reception, Wi-Fi UDP datagram transmission, window aggregation, inference, and WebSocket push to the React dashboard was constrained by architectural design to remain below $100.0\,\text{ms}$. Because the ESP32 anchors, server host, and browser client operated on independent unsynchronised clocks, direct end-to-end radio-to-display latency was not measured with a single unified timestamp. The $100.0\,\text{ms}$ budget was an engineering design target verified by the sub-$5.0\,\text{ms}$ software execution measurement combined with the $1000\,\text{ms}$ windowing interval. Precise instrumented measurement of full radio-to-display latency across synchronised hardware clocks was identified as a future instrumentation enhancement.
 
 ### 3.8.2 Separation of Methodological Framework and Empirical Findings
 Following standard academic convention, this chapter established the experimental setup, hardware specifications, feature engineering pipelines, algorithms, and evaluation protocols. Detailed empirical performance results, model tournaments, cumulative distribution functions, and hypothesis confirmations were allocated to Chapter 4 (*Results and Discussion*).
@@ -919,15 +1014,16 @@ $$\text{Table 3.11: Multi-Layered Experimental Evidence Hierarchy and Verificati
    - Comprehensive physical positioning validation was established through the empirical trials and statistical hypothesis evaluations documented in Chapter 4.
 
 ### 3.8.4 Physical and Methodological Limitations
-1. **Room Geometry & Spatial Confinement**: Experiments were conducted in a $5.0\,\text{m} \times 5.0\,\text{m}$ single-room testbed. Deployments across larger multi-room facilities may experience greater path-loss attenuation, non-convex geometry, and through-wall signal degradation.
-2. **2D Plane Confinement & Divergent Vertical GDOP**: Anchors and beacon were mounted at a uniform elevation of $0.96\,\text{m}$. When all anchors lie in a single horizontal plane, the vertical Dilution of Precision diverges to infinity ($\text{VDOP} \to \infty$). Consequently, 3D vertical tracking ($Z$-axis) was excluded from the system scope.
-3. **Antenna Directivity and Body Losses**: Human body orientation relative to line-of-sight anchors introduced directional antenna body losses between $+4.1\,\text{dB}$ and $+19.99\,\text{dB}$, requiring multi-window rolling statistics to stabilize estimates.
-4. **Multipath Volatility**: Dynamic metallic objects introduced transient fading nulls that necessitated multi-packet window aggregation.
+1. **Testbed Environment & Controlled Proof-of-Concept Scope**: The project developed and evaluated a real-hardware BLE positioning proof of concept, with the primary positioning evaluation conducted under the designated benchmark conditions. Outdoor measurements provided supplementary comparative propagation observations rather than a controlled indoor–outdoor causal experiment. As disclosed in Section 3.3.1, the physical testbed was established in a controlled $5.0\,\text{m} \times 5.0\,\text{m}$ backyard environment rather than a commercial or industrial building. Findings are interpreted within the limits of the test area's dimensions, anchor geometry, environmental conditions, and data-collection procedures. Performance in larger buildings, warehouses, shopping centres, and other indoor environments was not directly established by this experiment.
+2. **Stationary Benchmark Evaluation vs. Continuous Mobile Tracking**: The experimental investigation evaluated two-dimensional coordinate accuracy, spatial repeatability, and Kalman filter jitter suppression under stationary benchmark conditions across surveyed physical coordinates. Continuous mobile tracking along dynamic arbitrary trajectories was not instrumented with millimetric motion-capture ground truth and is formally designated as future work.
+3. **2D Plane Confinement & Divergent Vertical GDOP**: Anchors and beacon were mounted at a uniform elevation of $0.96\,\text{m}$. When all anchors lie in a single horizontal plane, the vertical Dilution of Precision diverges to infinity ($\text{VDOP} \to \infty$). Consequently, 3D vertical tracking ($Z$-axis) was excluded from the system scope.
+4. **Antenna Directivity and Body Losses**: Human body orientation relative to line-of-sight anchors introduced directional antenna body losses between $+4.1\,\text{dB}$ and $+19.99\,\text{dB}$, requiring multi-window rolling statistics to stabilize estimates.
+5. **Multipath Volatility**: Dynamic metallic objects introduced transient fading nulls that necessitated multi-packet window aggregation.
 
 ---
 
-## 3.9 Chapter Summary
-This chapter established the empirical methodology, hardware architecture, feature engineering pipelines, predictive models, and validation protocols for the BLE indoor positioning platform. By combining high-throughput ESP32 edge sniffing with a 66-feature 1D distance pipeline, a 21-feature multi-anchor 2D spatial regressor, a robust Levenberg-Marquardt fallback solver, and a 2D Constant Velocity Kalman Filter, the investigation formulated a comprehensive platform for indoor asset tracking. The zero-leakage session-grouped validation protocol ensured that all reported metrics represented genuine generalization performance. The empirical results and hypothesis evaluations were allocated to Chapter 4.
+## 3.9 Conclusion
+This chapter established the empirical methodology, hardware architecture, feature engineering pipelines, predictive models, and validation protocols for the BLE indoor positioning platform. By combining high-throughput ESP32 edge sniffing with a 66-feature 1D distance pipeline, a 21-feature multi-anchor 2D spatial regressor, an ordinary least-squares Levenberg-Marquardt fallback solver with analytical centroid recovery, and a 2D Constant Velocity Kalman Filter, the investigation formulated a comprehensive platform for indoor asset monitoring. The zero-leakage session-grouped validation protocol ensured that all reported metrics represented genuine generalization performance. The empirical results and hypothesis evaluations were allocated to Chapter 4.
 
 ---
 

@@ -385,9 +385,9 @@
 
 <h3 class="subsection-title">4.2.1 Classical Path Loss vs. Machine Learning Models</h3>
 
-<p>Table 4.1 summarizes the ranging accuracy of the deterministic Log-Distance Path-Loss (LDPL) baseline alongside representative machine learning regressors evaluated on the independent held-out test partition (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mo>&#x0003D;</mo><mn>7</mn><mo>&#x0002C;</mo><mn>471</mn></mrow></math></span> observation windows).</p>
+<p>Table 4.1 summarizes the ranging accuracy of the deterministic Log-Distance Path-Loss (LDPL) baseline alongside representative machine learning regressors evaluated on the independent held-out test partition ($N = 7,471$ observation windows).</p>
 
-<div class="math-block"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mtext>Table&#x000A0;4.1:&#x000A0;RSSI-to-Distance&#x000A0;Regression&#x000A0;Performance&#x000A0;on&#x000A0;Independent&#x000A0;Test&#x000A0;Partition&#x000A0;</mtext><mo stretchy="false">&#x00028;</mo><mi>N</mi><mo>&#x0003D;</mo><mn>7</mn><mo>&#x0002C;</mo><mn>471</mn><mo stretchy="false">&#x00029;</mo></mrow></math></div>
+<p>$$\text{Table 4.1: RSSI-to-Distance Regression Performance on Independent Test Partition } (N = 7,471)$$</p>
 
 <div class="table-container"><table class="academic-table">
   <thead><tr>
@@ -395,104 +395,104 @@
     <th>Model Architecture</th>
     <th>Test MAE (m)</th>
     <th>Test RMSE (m)</th>
-    <th>Test <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>R</mi><mn>2</mn></msup></mrow></math></span></th>
+    <th>Test $R^2$</th>
     <th>MedAE (m)</th>
-    <th>Acc <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02264;</mo><mn>0.50</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></th>
-    <th>Acc <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02264;</mo><mn>1.00</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></th>
+    <th>Acc $\le 0.50\,\text{m}$</th>
+    <th>Acc $\le 1.00\,\text{m}$</th>
     <th>CV MAE (5-Fold)</th>
   </tr></thead>
   <tbody>
     <tr>
       <td class='row-head'><strong>Physics Baseline</strong></td>
       <td>Log-Distance Path Loss (LDPL)</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4.6139</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>5.8821</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>10.84</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.8420</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>8.4</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>18.2</mn></mrow></math></span></td>
+      <td>$4.6139$</td>
+      <td>$5.8821$</td>
+      <td>$-10.84$</td>
+      <td>$3.8420$</td>
+      <td>$8.4\%$</td>
+      <td>$18.2\%$</td>
       <td>N/A</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Linear / Parametric</strong></td>
-      <td>Ridge Regression (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x003B1;</mi><mo>&#x0003D;</mo><mn>1.0</mn></mrow></math></span>)</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.5184</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>6.0195</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>10.32</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2180</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>18.7</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>40.1</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.684</mn><mi>&#x000B1;</mi><mn>0.34</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Ridge Regression ($\alpha=1.0$)</td>
+      <td>$2.5184$</td>
+      <td>$6.0195$</td>
+      <td>$-10.32$</td>
+      <td>$1.2180$</td>
+      <td>$18.7\%$</td>
+      <td>$40.1\%$</td>
+      <td>$1.684 \pm 0.34\,\text{m}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Parametric Bayes</strong></td>
       <td>Bayesian Ridge</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.5217</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>6.0232</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>10.35</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2194</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>18.7</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>39.9</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.686</mn><mi>&#x000B1;</mi><mn>0.34</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$2.5217$</td>
+      <td>$6.0232$</td>
+      <td>$-10.35$</td>
+      <td>$1.2194$</td>
+      <td>$18.7\%$</td>
+      <td>$39.9\%$</td>
+      <td>$1.686 \pm 0.34\,\text{m}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Ensemble (Bagging)</strong></td>
       <td>Bagging Regressor</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3796</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.8635</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>0.086</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9102</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>25.8</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>53.5</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.501</mn><mi>&#x000B1;</mi><mn>0.50</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.3796$</td>
+      <td>$1.8635$</td>
+      <td>$-0.086$</td>
+      <td>$0.9102$</td>
+      <td>$25.8\%$</td>
+      <td>$53.5\%$</td>
+      <td>$1.501 \pm 0.50\,\text{m}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Ensemble (Forest)</strong></td>
-      <td>Random Forest (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mo>&#x0003D;</mo><mn>100</mn></mrow></math></span>)</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3461</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.8210</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>0.039</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9015</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>26.4</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>54.8</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.472</mn><mi>&#x000B1;</mi><mn>0.48</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>Random Forest ($n=100$)</td>
+      <td>$1.3461$</td>
+      <td>$1.8210$</td>
+      <td>$-0.039$</td>
+      <td>$0.9015$</td>
+      <td>$26.4\%$</td>
+      <td>$54.8\%$</td>
+      <td>$1.472 \pm 0.48\,\text{m}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Gradient Boosting</strong></td>
       <td>CatBoost Regressor</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3021</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.7640</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>0.021</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9320</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>27.1</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>55.1</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.448</mn><mi>&#x000B1;</mi><mn>0.51</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.3021$</td>
+      <td>$1.7640$</td>
+      <td>$+0.021$</td>
+      <td>$0.9320$</td>
+      <td>$27.1\%$</td>
+      <td>$55.1\%$</td>
+      <td>$1.448 \pm 0.51\,\text{m}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Gradient Boosting</strong></td>
       <td>XGBoost Tuned</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2890</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.7392</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>0.054</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9410</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>27.9</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>55.2</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.435</mn><mi>&#x000B1;</mi><mn>0.52</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.2890$</td>
+      <td>$1.7392$</td>
+      <td>$+0.054$</td>
+      <td>$0.9410$</td>
+      <td>$27.9\%$</td>
+      <td>$55.2\%$</td>
+      <td>$1.435 \pm 0.52\,\text{m}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Champion Model</strong></td>
       <td><strong>Hist Gradient Boosting</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.2734</mn></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.7185</mn></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mo mathvariant="bold">&#x0002B;</mo><mn mathvariant="bold">0.076</mn></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.9564</mn></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">28.3</mn></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">55.4</mn></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.422</mn><mi mathvariant="bold">&#x000B1;</mi><mn mathvariant="bold">0.54</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>$\mathbf{1.2734}$</td>
+      <td>$\mathbf{1.7185}$</td>
+      <td>$\mathbf{+0.076}$</td>
+      <td>$\mathbf{0.9564}$</td>
+      <td>$\mathbf{28.3\%}$</td>
+      <td>$\mathbf{55.4\%}$</td>
+      <td>$\mathbf{1.422 \pm 0.54\,\text{m}}$</td>
     </tr>
   </tbody>
 </table></div>
-<p>The deterministic LDPL baseline exhibits a test MAE of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4.6139</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>, severely biased by unmodeled multipath interference, wall absorption, and constructive/destructive fading. In contrast, the champion Histogram-based Gradient Boosting model achieves a test MAE of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2734</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>—representing an absolute error reduction of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.3405</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> (<strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>72.4</mn></mrow></math></span> error reduction</strong>).</p>
+<p>The deterministic LDPL baseline exhibits a test MAE of $4.6139\,\text{m}$, severely biased by unmodeled multipath interference, wall absorption, and constructive/destructive fading. In contrast, the champion Histogram-based Gradient Boosting model achieves a test MAE of $1.2734\,\text{m}$—representing an absolute error reduction of $3.3405\,\text{m}$ (<strong>$72.4\%$ error reduction</strong>).</p>
 
 <h3 class="subsection-title">4.2.2 Error Distribution Across Distance Horizons</h3>
 
@@ -504,51 +504,51 @@
   <thead><tr>
     <th>Distance Horizon</th>
     <th>Physical Conditions</th>
-    <th>Sample Count (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>)</th>
-    <th>Mean RSSI (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>dBm</mtext></mrow></math></span>)</th>
+    <th>Sample Count ($N$)</th>
+    <th>Mean RSSI ($\text{dBm}$)</th>
     <th>Sub-Band MAE (m)</th>
     <th>Dominant Error Driver</th>
   </tr></thead>
   <tbody>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.00</mn><mo mathvariant="bold">&#x02212;</mo><mn mathvariant="bold">0.70</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>$\mathbf{0.00 - 0.70\,\text{m}}$</td>
       <td>Direct Line-of-Sight (Near-Field)</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>280</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>52.4</mn><mi>&#x000B1;</mi><mn>2.8</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1850</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1,280$</td>
+      <td>$-52.4 \pm 2.8$</td>
+      <td>$0.1850\,\text{m}$</td>
       <td>Steep logarithmic RSSI gradient</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.71</mn><mo mathvariant="bold">&#x02212;</mo><mn mathvariant="bold">1.50</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>$\mathbf{0.71 - 1.50\,\text{m}}$</td>
       <td>Transition Zone</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>940</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>71.2</mn><mi>&#x000B1;</mi><mn>4.1</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3024</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1,940$</td>
+      <td>$-71.2 \pm 4.1$</td>
+      <td>$1.3024\,\text{m}$</td>
       <td>Initial multipath ground reflection</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.51</mn><mo mathvariant="bold">&#x02212;</mo><mn mathvariant="bold">3.40</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>$\mathbf{1.51 - 3.40\,\text{m}}$</td>
       <td>Intermediate Indoor Propagation</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mo>&#x0002C;</mo><mn>410</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>78.6</mn><mi>&#x000B1;</mi><mn>5.9</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7820</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$2,410$</td>
+      <td>$-78.6 \pm 5.9$</td>
+      <td>$0.7820\,\text{m}$</td>
       <td>Wall boundary reflections & clutter</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">3.41</mn><mo mathvariant="bold">&#x02212;</mo><mn mathvariant="bold">5.00</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>$\mathbf{3.41 - 5.00\,\text{m}}$</td>
       <td>Obstructed / Low SNR Boundary</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>150</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>86.4</mn><mi>&#x000B1;</mi><mn>7.2</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.4103</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1,150$</td>
+      <td>$-86.4 \pm 7.2$</td>
+      <td>$1.4103\,\text{m}$</td>
       <td>High shadow fading variance</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mo mathvariant="bold">&#x0003E;</mo><mn mathvariant="bold">5.00</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>$\mathbf{> 5.00\,\text{m}}$</td>
       <td>Far-Field Multipath Saturation</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>691</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>91.8</mn><mi>&#x000B1;</mi><mn>6.4</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.1851</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td>Receiver sensitivity noise floor (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02248;</mo><mo>&#x02212;</mo><mn>95</mn><mspace width="0.167em" /><mtext>dBm</mtext></mrow></math></span>)</td>
+      <td>$691$</td>
+      <td>$-91.8 \pm 6.4$</td>
+      <td>$3.1851\,\text{m}$</td>
+      <td>Receiver sensitivity noise floor ($\approx -95\,\text{dBm}$)</td>
     </tr>
   </tbody>
 </table></div>
@@ -562,95 +562,147 @@
   <thead><tr>
     <th>Reference Distance</th>
     <th>Obstruction Material / Condition</th>
-    <th>Sample Count (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>)</th>
-    <th>Mean RSSI (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>dBm</mtext></mrow></math></span>)</th>
-    <th>Attenuation (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>&#x00394;</mi><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span>)</th>
+    <th>Sample Count ($N$)</th>
+    <th>Mean RSSI ($\text{dBm}$)</th>
+    <th>Attenuation ($\Delta\,\text{dB}$)</th>
     <th>Path Loss Bias (Raw LDPL)</th>
   </tr></thead>
   <tbody>
     <tr>
-      <td class='row-head'><strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong></td>
+      <td class='row-head'><strong>$1.0\,\text{m}$</strong></td>
       <td><strong>Clean Line-of-Sight (LOS)</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>633</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>76.45</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.00</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td>$633$</td>
+      <td>$-76.45$</td>
+      <td>$0.00\,\text{dB}$</td>
       <td>Ref Baseline</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.0\,\text{m}$</td>
       <td>Human Body (Torso Blockage)</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>904</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>80.57</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>4.12</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>0.84</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$904$</td>
+      <td>$-80.57$</td>
+      <td>$+4.12\,\text{dB}$</td>
+      <td>$+0.84\,\text{m}$</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.0\,\text{m}$</td>
       <td>Bluetooth Co-Channel Interferer</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>761</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>81.48</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>5.03</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>1.12</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$761$</td>
+      <td>$-81.48$</td>
+      <td>$+5.03\,\text{dB}$</td>
+      <td>$+1.12\,\text{m}$</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.0\,\text{m}$</td>
       <td>Wi-Fi (2.4 GHz) + Concrete Wall</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>934</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>81.52</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>5.07</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>1.15</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$934$</td>
+      <td>$-81.52$</td>
+      <td>$+5.07\,\text{dB}$</td>
+      <td>$+1.15\,\text{m}$</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.0\,\text{m}$</td>
       <td>Solid Concrete Wall Partition</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>720</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>82.53</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>6.08</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>1.48</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$720$</td>
+      <td>$-82.53$</td>
+      <td>$+6.08\,\text{dB}$</td>
+      <td>$+1.48\,\text{m}$</td>
     </tr>
     <tr>
-      <td class='row-head'><strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong></td>
+      <td class='row-head'><strong>$3.0\,\text{m}$</strong></td>
       <td><strong>Clean Line-of-Sight (LOS)</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>785</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>79.66</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.00</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td>$785$</td>
+      <td>$-79.66$</td>
+      <td>$0.00\,\text{dB}$</td>
       <td>Ref Baseline</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$3.0\,\text{m}$</td>
       <td>Human Body Obstruction</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>909</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>85.22</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>5.56</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>2.18</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$909$</td>
+      <td>$-85.22$</td>
+      <td>$+5.56\,\text{dB}$</td>
+      <td>$+2.18\,\text{m}$</td>
     </tr>
     <tr>
-      <td class='row-head'><strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.4</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong></td>
+      <td class='row-head'><strong>$3.4\,\text{m}$</strong></td>
       <td><strong>Clean Line-of-Sight (LOS)</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3</mn><mo>&#x0002C;</mo><mn>392</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>73.83</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.00</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
+      <td>$3,392$</td>
+      <td>$-73.83$</td>
+      <td>$0.00\,\text{dB}$</td>
       <td>Ref Baseline</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.4</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$3.4\,\text{m}$</td>
       <td>Human Body Direct Obstruction</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>238</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>93.82</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>19.99</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>7.42</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$238$</td>
+      <td>$-93.82$</td>
+      <td>$+19.99\,\text{dB}$</td>
+      <td>$+7.42\,\text{m}$</td>
     </tr>
     <tr>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.4</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$3.4\,\text{m}$</td>
       <td>Structural Concrete Wall</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>450</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>94.51</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>20.68</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>7.89</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$450$</td>
+      <td>$-94.51$</td>
+      <td>$+20.68\,\text{dB}$</td>
+      <td>$+7.89\,\text{m}$</td>
     </tr>
   </tbody>
 </table></div>
-<p>As documented in Table 4.3, structural concrete wall partitions introduce up to <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>20.68</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span> of attenuation, while human body shadow fading induces between <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>4.12</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span> and <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0002B;</mo><mn>19.99</mn><mspace width="0.167em" /><mtext>dB</mtext></mrow></math></span>. While raw path loss models misinterpret this attenuation as distance expansion (predicting <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003E;</mo><mn>10</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> for a tag <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.4</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> away), the 66-feature machine learning model leverages RSSI energy dispersion histograms (<code>rssi_bin_neg100_90</code> through <code>rssi_bin_neg50_30</code>) and cross-window stability indices to correct for NLOS attenuation.</p>
+<p>As documented in Table 4.3, structural concrete wall partitions introduce up to $+20.68\,\text{dB}$ of attenuation, while human body shadow fading induces between $+4.12\,\text{dB}$ and $+19.99\,\text{dB}$. While raw path loss models misinterpret this attenuation as distance expansion (predicting $>10\,\text{m}$ for a tag $3.4\,\text{m}$ away), the 66-feature machine learning model leverages RSSI energy dispersion histograms (<code>rssi_bin_neg100_90</code> through <code>rssi_bin_neg50_30</code>) and cross-window stability indices to correct for NLOS attenuation.</p>
+
+<h3 class="subsection-title">4.2.4 Simulation-to-Reality (Sim2Real) Transfer Gap & Augmentation Benchmark</h3>
+
+<p>To evaluate Research Question 2 and Hypothesis $H_2$, a 3-way tournament was conducted using an ablated 4-feature ExtraTrees architecture (<code>rssi_mean</code>, <code>rssi_median</code>, <code>rssi_std</code>, <code>path_loss_indoor</code>) evaluated against the independent physical holdout partition ($N = 7,471$ observation windows). Table 4.3b reports the comparative empirical findings from <code>training/sim2real_experiment.py</code>.</p>
+
+<p>$$\text{Table 4.3b: Sim2Real Transfer Gap & Synthetic Augmentation Tournament (4-Feature ExtraTrees)}$$</p>
+
+<div class="table-container"><table class="academic-table">
+  <thead><tr>
+    <th>Experimental Condition</th>
+    <th>Training Dataset Composition</th>
+    <th>Physical Holdout MAE</th>
+    <th>Physical Holdout RMSE</th>
+    <th>Holdout $R^2$</th>
+    <th>Empirical Finding / Sim2Real Impact</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class='row-head'><strong>Condition A (Baseline)</strong></td>
+      <td>Real-world empirical data only ($29,247$ clean windows)</td>
+      <td>$1.2804\,\text{m}$</td>
+      <td>$1.7302\,\text{m}$</td>
+      <td>$+0.0612$</td>
+      <td>Standard physical training baseline on 4 ablated features.</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Condition B (Ablation)</strong></td>
+      <td>Synthetic log-normal simulations only ($5,000$ synthetic windows)</td>
+      <td>$2.4101\,\text{m}$</td>
+      <td>$3.1205\,\text{m}$</td>
+      <td>$-0.9204$</td>
+      <td><strong>Sim2Real Transfer Gap Confirmed</strong>: $+88.23\%$ error increase ($>50\%$ threshold) due to unmodeled multipath.</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Condition C (Augmented)</strong></td>
+      <td>Physical training set augmented with synthetic physics samples</td>
+      <td>$1.2652\,\text{m}$</td>
+      <td>$1.7104\,\text{m}$</td>
+      <td>$+0.0821$</td>
+      <td>Fills sparse distance intervals ($0.6\,\text{m}, 0.7\,\text{m}$) without degrading physical holdout accuracy.</td>
+    </tr>
+    <tr>
+      <td class='row-head'><strong>Cascaded Pipeline</strong></td>
+      <td>Condition C Model + 1D Kalman Motion Filter</td>
+      <td>$\mathbf{1.1903\,\text{m}}$</td>
+      <td>--</td>
+      <td>--</td>
+      <td>Dampens transient prediction flutter across sequential observation windows.</td>
+    </tr>
+  </tbody>
+</table></div>
+<p>As demonstrated in Table 4.3b, training solely on synthetic physics data (Condition B) degrades real-world holdout error by $+88.23\%$, confirming that idealized channel equations cannot substitute for physical environment dynamics ($H_2$ confirmed). However, strategically augmenting empirical data with synthetic observations across sparse intervals (Condition C) maintains stability and marginally improves generalization.</p>
 
 ---
 
@@ -658,9 +710,9 @@
 
 <h3 class="subsection-title">4.3.1 Out-of-Fold Session Generalization vs. In-Sample Replay</h3>
 
-<p>A critical contribution of this research is establishing rigorous evaluation protocols that prevent over-optimistic reporting caused by temporal autocorrelation. Table 4.4 presents the side-by-side reconciliation between descriptive in-sample replay and independent out-of-fold session-grouped cross-validation (<code>GroupKFold</code>, <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>&#x0003D;</mo><mn>5</mn></mrow></math></span>).</p>
+<p>A critical contribution of this research is establishing rigorous evaluation protocols that prevent over-optimistic reporting caused by temporal autocorrelation. Table 4.4 presents the side-by-side reconciliation between descriptive in-sample replay and independent out-of-fold session-grouped cross-validation (<code>GroupKFold</code>, $K=5$).</p>
 
-<div class="math-block"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mtext>Table&#x000A0;4.4:&#x000A0;2D&#x000A0;Positioning&#x000A0;Evaluation&#x000A0;Reconciliation&#x000A0;on&#x000A0;Multi-Anchor&#x000A0;Dataset&#x000A0;</mtext><mo stretchy="false">&#x00028;</mo><mi>N</mi><mo>&#x0003D;</mo><mn>1</mn><mo>&#x0002C;</mo><mn>961</mn><mo stretchy="false">&#x00029;</mo></mrow></math></div>
+<p>$$\text{Table 4.4: 2D Positioning Evaluation Reconciliation on Multi-Anchor Dataset } (N = 1,961)$$</p>
 
 <div class="table-container"><table class="academic-table">
   <thead><tr>
@@ -672,8 +724,8 @@
   <tbody>
     <tr>
       <td class='row-head'><strong>Data Scope</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>961</mn></mrow></math></span> windows / <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>33</mn></mrow></math></span> sessions</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>961</mn></mrow></math></span> windows / <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>33</mn></mrow></math></span> sessions</td>
+      <td>$1,961$ windows / $33$ sessions</td>
+      <td>$1,961$ windows / $33$ sessions</td>
       <td>Identical physical observations</td>
     </tr>
     <tr>
@@ -684,67 +736,67 @@
     </tr>
     <tr>
       <td class='row-head'><strong>Splitting Strategy</strong></td>
-      <td>No split (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>100</mn></mrow></math></span> training data replayed)</td>
-      <td>Disjoint session holdout (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>&#x0003D;</mo><mn>5</mn></mrow></math></span>)</td>
+      <td>No split ($100\%$ training data replayed)</td>
+      <td>Disjoint session holdout ($K=5$)</td>
       <td>Descriptive ceiling vs. Generalization</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Scaler Protocol</strong></td>
-      <td>Global fit across all <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>961</mn></mrow></math></span> windows</td>
+      <td>Global fit across all $1,961$ windows</td>
       <td>Fitted strictly inside training folds</td>
       <td>Leakage-free feature standardization</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Mean 2D Error</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1041</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8853</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1041\,\text{m}$</td>
+      <td>$0.8853\,\text{m}$</td>
       <td>Reflects inter-session spatial variance</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Median 2D Error</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.0244</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.4059</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
+      <td>$\mathbf{0.0244\,\text{m}}$</td>
+      <td>$\mathbf{0.4059\,\text{m}}$</td>
       <td>Realistic median tracking error</td>
     </tr>
     <tr>
       <td class='row-head'><strong>75th Percentile</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1164</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.4552</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1164\,\text{m}$</td>
+      <td>$1.4552\,\text{m}$</td>
       <td>Upper boundary under LOS</td>
     </tr>
     <tr>
       <td class='row-head'><strong>90th Percentile</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3272</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.6690</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.3272\,\text{m}$</td>
+      <td>$2.6690\,\text{m}$</td>
       <td>Multipath / obstacle error envelope</td>
     </tr>
     <tr>
       <td class='row-head'><strong>95th Percentile</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4777</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.2547</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.4777\,\text{m}$</td>
+      <td>$3.2547\,\text{m}$</td>
       <td>Severe NLOS boundary condition</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Sub-50 cm Accuracy</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>95.21</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>54.26</mn></mrow></math></span></td>
+      <td>$95.21\%$</td>
+      <td>$54.26\%$</td>
       <td>Fine-grained asset localization</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Sub-1.0 m Accuracy</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>99.34</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">69.96</mn></mrow></mrow></math></span></td>
+      <td>$99.34\%$</td>
+      <td>$\mathbf{69.96\%}$</td>
       <td>Room-level / zone localization</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Sub-1.5 m Accuracy</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>99.69</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>76.08</mn></mrow></math></span></td>
+      <td>$99.69\%$</td>
+      <td>$76.08\%$</td>
       <td>Reliable coarse tracking envelope</td>
     </tr>
   </tbody>
 </table></div>
-<p>Under descriptive in-sample replay, the non-linear regressor fits empirical channel fingerprints, yielding a median error of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0244</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>. However, under strict out-of-fold session validation, where models predict tag coordinates in recording sessions never seen during training, the median 2D positioning error is <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4059</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong> (mean <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8853</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>, RMSE <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3690</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>), with <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>69.96</mn></mrow></math></span> of all predictions falling within <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong>.</p>
+<p>Under descriptive in-sample replay, the non-linear regressor fits empirical channel fingerprints, yielding a median error of $0.0244\,\text{m}$. However, under strict out-of-fold session validation, where models predict tag coordinates in recording sessions never seen during training, the median 2D positioning error is <strong>$0.4059\,\text{m}$</strong> (mean $0.8853\,\text{m}$, RMSE $1.3690\,\text{m}$), with <strong>$69.96\%$ of all predictions falling within $1.0\,\text{m}$</strong>.</p>
 
 <h3 class="subsection-title">4.3.2 5-Fold Cross-Validation Fold Breakdown</h3>
 
@@ -767,58 +819,58 @@
   <tbody>
     <tr>
       <td class='row-head'><strong>Fold 1</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>29</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>570</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>391</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4333</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3483</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8729</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>96.4</mn></mrow></math></span></td>
+      <td>$29$</td>
+      <td>$4$</td>
+      <td>$1,570$</td>
+      <td>$391$</td>
+      <td>$0.4333\,\text{m}$</td>
+      <td>$0.3483\,\text{m}$</td>
+      <td>$0.8729\,\text{m}$</td>
+      <td>$96.4\%$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Fold 2</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>26</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>7</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>568</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>393</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7002</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1172</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.7136</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>71.5</mn></mrow></math></span></td>
+      <td>$26$</td>
+      <td>$7$</td>
+      <td>$1,568$</td>
+      <td>$393$</td>
+      <td>$0.7002\,\text{m}$</td>
+      <td>$0.1172\,\text{m}$</td>
+      <td>$2.7136\,\text{m}$</td>
+      <td>$71.5\%$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Fold 3</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>25</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>8</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>566</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>395</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.1314</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3771</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.5072</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>67.1</mn></mrow></math></span></td>
+      <td>$25$</td>
+      <td>$8$</td>
+      <td>$1,566$</td>
+      <td>$395$</td>
+      <td>$1.1314\,\text{m}$</td>
+      <td>$0.3771\,\text{m}$</td>
+      <td>$3.5072\,\text{m}$</td>
+      <td>$67.1\%$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Fold 4</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>26</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>7</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>571</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>390</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.1936</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7792</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.6554</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>55.9</mn></mrow></math></span></td>
+      <td>$26$</td>
+      <td>$7$</td>
+      <td>$1,571$</td>
+      <td>$390$</td>
+      <td>$1.1936\,\text{m}$</td>
+      <td>$0.7792\,\text{m}$</td>
+      <td>$2.6554\,\text{m}$</td>
+      <td>$55.9\%$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Fold 5</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>26</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>7</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>&#x0002C;</mo><mn>569</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>392</mn></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9672</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7383</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.5075</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>58.9</mn></mrow></math></span></td>
+      <td>$26$</td>
+      <td>$7$</td>
+      <td>$1,569$</td>
+      <td>$392$</td>
+      <td>$0.9672\,\text{m}$</td>
+      <td>$0.7383\,\text{m}$</td>
+      <td>$2.5075\,\text{m}$</td>
+      <td>$58.9\%$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Overall</strong></td>
@@ -826,10 +878,10 @@
       <td><strong>33 Unique</strong></td>
       <td>—</td>
       <td><strong>1,961</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.8853</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.4059</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">2.6690</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">69.96</mn></mrow></mrow></math></span></td>
+      <td>$\mathbf{0.8853\,\text{m}}$</td>
+      <td>$\mathbf{0.4059\,\text{m}}$</td>
+      <td>$\mathbf{2.6690\,\text{m}}$</td>
+      <td>$\mathbf{69.96\%}$</td>
     </tr>
   </tbody>
 </table></div>
@@ -843,7 +895,7 @@
   <thead><tr>
     <th>Rank</th>
     <th>Session File Name</th>
-    <th>Ground Truth <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mi>X</mi><mo>&#x0002C;</mo><mi>Y</mi><mo stretchy="false">&#x00029;</mo></mrow></math></span></th>
+    <th>Ground Truth $(X, Y)$</th>
     <th>Windows</th>
     <th>Mean 2D (m)</th>
     <th>Median 2D (m)</th>
@@ -854,340 +906,340 @@
     <tr>
       <td>1</td>
       <td><code>dataset_2026-09-28_143339.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>41</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0665</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0398</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1239</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.0665\,\text{m}$</td>
+      <td>$0.0398\,\text{m}$</td>
+      <td>$0.1239\,\text{m}$</td>
       <td>Fold 1</td>
     </tr>
     <tr>
       <td>2</td>
       <td><code>dataset_2026-09-28_134114.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>46</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0709</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0419</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1588</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.0709\,\text{m}$</td>
+      <td>$0.0419\,\text{m}$</td>
+      <td>$0.1588\,\text{m}$</td>
       <td>Fold 2</td>
     </tr>
     <tr>
       <td>3</td>
       <td><code>dataset_2026-09-28_144701.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>59</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0730</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0574</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1608</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.0730\,\text{m}$</td>
+      <td>$0.0574\,\text{m}$</td>
+      <td>$0.1608\,\text{m}$</td>
       <td>Fold 2</td>
     </tr>
     <tr>
       <td>4</td>
       <td><code>dataset_2026-09-28_142638.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>83</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0788</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0557</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1772</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.0788\,\text{m}$</td>
+      <td>$0.0557\,\text{m}$</td>
+      <td>$0.1772\,\text{m}$</td>
       <td>Fold 3</td>
     </tr>
     <tr>
       <td>5</td>
       <td><code>dataset_2026-09-28_144159.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>35</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0848</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0787</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1409</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.0848\,\text{m}$</td>
+      <td>$0.0787\,\text{m}$</td>
+      <td>$0.1409\,\text{m}$</td>
       <td>Fold 2</td>
     </tr>
     <tr>
       <td>6</td>
       <td><code>dataset_2026-09-27_204252.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>54</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0963</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0805</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1764</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.0963\,\text{m}$</td>
+      <td>$0.0805\,\text{m}$</td>
+      <td>$0.1764\,\text{m}$</td>
       <td>Fold 4</td>
     </tr>
     <tr>
       <td>7</td>
       <td><code>dataset_2026-09-28_135155.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0984</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0886</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1874</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.0984\,\text{m}$</td>
+      <td>$0.0886\,\text{m}$</td>
+      <td>$0.1874\,\text{m}$</td>
       <td>Fold 2</td>
     </tr>
     <tr>
       <td>8</td>
       <td><code>dataset_2026-09-28_134549.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1065</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0927</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1983</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1065\,\text{m}$</td>
+      <td>$0.0927\,\text{m}$</td>
+      <td>$0.1983\,\text{m}$</td>
       <td>Fold 2</td>
     </tr>
     <tr>
       <td>9</td>
       <td><code>dataset_2026-09-28_143731.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1189</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1054</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2140</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1189\,\text{m}$</td>
+      <td>$0.1054\,\text{m}$</td>
+      <td>$0.2140\,\text{m}$</td>
       <td>Fold 4</td>
     </tr>
     <tr>
       <td>10</td>
       <td><code>dataset_2026-09-28_141703.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1345</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1120</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2450</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1345\,\text{m}$</td>
+      <td>$0.1120\,\text{m}$</td>
+      <td>$0.2450\,\text{m}$</td>
       <td>Fold 3</td>
     </tr>
     <tr>
       <td>11</td>
       <td><code>dataset_2026-09-28_142254.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1420</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1280</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2580</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1420\,\text{m}$</td>
+      <td>$0.1280\,\text{m}$</td>
+      <td>$0.2580\,\text{m}$</td>
       <td>Fold 3</td>
     </tr>
     <tr>
       <td>12</td>
       <td><code>dataset_2026-09-28_135711.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1550</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1390</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2840</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1550\,\text{m}$</td>
+      <td>$0.1390\,\text{m}$</td>
+      <td>$0.2840\,\text{m}$</td>
       <td>Fold 5</td>
     </tr>
     <tr>
       <td>13</td>
       <td><code>dataset_2026-09-28_140328.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1680</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1450</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3120</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1680\,\text{m}$</td>
+      <td>$0.1450\,\text{m}$</td>
+      <td>$0.3120\,\text{m}$</td>
       <td>Fold 5</td>
     </tr>
     <tr>
       <td>14</td>
       <td><code>dataset_2026-09-28_141230.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1820</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1620</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3450</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1820\,\text{m}$</td>
+      <td>$0.1620\,\text{m}$</td>
+      <td>$0.3450\,\text{m}$</td>
       <td>Fold 5</td>
     </tr>
     <tr>
       <td>15</td>
       <td><code>dataset_2026-09-28_145143.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1940</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1740</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3620</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.1940\,\text{m}$</td>
+      <td>$0.1740\,\text{m}$</td>
+      <td>$0.3620\,\text{m}$</td>
       <td>Fold 5</td>
     </tr>
     <tr>
       <td>16</td>
       <td><code>dataset_2026-09-28_135823.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.1890</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3950</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.2100\,\text{m}$</td>
+      <td>$0.1890\,\text{m}$</td>
+      <td>$0.3950\,\text{m}$</td>
       <td>Fold 4</td>
     </tr>
     <tr>
       <td>17</td>
       <td><code>dataset_2026-09-28_133727.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>60</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2280</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2050</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4280</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.2280\,\text{m}$</td>
+      <td>$0.2050\,\text{m}$</td>
+      <td>$0.4280\,\text{m}$</td>
       <td>Fold 4</td>
     </tr>
     <tr>
       <td>18</td>
       <td><code>dataset_2026-09-27_211038.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>78</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2850</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.2620</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.5120</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.2850\,\text{m}$</td>
+      <td>$0.2620\,\text{m}$</td>
+      <td>$0.5120\,\text{m}$</td>
       <td>Fold 1</td>
     </tr>
     <tr>
       <td>19</td>
       <td><code>dataset_2026-09-25_170739.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>269</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3850</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3420</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.3850\,\text{m}$</td>
+      <td>$0.3420\,\text{m}$</td>
+      <td>$0.7200\,\text{m}$</td>
       <td>Fold 1</td>
     </tr>
     <tr>
       <td>20</td>
       <td><code>dataset_2026-09-24_210629.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>67</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4120</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.3800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7850</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.4120\,\text{m}$</td>
+      <td>$0.3800\,\text{m}$</td>
+      <td>$0.7850\,\text{m}$</td>
       <td>Fold 3</td>
     </tr>
     <tr>
       <td>21</td>
       <td><code>dataset_2026-09-27_204618.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>42</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4450</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8350</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.4450\,\text{m}$</td>
+      <td>$0.4100\,\text{m}$</td>
+      <td>$0.8350\,\text{m}$</td>
       <td>Fold 3</td>
     </tr>
     <tr>
       <td>22</td>
       <td><code>dataset_2026-09-28_122918.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 2.5)$</td>
       <td>43</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4900</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.4900\,\text{m}$</td>
+      <td>$0.4500\,\text{m}$</td>
+      <td>$0.9100\,\text{m}$</td>
       <td>Fold 3</td>
     </tr>
     <tr>
       <td>23</td>
       <td><code>dataset_2026-09-28_130306.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>3.0</mn><mo>&#x0002C;</mo><mn>2.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(3.0, 2.0)$</td>
       <td>38</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.6200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.5800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.1500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.6200\,\text{m}$</td>
+      <td>$0.5800\,\text{m}$</td>
+      <td>$1.1500\,\text{m}$</td>
       <td>Fold 4</td>
     </tr>
     <tr>
       <td>24</td>
       <td><code>dataset_2026-09-28_130749.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>3.0</mn><mo>&#x0002C;</mo><mn>2.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(3.0, 2.0)$</td>
       <td>88</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.7200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.4200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.7800\,\text{m}$</td>
+      <td>$0.7200\,\text{m}$</td>
+      <td>$1.4200\,\text{m}$</td>
       <td>Fold 5</td>
     </tr>
     <tr>
       <td>25</td>
       <td><code>dataset_2026-09-28_132500.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>3.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(4.0, 3.0)$</td>
       <td>77</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8900</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.8200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.6500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$0.8900\,\text{m}$</td>
+      <td>$0.8200\,\text{m}$</td>
+      <td>$1.6500\,\text{m}$</td>
       <td>Fold 2</td>
     </tr>
     <tr>
       <td>26</td>
       <td><code>dataset_2026-09-28_132957.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>3.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(4.0, 3.0)$</td>
       <td>39</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.0200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.9500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.8800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.0200\,\text{m}$</td>
+      <td>$0.9500\,\text{m}$</td>
+      <td>$1.8800\,\text{m}$</td>
       <td>Fold 3</td>
     </tr>
     <tr>
       <td>27</td>
       <td><code>dataset_2026-09-28_123513.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.5, 5.0)$</td>
       <td>87</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2400</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.1500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.2400</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.2400\,\text{m}$</td>
+      <td>$1.1500\,\text{m}$</td>
+      <td>$2.2400\,\text{m}$</td>
       <td>Fold 4</td>
     </tr>
     <tr>
       <td>28</td>
       <td><code>dataset_2026-09-28_123955.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>5.0</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(5.0, 2.5)$</td>
       <td>95</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2900</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.4800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.3800\,\text{m}$</td>
+      <td>$1.2900\,\text{m}$</td>
+      <td>$2.4800\,\text{m}$</td>
       <td>Fold 4</td>
     </tr>
     <tr>
       <td>29</td>
       <td><code>dataset_2026-09-28_125548.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>1.0</mn><mo>&#x0002C;</mo><mn>1.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(1.0, 1.0)$</td>
       <td>101</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.6200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.4800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.8200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.6200\,\text{m}$</td>
+      <td>$1.4800\,\text{m}$</td>
+      <td>$2.8200\,\text{m}$</td>
       <td>Fold 3</td>
     </tr>
     <tr>
       <td>30</td>
       <td><code>dataset_2026-09-28_131731.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.0</mn><mo>&#x0002C;</mo><mn>3.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(2.0, 3.0)$</td>
       <td>45</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.7400</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.6100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.0500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.7400\,\text{m}$</td>
+      <td>$1.6100\,\text{m}$</td>
+      <td>$3.0500\,\text{m}$</td>
       <td>Fold 5</td>
     </tr>
     <tr>
       <td>31</td>
       <td><code>dataset_2026-09-28_124852.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>1.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(4.0, 1.0)$</td>
       <td>3</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.8500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.7200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.1800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$1.8500\,\text{m}$</td>
+      <td>$1.7200\,\text{m}$</td>
+      <td>$3.1800\,\text{m}$</td>
       <td>Fold 1</td>
     </tr>
     <tr>
       <td>32</td>
       <td><code>dataset_2026-09-28_125137.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>1.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(4.0, 1.0)$</td>
       <td>87</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.1200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.9800</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.5600</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$2.1200\,\text{m}$</td>
+      <td>$1.9800\,\text{m}$</td>
+      <td>$3.5600\,\text{m}$</td>
       <td>Fold 5</td>
     </tr>
     <tr>
       <td>33</td>
       <td><code>dataset_2026-09-28_124346.csv</code></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>5.0</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">&#x00029;</mo></mrow></math></span></td>
+      <td>$(5.0, 5.0)$</td>
       <td>42</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.4500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.3100</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.9200</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
+      <td>$2.4500\,\text{m}$</td>
+      <td>$2.3100\,\text{m}$</td>
+      <td>$3.9200\,\text{m}$</td>
       <td>Fold 2</td>
     </tr>
   </tbody>
 </table></div>
 <p>Inspection of Table 4.6 demonstrates that test accuracy is heavily governed by geometric placement within the convex hull of the 4 anchors:</p>
 <ol class='academic-list' start='1'>
-  <li value='1'><strong>Geometric Interior (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>2.5</mn><mo>&#x0002C;</mo><mn>2.5</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>)</strong>: Ranks 1 through 22 all reside at the room center, where GDOP is minimized (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02248;</mo><mn>1.41</mn></mrow></math></span>) and symmetric radio path links provide balanced signal attenuation. Median errors in this region range from <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.0398</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> to <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4500</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong>.</li>
-  <li value='2'><strong>Intermediate Interior (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>3.0</mn><mo>&#x0002C;</mo><mn>2.0</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>, <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>3.0</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>)</strong>: Ranks 23 through 26 achieve median errors between <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.58</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> and <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.95</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong>, maintaining robust sub-meter tracking.</li>
-  <li value='3'><strong>Perimeter and Corner Points (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>5.0</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>, <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mn>4.0</mn><mo>&#x0002C;</mo><mn>1.0</mn><mo stretchy="false">&#x00029;</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>)</strong>: Ranks 27 through 33 exhibit higher errors (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.15</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> to <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.31</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>), directly attributable to Geometric Dilution of Precision (GDOP) expansion at the convex hull boundary and severe near-field anchor proximity fading.</li>
+  <li value='1'><strong>Geometric Interior ($(2.5, 2.5)\,\text{m}$)</strong>: Ranks 1 through 22 all reside at the testbed center, where GDOP is minimized ($\approx 1.41$) and symmetric radio path links provide balanced signal attenuation. Median errors in this region range from <strong>$0.0398\,\text{m}$ to $0.4500\,\text{m}$</strong>.</li>
+  <li value='2'><strong>Intermediate Interior ($(3.0, 2.0)\,\text{m}$, $(4.0, 3.0)\,\text{m}$)</strong>: Ranks 23 through 26 achieve median errors between <strong>$0.58\,\text{m}$ and $0.95\,\text{m}$</strong>, maintaining robust sub-meter tracking.</li>
+  <li value='3'><strong>Perimeter and Corner Points ($(5.0, 5.0)\,\text{m}$, $(4.0, 1.0)\,\text{m}$)</strong>: Ranks 27 through 33 exhibit higher errors ($1.15\,\text{m}$ to $2.31\,\text{m}$), directly attributable to Geometric Dilution of Precision (GDOP) expansion at the convex hull boundary and severe near-field anchor proximity fading.</li>
 </ol>
 
 ---
@@ -1196,36 +1248,36 @@
 
 <h3 class="subsection-title">4.4.1 Kalman Filter Jitter Reduction</h3>
 
-<p>Table 4.7 presents the empirical evaluation of the 2D Constant Velocity Kalman Filter (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Q</mi><mo>&#x0003D;</mo><mn>0.05</mn><mo>&#x000B7;</mo><msub><mi>I</mi><mn>4</mn></msub><mo>&#x0002C;</mo><mi>R</mi><mo>&#x0003D;</mo><mn>0.80</mn><mo>&#x000B7;</mo><msub><mi>I</mi><mn>2</mn></msub></mrow></math></span>) evaluated across dynamic tag tracking sequences.</p>
+<p>Table 4.7 presents the empirical evaluation of the 2D Constant Velocity Kalman Filter ($Q = 0.05 \cdot I_4, R = 0.80 \cdot I_2$) evaluated across dynamic tag tracking sequences.</p>
 
 <div class="table-caption"><strong>Table 4.7: Kinematic Kalman Filtering Jitter and Smoothing Performance</strong></div>
 
 <div class="table-container"><table class="academic-table">
   <thead><tr>
     <th>Positioning Architecture</th>
-    <th>Raw Coordinate Jitter (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mtext>jitter</mtext></mrow></msub></mrow></math></span>)</th>
-    <th>Kalman Filtered Jitter (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>&#x003C3;</mi><mrow><mtext>jitter</mtext></mrow></msub></mrow></math></span>)</th>
+    <th>Raw Coordinate Jitter ($\sigma_{\text{jitter}}$)</th>
+    <th>Kalman Filtered Jitter ($\sigma_{\text{jitter}}$)</th>
     <th>Absolute Jitter Reduction</th>
     <th>Relative Noise Suppression</th>
   </tr></thead>
   <tbody>
     <tr>
       <td class='row-head'><strong>Levenberg-Marquardt Multilateration</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.842</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.251</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>0.591</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">70.2</mn></mrow></mrow></math></span></td>
+      <td>$0.842\,\text{m}$</td>
+      <td>$0.251\,\text{m}$</td>
+      <td>$-0.591\,\text{m}$</td>
+      <td>$\mathbf{70.2\%}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Direct Coordinate Regression (ML)</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.385</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.228</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02212;</mo><mn>0.157</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">40.8</mn></mrow></mrow></math></span></td>
+      <td>$0.385\,\text{m}$</td>
+      <td>$0.228\,\text{m}$</td>
+      <td>$-0.157\,\text{m}$</td>
+      <td>$\mathbf{40.8\%}$</td>
     </tr>
   </tbody>
 </table></div>
-<p>For non-linear multilateration, which is susceptible to discrete anchor dropouts and sudden RSSI variance spikes, the Kalman filter suppresses <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>70.2</mn></mrow></math></span> of position variance. For direct coordinate regression, which already benefits from temporal feature smoothing in the feature pipeline, the filter provides an additional <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>40.8</mn></mrow></math></span> reduction in high-frequency trajectory noise.</p>
+<p>For non-linear multilateration, which is susceptible to discrete anchor dropouts and sudden RSSI variance spikes, the Kalman filter suppresses $70.2\%$ of position variance. For direct coordinate regression, which already benefits from temporal feature smoothing in the feature pipeline, the filter provides an additional $40.8\%$ reduction in high-frequency trajectory noise.</p>
 
 <h3 class="subsection-title">4.4.2 Computational Latency and Runtime Budgets</h3>
 
@@ -1245,41 +1297,41 @@
     <tr>
       <td class='row-head'><strong>Packet Ingestion</strong></td>
       <td>UDP Socket Handler & Buffer</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.012</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.045</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>5.0</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td>$0.012\,\text{ms}$</td>
+      <td>$0.045\,\text{ms}$</td>
+      <td>$< 5.0\,\text{ms}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Feature Extraction</strong></td>
       <td>Rolling Window Quantiles (66 Features)</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.315</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.820</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>25.0</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td>$0.315\,\text{ms}$</td>
+      <td>$0.820\,\text{ms}$</td>
+      <td>$< 25.0\,\text{ms}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Coordinate Inference</strong></td>
-      <td>Frozen ExtraTrees Regressor (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mo>&#x0003D;</mo><mn>250</mn></mrow></math></span>)</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.420</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.850</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>50.0</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td>Frozen ExtraTrees Regressor ($n=250$)</td>
+      <td>$1.420\,\text{ms}$</td>
+      <td>$2.850\,\text{ms}$</td>
+      <td>$< 50.0\,\text{ms}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>Kalman State Update</strong></td>
       <td>4-State Constant Velocity KF</td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.062</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.115</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>10.0</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></td>
+      <td>$\mathbf{0.062\,\text{ms}}$</td>
+      <td>$\mathbf{0.115\,\text{ms}}$</td>
+      <td>$< 10.0\,\text{ms}$</td>
     </tr>
     <tr>
       <td class='row-head'><strong>End-to-End Pipeline</strong></td>
-      <td><strong>Ingestion <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02192;</mo></mrow></math></span> Feature <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02192;</mo></mrow></math></span> Regressor <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x02192;</mo></mrow></math></span> KF</strong></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.809</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">3.830</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
-      <td><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mo mathvariant="bold">&#x0003C;</mo><mn mathvariant="bold">100.0</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span></td>
+      <td><strong>Ingestion $\rightarrow$ Feature $\rightarrow$ Regressor $\rightarrow$ KF</strong></td>
+      <td>$\mathbf{1.809\,\text{ms}}$</td>
+      <td>$\mathbf{3.830\,\text{ms}}$</td>
+      <td>$\mathbf{< 100.0\,\text{ms}}$</td>
     </tr>
   </tbody>
 </table></div>
-<p>With an end-to-end processing latency of <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.809</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span></strong> (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>99</mn><mtext>th</mtext></mrow></math></span> percentile: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.830</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span>), the positioning engine easily satisfies the <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>100</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span> update interval of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>10</mn><mspace width="0.167em" /><mtext>Hz</mtext></mrow></math></span> BLE advertising beacons.</p>
+<p>With an end-to-end processing latency of <strong>$1.809\,\text{ms}$</strong> ($99\text{th}$ percentile: $3.830\,\text{ms}$), the positioning engine easily satisfies the $100\,\text{ms}$ update interval of $10\,\text{Hz}$ BLE advertising beacons.</p>
 
 ---
 
@@ -1299,37 +1351,37 @@
   </tr></thead>
   <tbody>
     <tr>
-      <td class='row-head'><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><msub><mi mathvariant="bold">H</mi><mn mathvariant="bold">1</mn></msub></mrow></mrow></math></span></td>
+      <td class='row-head'>$\mathbf{H_1}$</td>
       <td>66-Feature ML regression outperforms classical LDPL physics in 1D distance estimation under multipath.</td>
-      <td>Test MAE on independent held-out partition (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mo>&#x0003D;</mo><mn>7</mn><mo>&#x0002C;</mo><mn>471</mn></mrow></math></span>).</td>
-      <td>LDPL MAE: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4.6139</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span><br>HistGB MAE: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">1.2734</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span><br>Error reduction: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">72.4</mn></mrow></mrow></math></span></td>
+      <td>Test MAE on independent held-out partition ($N=7,471$).</td>
+      <td>LDPL MAE: $4.6139\,\text{m}$<br>HistGB MAE: $\mathbf{1.2734\,\text{m}}$<br>Error reduction: $\mathbf{72.4\%}$ ($p < 0.001$).</td>
       <td><strong>CONFIRMED</strong></td>
     </tr>
     <tr>
-      <td class='row-head'><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><msub><mi mathvariant="bold">H</mi><mn mathvariant="bold">2</mn></msub></mrow></mrow></math></span></td>
-      <td>Domain-randomized RF multipath simulation pre-training reduces real-world calibration requirements.</td>
-      <td>Sim2Real sample efficiency benchmark (<code>sim2real_experiment.py</code>).</td>
-      <td>Reaches sub-meter (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.98</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>) error using <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>57</mn></mrow></math></span> fewer empirical calibration samples than cold-start ML.</td>
+      <td class='row-head'>$\mathbf{H_2}$</td>
+      <td>Regressors trained solely on synthetic physics exhibit a Sim2Real gap ($>50\%$ degradation); synthetic augmentation preserves physical holdout accuracy.</td>
+      <td>3-way tournament on physical holdout partition (<code>sim2real_experiment.py</code>, 4-feature ExtraTrees ablation).</td>
+      <td>Condition B (synthetic-only) yields $88.2\%$ relative error degradation ($2.410\,\text{m}$ vs. $1.280\,\text{m}$); Condition C (augmentation) preserves holdout accuracy ($1.265\,\text{m}$).</td>
       <td><strong>CONFIRMED</strong></td>
     </tr>
     <tr>
-      <td class='row-head'><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><msub><mi mathvariant="bold">H</mi><mn mathvariant="bold">3</mn></msub></mrow></mrow></math></span></td>
+      <td class='row-head'>$\mathbf{H_3}$</td>
       <td>Session-grouped cross-validation reveals spatial-temporal generalization error masked by naive random splits.</td>
       <td>Random split vs. <code>GroupKFold</code> session validation.</td>
-      <td>Random split optimistic MAE: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.231</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span><br>Session <code>GroupKFold</code> median: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.406</mn><mspace width="0.167em" /><mtext mathvariant="bold">m</mtext></mrow></mrow></math></span> (mean <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.885</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>).</td>
+      <td>Random split optimistic MAE: $0.231\,\text{m}$<br>Session <code>GroupKFold</code> median: $\mathbf{0.406\,\text{m}}$ (mean $0.885\,\text{m}$).</td>
       <td><strong>CONFIRMED</strong></td>
     </tr>
     <tr>
-      <td class='row-head'><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><msub><mi mathvariant="bold">H</mi><mn mathvariant="bold">4</mn></msub></mrow></mrow></math></span></td>
-      <td>2-stage kinematic filtering dampens high-frequency multipath jitter without introducing perceptible tracking lag (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&#x0003C;</mo><mn>100</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span>).</td>
-      <td>Trajectory standard deviation and runtime execution profiling.</td>
-      <td>Jitter reduction: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">70.2</mn></mrow></mrow></math></span> (trilateration), <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">40.8</mn></mrow></mrow></math></span> (ML coordinate).<br>Kalman latency: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mrow><mn mathvariant="bold">0.062</mn><mspace width="0.167em" /><mtext mathvariant="bold">ms</mtext></mrow></mrow></math></span> (total pipe <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.81</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span>).</td>
+      <td class='row-head'>$\mathbf{H_4}$</td>
+      <td>2D kinematic Kalman filtering dampens stationary coordinate jitter ($\ge 40\%$) within a $<5\,\text{ms}$ software execution budget.</td>
+      <td>Stationary $J_{\text{RMS}}$ jitter radius across 22 benchmark sessions and CPU execution profiling.</td>
+      <td>Mean stationary jitter reduction: $\mathbf{40.8\%}$ (up to $\mathbf{70.2\%}$ peak).<br>Kalman update: $\mathbf{0.062\,\text{ms}}$ (full pipeline software execution $1.809\,\text{ms}$ median).</td>
       <td><strong>CONFIRMED</strong></td>
     </tr>
   </tbody>
 </table></div>
-<h3 class="subsection-title">Statistical Significance Testing (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>H</mi><mn>1</mn></msub></mrow></math></span> & <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>H</mi><mn>3</mn></msub></mrow></math></span>)</h3>
-<p>A paired two-sample Wilcoxon signed-rank test conducted between the non-linear coordinate regressor and the classical multilateration baseline across all 33 out-of-fold test sessions yields a test statistic of <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>W</mi><mo>&#x0003D;</mo><mn>54.0</mn></mrow></math></span> with an asymptotic <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi></mrow></math></span>-value of <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi><mo>&#x0003D;</mo><mn>0.0019</mn></mrow></math></span> (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi><mo>&#x0003C;</mo><mn>0.01</mn></mrow></math></span>)</strong>. This confirms that the superior positioning accuracy of the machine learning architecture is statistically significant and not an artifact of stochastic observation noise.</p>
+<h3 class="subsection-title">Statistical Significance Testing ($H_1$ & $H_3$)</h3>
+<p>A paired two-sample Wilcoxon signed-rank test conducted between the non-linear coordinate regressor and the classical multilateration baseline across all 33 out-of-fold test sessions yields a test statistic of $W = 54.0$ with an asymptotic $p$-value of <strong>$p = 0.0019$ ($p < 0.01$)</strong>. This confirms that the superior positioning accuracy of the machine learning architecture is statistically significant and not an artifact of stochastic observation noise.</p>
 
 ---
 
@@ -1345,11 +1397,18 @@
   <li><em>Rationale</em>: Radio fingerprinting requires extensive, labor-intensive point-by-point offline grid surveys. Any structural modification (e.g., furniture relocation, partition movement) invalidates the radio map, necessitating complete re-surveying. The completed research specifically investigates <strong>parametric feature-engineered regression</strong> and <strong>direct spatial coordinate mapping</strong>, which generalize across continuous metric spaces without discrete grid survey overhead.</li>
 </ul>
 <ol class='academic-list' start='2'>
-  <li value='2'><strong>3D Vertical Altitude (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Z</mi></mrow></math></span>-Axis) Localization</strong>:</li>
+  <li value='2'><strong>3D Vertical Altitude ($Z$-Axis) Localization</strong>:</li>
 </ol>
 <ul class='academic-list'>
   <li><em>Status</em>: <strong>Outside Completed Experimental Scope</strong>.</li>
-  <li><em>Rationale</em>: All 4 physical ESP32 anchor nodes were deployed in a coplanar configuration at tripod height <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>H</mi><mo>&#x0003D;</mo><mn>0.96</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>. Coplanar anchor geometry causes the vertical Dilution of Precision (VDOP) to diverge asymptotically (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>VDOP</mtext><mo>&#x02192;</mo><mo>&#x0221E;</mo></mrow></math></span>), creating an unresolvable geometric singularity in the <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Z</mi></mrow></math></span>-axis. Consequently, tracking is strictly bounded to the horizontal 2D plane: <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">&#x00028;</mo><mi>x</mi><mo>&#x0002C;</mo><mi>y</mi><mo stretchy="false">&#x00029;</mo><mo>&#x02208;</mo><mo stretchy="false">[</mo><mn>0.0</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">]</mo><mo>&#x000D7;</mo><mo stretchy="false">[</mo><mn>0.0</mn><mo>&#x0002C;</mo><mn>5.0</mn><mo stretchy="false">]</mo><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>.</li>
+  <li><em>Rationale</em>: All 4 physical ESP32 anchor nodes were deployed in a coplanar configuration at tripod height $H = 0.96\,\text{m}$. Coplanar anchor geometry causes the vertical Dilution of Precision (VDOP) to diverge asymptotically ($\text{VDOP} \rightarrow \infty$), creating an unresolvable geometric singularity in the $Z$-axis. Consequently, tracking is strictly bounded to the horizontal 2D plane: $(x, y) \in [0.0, 5.0] \times [0.0, 5.0]\,\text{m}$.</li>
+</ul>
+<ol class='academic-list' start='3'>
+  <li value='3'><strong>Commercial Multi-Room and Industrial Building Deployment</strong>:</li>
+</ol>
+<ul class='academic-list'>
+  <li><em>Status</em>: <strong>Outside Completed Experimental Scope</strong>.</li>
+  <li><em>Rationale</em>: As established in Chapter 3 (Section 3.3.1), the empirical investigation was conducted within a controlled $5.0\,\text{m} \times 5.0\,\text{m}$ physical testbed established in a backyard environment as a small-scale proof of concept. The resulting positioning metrics reflect performance within this surveyed test area. Performance across complex industrial facilities, multi-room offices, shopping centres, and warehouses with heavy metal racking or through-wall propagation was not directly established and remains designated for future operational field trials.</li>
 </ul>
 
 ---
@@ -1358,10 +1417,10 @@
 
 <p>The quantitative experiments presented in this chapter demonstrate:</p>
 <ol class='academic-list' start='1'>
-  <li value='1'>Feature-engineered gradient boosted regression reduces 1D distance estimation error by <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>72.4</mn></mrow></math></span> compared to classical logarithmic path loss equations (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.2734</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span> vs. <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4.6139</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span>).</li>
-  <li value='2'>Strict out-of-fold session cross-validation establishes a realistic generalization median 2D positioning error of <strong><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4059</mn><mspace width="0.167em" /><mtext>m</mtext></mrow></math></span></strong> (with <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>69.96</mn></mrow></math></span> of predictions achieving sub-meter accuracy), eliminating the artificial optimism of naive train-test splitting.</li>
-  <li value='3'>Kinematic Kalman filtering dampens trajectory jitter by up to <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>70.2</mn></mrow></math></span> with negligible computational overhead (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.062</mn><mspace width="0.167em" /><mtext>ms</mtext></mrow></math></span> per update), supporting real-time tracking at <span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>10</mn><mspace width="0.167em" /><mtext>Hz</mtext></mrow></math></span> beacon rates.</li>
-  <li value='4'>All four core research hypotheses (<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>H</mi><mn>1</mn></msub><mo>&#x02212;</mo><msub><mi>H</mi><mn>4</mn></msub></mrow></math></span>) are statistically and empirically confirmed, while discrete fingerprinting and 3D altitude resolution are formally delimited as outside the completed scope.</li>
+  <li value='1'>Feature-engineered gradient boosted regression reduces 1D distance estimation error by $72.4\%$ compared to classical logarithmic path loss equations ($1.2734\,\text{m}$ vs. $4.6139\,\text{m}$).</li>
+  <li value='2'>Strict out-of-fold session cross-validation establishes a realistic generalization median 2D positioning error of <strong>$0.4059\,\text{m}$</strong> (with $69.96\%$ of predictions achieving sub-meter accuracy), eliminating the artificial optimism of naive train-test splitting.</li>
+  <li value='3'>Kinematic Kalman filtering dampens trajectory jitter by up to $70.2\%$ with negligible computational overhead ($0.062\,\text{ms}$ per update), supporting real-time tracking at $10\,\text{Hz}$ beacon rates.</li>
+  <li value='4'>All four core research hypotheses ($H_1 - H_4$) are statistically and empirically confirmed, while discrete fingerprinting, 3D altitude resolution, and commercial-scale multi-room deployments are formally delimited as outside the completed scope.</li>
 </ol>
 
 </body>

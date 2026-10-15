@@ -204,8 +204,8 @@ def markdown_to_academic_html(md_content: str, title: str, subtitle: str) -> str
                     <div class="flow-tier tier-3">
                         <div class="tier-badge">LAYER 3</div>
                         <div class="tier-content">
-                            <strong>Dynamic Tracking &amp; Stability Layer (Trajectory Smoothing &amp; Latency)</strong>
-                            <span>Target: 2D State Kalman Filter &bull; Primary Metrics: RMS Jitter Radius (J<sub>RMS</sub>), Jitter Reduction (J<sub>r</sub>), Latency Budget</span>
+                            <strong>Stationary Stability &amp; Filtering Layer (Kinematic Smoothing &amp; Latency)</strong>
+                            <span>Target: 2D State Kalman Filter &bull; Primary Metrics: RMS Jitter Radius (J<sub>RMS</sub>), Stationary Jitter Reduction (J<sub>r</sub>), Pipeline Execution Latency</span>
                         </div>
                     </div>
                 </div>
@@ -292,17 +292,20 @@ def markdown_to_academic_html(md_content: str, title: str, subtitle: str) -> str
                     <div class="pipe-decision">&ge; 3 Valid Anchors Available?</div>
                     <div class="pipe-branches">
                         <div class="branch primary-branch">
-                            <div class="branch-tag">Primary (Yes)</div>
+                            <div class="branch-tag">Primary Path (M &ge; 3 Anchors)</div>
                             <div class="branch-box">
                                 <strong>MultiOutput ExtraTrees Regressor</strong>
                                 <span>21 Spatial &amp; Differential Features &rarr; Direct Cartesian (X, Y)</span>
+                                <div style="font-size: 0.72rem; color: #475569; margin-top: 4px; border-top: 1px dashed #cbd5e1; padding-top: 3px;">
+                                    <em>Automated Fallback (if ML raises exception):</em> OLS Levenberg-Marquardt with Centroid Fallback
+                                </div>
                             </div>
                         </div>
                         <div class="branch fallback-branch">
-                            <div class="branch-tag">Fallback (No / Dropout)</div>
+                            <div class="branch-tag">Insufficient Anchors (M &lt; 3)</div>
                             <div class="branch-box">
-                                <strong>Levenberg-Marquardt Solver</strong>
-                                <span>1D HistGB Distance Estimates &rarr; Levenberg-Marquardt with Centroid Fallback</span>
+                                <strong>Zero Coordinate Update Emitted</strong>
+                                <span>Retain last valid coordinate &bull; Telemetry status decays: <code>current</code> &rarr; <code>stale</code> &rarr; <code>unavailable</code></span>
                             </div>
                         </div>
                     </div>
