@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b6b62" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>BLE RTLS Indoor Positioning Dashboard</title>
+    
+    <script>
+      try {
+        var m = localStorage.getItem('fleetview.mood')
+        if (!m) m = matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'daylight'
+        document.documentElement.dataset.mood = m
+      } catch (e) {}
+    </script>
+    <meta name="description" content="Monitor tag movement in indoor environments with real-time data visualization and intuitive analytics, designed for seamless user experience across devices.">
+    <meta name="robots" content="noindex, nofollow">
+    <meta property="og:title" content="Figma Make App">
+    <meta property="og:description" content="Monitor tag movement in indoor environments with real-time data visualization and intuitive analytics, designed for seamless user experience across devices.">
+    <script type="module" crossorigin src="/assets/index-CsTBKjZb.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-WkwZ5CU-.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-CTJH_qjP.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-BZr7Y-oW.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-ByICRrxh.css">
+  </head>
+  <body>
+    
+    <div id="root">
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--background,#171a19);color:var(--foreground,#f3f2ee);font-family:system-ui,-apple-system,sans-serif;">
+        <div style="text-align:center;max-width:320px;padding:24px;">
+          <div style="position:relative;width:72px;height:72px;margin:0 auto 20px;">
+            <div style="position:absolute;inset:0;border-radius:50%;border:2px solid #0e8a7e;opacity:0.25;animation:preboot-ping 2s infinite ease-out;"></div>
+            <div style="position:absolute;inset:10px;border-radius:50%;border:2px solid #0e8a7e;opacity:0.4;"></div>
+            <div style="position:absolute;inset:24px;border-radius:50%;background:#0e8a7e;box-shadow:0 0 16px rgba(14,138,126,0.6);"></div>
+            <div style="position:absolute;inset:0;border-radius:50%;animation:preboot-spin 2.4s linear infinite;">
+              <div style="width:2px;height:50%;background:linear-gradient(to top,#0e8a7e,transparent);margin:0 auto;"></div>
+            </div>
+          </div>
+          <div style="font-size:15px;font-weight:600;letter-spacing:-0.01em;margin-bottom:6px;">BLE RTLS Positioning</div>
+          <div style="font-size:11px;opacity:0.6;font-family:monospace;letter-spacing:0.04em;">INITIALIZING POSITIONING ENGINE...</div>
+        </div>
+      </div>
+      <style>@keyframes preboot-spin{0%{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes preboot-ping{0%{opacity:.8;transform:scale(.8)}to{opacity:0;transform:scale(1.6)}}</style>
+    </div>
+    
+  </body>
+</html>

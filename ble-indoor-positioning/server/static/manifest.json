@@ -1,0 +1,17 @@
+{
+  "name": "BLE RTLS Indoor Positioning Dashboard",
+  "short_name": "FleetView",
+  "description": "Real-time 2D/3D BLE indoor positioning, asset tracking, and telemetry dashboard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f2ee",
+  "theme_color": "#0b6b62",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
