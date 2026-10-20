@@ -471,6 +471,14 @@ class ApplicationLauncher:
 
             threading.Thread(target=_pipeline_worker, daemon=True).start()
 
+    def _toggle_backend(self) -> None:
+        if self._is_service_running("backend"):
+            self.expected_services.discard("backend")
+            self._stop_service("backend")
+        else:
+            self.expected_services.add("backend")
+            self._start_service("backend")
+
     def _toggle_dashboard(self) -> None:
         if self._is_service_running("dashboard"):
             self.expected_services.discard("dashboard")
