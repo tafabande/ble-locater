@@ -31,10 +31,10 @@ if exist "ble-indoor-positioning\.venv\Scripts\python.exe" (
 )
 
 REM ---------------------------------------------------------------------
-REM 2. Pre-Flight Health Checks: Free Ports (8000, 5005)
+REM 2. Pre-Flight Health Checks: Free Ports (8443, 8000, 5005)
 REM ---------------------------------------------------------------------
-echo [PRE-FLIGHT] Verifying and freeing service ports (8000, 5005)...
-"!PY_EXE!" -c "import sys; from pathlib import Path; sys.path.insert(0, str(Path('ble-indoor-positioning').resolve())); from core.config import free_port; free_port(8000); free_port(5005)" 2>nul
+echo [PRE-FLIGHT] Verifying and freeing service ports (8443, 8000, 5005)...
+"!PY_EXE!" -c "import sys; from pathlib import Path; sys.path.insert(0, str(Path('ble-indoor-positioning').resolve())); from core.config import free_port; free_port(8443); free_port(8000); free_port(5005)" 2>nul
 
 REM ---------------------------------------------------------------------
 REM 3. Pipeline Dispatcher
@@ -44,6 +44,14 @@ set "TARGET_CMD=%1"
 if /i "%TARGET_CMD%"=="help" goto do_help
 if /i "%TARGET_CMD%"=="--help" goto do_help
 if /i "%TARGET_CMD%"=="-h" goto do_help
+
+if /i "%TARGET_CMD%"=="dashboard" goto do_dashboard
+if /i "%TARGET_CMD%"=="--dashboard" goto do_dashboard
+if /i "%TARGET_CMD%"=="pipeline" goto do_dashboard
+if /i "%TARGET_CMD%"=="--pipeline" goto do_dashboard
+
+if /i "%TARGET_CMD%"=="doctor" goto do_doctor
+if /i "%TARGET_CMD%"=="--doctor" goto do_doctor
 
 if /i "%TARGET_CMD%"=="setup" goto do_setup
 if /i "%TARGET_CMD%"=="--setup" goto do_setup
@@ -78,6 +86,16 @@ REM Default Route: Interactive Operations Console
 REM ---------------------------------------------------------------------
 echo [LAUNCHER] Starting Operations Console...
 "!PY_EXE!" control.py %*
+goto handle_exit
+
+:do_dashboard
+echo [PIPELINE] Launching autonomous self-healing RTLS Dashboard Pipeline...
+"!PY_EXE!" control.py --dashboard
+goto handle_exit
+
+:do_doctor
+echo [PIPELINE] Running Autonomous Environment Doctor and Pre-flight Diagnostics...
+"!PY_EXE!" control.py --doctor
 goto handle_exit
 
 :do_setup
@@ -122,11 +140,14 @@ echo ======================================================================
 echo  Indoor Positioning Pipeline Commands
 echo ======================================================================
 echo   launch.bat                    Launch interactive Operations Console
+echo   launch.bat dashboard          Autostart dashboard and self-healing pipeline
+echo   launch.bat pipeline           Autostart dashboard and self-healing pipeline
+echo   launch.bat doctor             Run autonomous diagnostics and auto-healing
 echo   launch.bat setup              Launch ESP32 Wireless Provisioner and Flasher GUI
 echo   launch.bat collector          Launch Experiment Controller and Collector GUI
 echo   launch.bat admin              Launch System Administrator and Telemetry GUI
 echo   launch.bat trainer            Launch AI Model Studio and Trainer GUI
-echo   launch.bat benchmark          Launch Model Tournament Benchmark & Studio
+echo   launch.bat benchmark          Launch Model Tournament Benchmark and Studio
 echo   launch.bat test               Run automated test suite with retries
 echo   launch.bat headless           Run backend API in headless CLI mode
 echo   launch.bat help               Display this help guide
