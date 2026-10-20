@@ -1,28 +1,36 @@
-# Indoor Positioning Dashboard
+# BLE Indoor Positioning & Localization Research Platform
 
-React 19 + Vite 8 + Tailwind CSS v4 standalone operations dashboard.
+Repository: `tafabande/ble-locater` (`c:\Users\DEV\Desktop\Dissertation`)
 
-## Development Server
+This repository is the dedicated Python core positioning engine, ML tournament suite, telemetry collector, and academic research platform for the dissertation.
 
-The Vite development server runs on `http://127.0.0.1:3000` (configured via `control.py` / `launch.bat` or `npm run dev`).
+## System Architecture
 
-- Standalone: Fully localized, 100% offline-compatible, no external cloud dependencies.
-- Hot reload: Changes to source files are reflected immediately.
+- **Backend Positioning & REST Engine (`ble-indoor-positioning/server/app.py`):**
+  - High-performance FastAPI server with SQLite WAL persistence and real-time WebSocket broadcast (`/ws`).
+  - Runs by default on `http://127.0.0.1:8000`.
+- **Machine Learning Tournament Engine (`ble-indoor-positioning/learning/`, `training/`):**
+  - Super Learner model ensemble (`distance_estimator.joblib`, `coordinate_regressor.joblib`, `zone_classifier.joblib`).
+  - Online adaptive calibration and continuous feature engineering.
+- **Hardware Telemetry Collector (`ble-indoor-positioning/collector/`):**
+  - High-frequency UDP ingest pipeline (`UDP:5005`) capturing multi-anchor ESP32 packets.
+- **Desktop Operations Console (`control.py` / `launch.bat`):**
+  - Interactive launcher and unified supervisor for the backend, data surveyor, flasher, and model studio.
+- **Cross-Repository Automation (`dashboard_pipeline.py`):**
+  - Autonomous pipeline connecting this repository to the dedicated frontend dashboard repository.
 
-## Project Structure
+## Frontend RTLS Dashboard (Separated Repository)
 
-- `src/main.tsx` - React entrypoint; imports `src/index.css` and mounts `src/App.tsx` into the `#root` element
-- `src/App.tsx` - Primary application component and the root view shell
-- `src/index.css` - Global CSS entrypoint and Tailwind CSS v4 theme definitions
-- `index.html` - Standalone HTML5 shell containing the `#root` element
-- `package.json` - Project dependencies and scripts
-- `vite.config.ts` - Local Vite configuration with React, Tailwind CSS v4, and `@` alias for `src`
-- `control.py` - Desktop Operations Console for hosting backend engine, simulator, and dashboard
+The frontend operations dashboard was separated into its own standalone repository:
+- **Repository:** [`tafabande/ble-dashboard`](https://github.com/tafabande/ble-dashboard)
+- **Local Directory:** `c:\Users\DEV\Desktop\Dashboard for Tag Movement`
+- **Architecture:** React 19 + Vite 8 + Tailwind CSS v4 with zero external cloud dependencies.
+- **Serving:** Production host server on `http://127.0.0.1:8443` (with pre-compiled static fallback bundled inside `ble-indoor-positioning/server/static/`).
+- **One-Click Launch:** Run `launch.bat dashboard` from this repository or click `🚀 LAUNCH DASHBOARD PIPELINE` in `control.py`.
 
-## Dependencies
+## Quick Commands
 
-- Runtime: React 19 and React DOM 19
-- Styling: Tailwind CSS v4 with `@tailwindcss/vite` plugin
-- Build tooling: Vite 8, TypeScript 5.7, and `@vitejs/plugin-react`
-- Testing: Vitest & React Testing Library
-- Backend: Python 3 FastAPI / WebSocket engine in `ble-indoor-positioning/`
+- **Start Operations Hub:** `python control.py` or double-click `launch.bat`
+- **Launch Full Stack & Dashboard:** `launch.bat dashboard`
+- **Run Diagnostics:** `python control.py --doctor` or `launch.bat doctor`
+- **Run Backend Tests:** `.\ble-indoor-positioning\.venv\Scripts\python.exe -m pytest`

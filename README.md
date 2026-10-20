@@ -132,12 +132,20 @@ cd ble-indoor-positioning
 python -m uvicorn server.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-#### 2. Frontend Operations Dashboard
+#### 2. Frontend Operations Dashboard (Dedicated Repository)
+The frontend UI is maintained in its dedicated standalone repository: [`tafabande/ble-dashboard`](https://github.com/tafabande/ble-dashboard) (locally located at `Dashboard for Tag Movement`).
+
+To launch the dashboard and backend pipeline automatically from this repository:
 ```bash
-# In workspace root
+launch.bat dashboard
+# Launches production dashboard on http://localhost:8443 with self-healing checks
+```
+
+Alternatively, run within the `Dashboard for Tag Movement` repository:
+```bash
 npm install
-npm run dev
-# Dashboard launches at http://127.0.0.1:3000
+npm run build
+node server.js
 ```
 
 ---
@@ -146,23 +154,16 @@ npm run dev
 
 The platform includes a dedicated dissertation-grade flight check protocol documented in detail in [DISSERTATION_VALIDATION_PROTOCOL.md](./DISSERTATION_VALIDATION_PROTOCOL.md), covering the complete 20-item validation matrix.
 
-### Frontend Verification (Vitest)
-Executes 54 tests across 5 suites covering coordinate conversions, 6-point physical grid mapping, geometric conditioning, topological invariants, noise perturbation sensitivity, and multilateration solving:
-```bash
-npm test -- --run
-```
-
 ### Backend Verification (pytest)
-Executes 39 tests across 8 suites covering FastAPI REST endpoints, WebSocket broadcasts, ML inference, and analytical ground-truth trilateration:
+Executes test suites covering FastAPI REST endpoints, WebSocket broadcasts, ML inference, and analytical ground-truth trilateration:
 ```bash
 .\ble-indoor-positioning\.venv\Scripts\python.exe -m pytest
 ```
 
-### Production Build Verification
-Verifies zero TypeScript errors and compiles production assets:
+### Self-Healing Pipeline & Diagnostic Check
+Runs cross-environment diagnostics and port health checks:
 ```bash
-npx tsc --noEmit
-npm run build
+launch.bat doctor
 ```
 
 ---

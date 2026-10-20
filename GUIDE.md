@@ -37,7 +37,7 @@ This opens the dedicated **Application Control Centre**, where you can launch an
 
 | Application | Launch Command | Purpose |
 |---|---|---|
-| **📍 Live Tracking Dashboard** | `launch.bat` or `npm run dev` (`http://127.0.0.1:3000`) | Live indoor tracking map (2D/3D), tag coordinates, and solver telemetry |
+| **📍 Live Tracking Dashboard** | `launch.bat dashboard` (`http://localhost:8443`) | Standalone frontend operations dashboard (served via `Dashboard for Tag Movement` or FastAPI) |
 | **🛠️ ESP32 Setup & Flasher** | `python setup.py` | Wireless Wi-Fi provisioning, hardware MAC interrogation, and ROM flashing |
 | **📡 Data Acquisition Controller** | `python controller.py` | Visual 2D room surveyor, big Start/Pause/Stop ribbon, and Wi-Fi UDP stream receiver |
 | **🛠️ System Administrator** | `python admin_gui.py` | Node health matrix, dropped packet stats, connection telemetry, and self-checks |
