@@ -22,7 +22,24 @@ except ImportError:
 ROOT_DIR = Path(r"c:\Users\DEV\Desktop\Dissertation")
 OUTPUT_DIR = ROOT_DIR / "documentation docs"
 REPORTS_DIR = ROOT_DIR / "ble-indoor-positioning" / "reports"
-EDGE_EXE = r"C:\Program Files (x86)\Microsoft\EdgeCore\154.0.4258.62\msedge.exe"
+
+def find_edge_executable() -> str:
+    edge_core = Path(r"C:\Program Files (x86)\Microsoft\EdgeCore")
+    if edge_core.exists():
+        candidates = sorted(list(edge_core.glob("*/msedge.exe")), reverse=True)
+        if candidates:
+            return str(candidates[0])
+    for p in [
+        r"C:\Program Files (x86)\Microsoft\EdgeCore\156.0.4314.58\msedge.exe",
+        r"C:\Program Files (x86)\Microsoft\EdgeCore\155.0.4283.62\msedge.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ]:
+        if Path(p).exists():
+            return p
+    return r"C:\Program Files (x86)\Microsoft\EdgeCore\156.0.4314.58\msedge.exe"
+
+EDGE_EXE = find_edge_executable()
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

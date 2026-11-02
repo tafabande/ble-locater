@@ -10,7 +10,7 @@ import csv
 import threading
 from contextlib import asynccontextmanager
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -124,21 +124,57 @@ class PositionHistoryDB:
         except Exception as e:
             logger.error(f'Failed to initialize position history database: {e}')
 
-    def log_position(self, tag_id: str, position: dict):
+    def log_position(self, tag_id: str, position: dict, **kwargs):
         max_retries = 3
-        now_ms = int(time.time() * 1000)
+        now_ms = kwargs.get('timestamp_ms') or int(time.time() * 1000)
+        source = kwargs.get('source', position.get('source', 'real'))
         for attempt in range(max_retries):
             try:
                 with transaction_scope(self.engine) as session:
+                    pos_x = float(position.get('x', 0.0))
+                    pos_y = float(position.get('y', 0.0))
+                    # Idempotency check: deduplicate retries without dropping legitimate rapid movements
+                    existing = session.exec(
+                        select(PositionHistory.id).where(
+                            PositionHistory.tag_id == tag_id,
+                            PositionHistory.source == source,
+                            (PositionHistory.timestamp_ms == now_ms) | (
+                                (PositionHistory.timestamp_ms >= now_ms - 50) &
+                                (PositionHistory.timestamp_ms <= now_ms + 50) &
+                                (PositionHistory.x == pos_x) &
+                                (PositionHistory.y == pos_y)
+                            )
+                        )
+                    ).first()
+                    if existing:
+                        return
+
+                    sel_anchors = kwargs.get('selected_anchors', position.get('selected_anchors'))
+                    if isinstance(sel_anchors, (list, set, tuple)):
+                        sel_anchors = json.dumps(list(sel_anchors))
+                    raw_reads = kwargs.get('raw_readings', position.get('raw_readings'))
+                    if isinstance(raw_reads, (dict, list)):
+                        raw_reads = json.dumps(raw_reads)
+
                     pos_record = PositionHistory(
                         timestamp_ms=now_ms,
                         tag_id=tag_id,
-                        x=position.get('x', 0.0),
-                        y=position.get('y', 0.0),
-                        uncertainty=position.get('uncertainty', 0.0),
-                        gdop=position.get('gdop', 0.0),
-                        zone=position.get('zone', 'Unknown'),
-                        room=position.get('room', 'Unknown')
+                        x=float(position.get('x', 0.0)),
+                        y=float(position.get('y', 0.0)),
+                        uncertainty=float(position.get('uncertainty', 0.0)),
+                        gdop=float(position.get('gdop', 0.0)),
+                        zone=str(position.get('zone', 'Unknown')),
+                        room=str(position.get('room', 'Unknown')),
+                        source=source,
+                        floor=int(kwargs.get('floor', position.get('floor', 0))),
+                        true_x=float(kwargs['true_x']) if kwargs.get('true_x') is not None else (float(position['true_x']) if position.get('true_x') is not None else None),
+                        true_y=float(kwargs['true_y']) if kwargs.get('true_y') is not None else (float(position['true_y']) if position.get('true_y') is not None else None),
+                        error_m=float(kwargs['error_m']) if kwargs.get('error_m') is not None else (float(position['error_m']) if position.get('error_m') is not None else None),
+                        algorithm=str(kwargs.get('algorithm', position.get('algorithm', 'trilateration'))),
+                        status=str(kwargs.get('status', position.get('status', 'current'))),
+                        selected_anchors=sel_anchors,
+                        raw_readings=raw_reads,
+                        selection_rationale=kwargs.get('selection_rationale', position.get('selection_rationale'))
                     )
                     session.add(pos_record)
                 return
@@ -160,16 +196,54 @@ class PositionHistoryDB:
                 with transaction_scope(self.engine) as session:
                     for item in positions_batch:
                         tag_id = item.get('tag_id', 'TAG_UNKNOWN')
-                        pos = item.get('position', {})
+                        pos = item.get('position', item)
+                        ts = item.get('timestamp_ms', now_ms)
+                        source = item.get('source', pos.get('source', 'real'))
+
+                        pos_x = float(pos.get('x', 0.0))
+                        pos_y = float(pos.get('y', 0.0))
+                        # Idempotency check: deduplicate retries without dropping legitimate rapid movements
+                        existing = session.exec(
+                            select(PositionHistory.id).where(
+                                PositionHistory.tag_id == tag_id,
+                                PositionHistory.source == source,
+                                (PositionHistory.timestamp_ms == ts) | (
+                                    (PositionHistory.timestamp_ms >= ts - 50) &
+                                    (PositionHistory.timestamp_ms <= ts + 50) &
+                                    (PositionHistory.x == pos_x) &
+                                    (PositionHistory.y == pos_y)
+                                )
+                            )
+                        ).first()
+                        if existing:
+                            continue
+
+                        sel_anchors = item.get('selected_anchors', pos.get('selected_anchors'))
+                        if isinstance(sel_anchors, (list, set, tuple)):
+                            sel_anchors = json.dumps(list(sel_anchors))
+                        raw_reads = item.get('raw_readings', pos.get('raw_readings'))
+                        if isinstance(raw_reads, (dict, list)):
+                            raw_reads = json.dumps(raw_reads)
+
                         pos_record = PositionHistory(
-                            timestamp_ms=item.get('timestamp_ms', now_ms),
+                            timestamp_ms=ts,
                             tag_id=tag_id,
-                            x=pos.get('x', 0.0),
-                            y=pos.get('y', 0.0),
-                            uncertainty=pos.get('uncertainty', 0.0),
-                            gdop=pos.get('gdop', 0.0),
-                            zone=pos.get('zone', 'Unknown'),
-                            room=pos.get('room', 'Unknown')
+                            x=float(pos.get('x', 0.0)),
+                            y=float(pos.get('y', 0.0)),
+                            uncertainty=float(pos.get('uncertainty', 0.0)),
+                            gdop=float(pos.get('gdop', 0.0)),
+                            zone=str(pos.get('zone', 'Unknown')),
+                            room=str(pos.get('room', 'Unknown')),
+                            source=source,
+                            floor=int(item.get('floor', pos.get('floor', 0))),
+                            true_x=float(item['true_x']) if item.get('true_x') is not None else (float(pos['true_x']) if pos.get('true_x') is not None else None),
+                            true_y=float(item['true_y']) if item.get('true_y') is not None else (float(pos['true_y']) if pos.get('true_y') is not None else None),
+                            error_m=float(item['error_m']) if item.get('error_m') is not None else (float(pos['error_m']) if pos.get('error_m') is not None else None),
+                            algorithm=str(item.get('algorithm', pos.get('algorithm', 'trilateration'))),
+                            status=str(item.get('status', pos.get('status', 'current'))),
+                            selected_anchors=sel_anchors,
+                            raw_readings=raw_reads,
+                            selection_rationale=item.get('selection_rationale', pos.get('selection_rationale'))
                         )
                         session.add(pos_record)
                 return
@@ -180,7 +254,7 @@ class PositionHistoryDB:
                 logger.error(f'Failed to log positions batch ({len(positions_batch)} records): {e}')
                 break
 
-    def get_history(self, tag_id: str=None, limit: int=500, since_ms: int=None) -> List[dict]:
+    def get_history(self, tag_id: str=None, limit: int=500, since_ms: int=None, source: str=None) -> List[dict]:
         try:
             with Session(self.engine) as session:
                 statement = select(PositionHistory)
@@ -188,6 +262,8 @@ class PositionHistoryDB:
                     statement = statement.where(PositionHistory.tag_id == tag_id)
                 if since_ms:
                     statement = statement.where(PositionHistory.timestamp_ms > since_ms)
+                if source:
+                    statement = statement.where(PositionHistory.source == source)
                 statement = statement.order_by(PositionHistory.timestamp_ms.desc()).limit(limit)
                 results = session.exec(statement).all()
                 return [r.model_dump() for r in results]
@@ -809,7 +885,7 @@ def clear_alerts(tag_id: Optional[str]=Query(None)):
     return {'status': 'success', 'message': 'Alert history cleared.'}
 
 @app.get('/api/history')
-def get_position_history(tag_id: Optional[str]=Query(None), limit: int=Query(200, ge=1, le=5000), since_ms: Optional[int]=Query(None)):
+def get_position_history(tag_id: Optional[str]=Query(None), limit: int=Query(200, ge=1, le=5000), since_ms: Optional[int]=Query(None), source: Optional[str]=Query(None, description="Filter by source: 'real', 'simulation', or null for all")):
     if hasattr(tag_id, 'default'):
         tag_id = tag_id.default if isinstance(tag_id.default, str) else None
     elif not isinstance(tag_id, str):
@@ -821,8 +897,107 @@ def get_position_history(tag_id: Optional[str]=Query(None), limit: int=Query(200
         except (ValueError, TypeError): limit = 200
     if hasattr(since_ms, 'default'):
         since_ms = since_ms.default if isinstance(since_ms.default, int) else None
-    records = shared['position_db'].get_history(tag_id=tag_id, limit=limit, since_ms=since_ms)
+    records = shared['position_db'].get_history(tag_id=tag_id, limit=limit, since_ms=since_ms, source=source)
     return {'history': records, 'count': len(records)}
+
+class SimulatedTelemetryPayload(BaseModel):
+    timestamp_ms: Optional[int] = None
+    tag_id: str
+    source: str = "simulation"
+    x: float
+    y: float
+    floor: int = 0
+    true_x: Optional[float] = None
+    true_y: Optional[float] = None
+    error_m: Optional[float] = None
+    uncertainty: float = 0.5
+    gdop: float = 1.0
+    zone: str = "Simulation Zone"
+    room: str = "Simulation Room"
+    status: str = "current"
+    algorithm: str = "damped_gauss_newton"
+    selected_anchors: Optional[List[str]] = None
+    raw_readings: Optional[Any] = None
+    selection_rationale: Optional[str] = None
+
+
+@app.post('/api/simulation/telemetry')
+def ingest_simulated_telemetry(payload: SimulatedTelemetryPayload):
+    """Ingest a single simulated localization cycle into the backend ACID database."""
+    try:
+        ts = payload.timestamp_ms or int(time.time() * 1000)
+        pos = {
+            'x': round(payload.x, 2),
+            'y': round(payload.y, 2),
+            'uncertainty': round(payload.uncertainty, 2),
+            'gdop': round(payload.gdop, 2),
+            'zone': payload.zone,
+            'room': payload.room,
+        }
+        err = payload.error_m
+        if err is None and payload.true_x is not None and payload.true_y is not None:
+            err = round(float(np.hypot(payload.x - payload.true_x, payload.y - payload.true_y)), 2)
+
+        shared['position_db'].log_position(
+            tag_id=payload.tag_id,
+            position=pos,
+            timestamp_ms=ts,
+            source="simulation",
+            floor=payload.floor,
+            true_x=payload.true_x,
+            true_y=payload.true_y,
+            error_m=err,
+            algorithm=payload.algorithm,
+            status=payload.status,
+            selected_anchors=payload.selected_anchors,
+            raw_readings=payload.raw_readings,
+            selection_rationale=payload.selection_rationale,
+        )
+        return {"status": "success", "tag_id": payload.tag_id, "timestamp_ms": ts}
+    except Exception as e:
+        logger.error(f"Error ingesting simulated telemetry: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post('/api/simulation/batch')
+def ingest_simulated_batch(batch: List[SimulatedTelemetryPayload]):
+    """Ingest a batch of simulated localization cycles in a single ACID transaction."""
+    try:
+        records = []
+        now_ms = int(time.time() * 1000)
+        for p in batch:
+            ts = p.timestamp_ms or now_ms
+            err = p.error_m
+            if err is None and p.true_x is not None and p.true_y is not None:
+                err = round(float(np.hypot(p.x - p.true_x, p.y - p.true_y)), 2)
+            records.append({
+                'tag_id': p.tag_id,
+                'timestamp_ms': ts,
+                'source': 'simulation',
+                'floor': p.floor,
+                'position': {
+                    'x': round(p.x, 2),
+                    'y': round(p.y, 2),
+                    'uncertainty': round(p.uncertainty, 2),
+                    'gdop': round(p.gdop, 2),
+                    'zone': p.zone,
+                    'room': p.room,
+                },
+                'true_x': p.true_x,
+                'true_y': p.true_y,
+                'error_m': err,
+                'algorithm': p.algorithm,
+                'status': p.status,
+                'selected_anchors': p.selected_anchors,
+                'raw_readings': p.raw_readings,
+                'selection_rationale': p.selection_rationale,
+            })
+        shared['position_db'].log_positions_batch(records)
+        return {"status": "success", "count": len(records)}
+    except Exception as e:
+        logger.error(f"Error ingesting simulated batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get('/api/search')
 def search_assets(q: str=Query('', description='Search query string'), user_room: Optional[str]=Query(None, description="User's current room for proximity ranking"), limit: int=Query(20, ge=1, le=100)):

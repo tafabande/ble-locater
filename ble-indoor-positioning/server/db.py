@@ -1,4 +1,4 @@
-"""Enterprise Database Layer — SQLModel / SQLite ACID Compliance Engine.
+"""Enterprise Database Layer - SQLModel / SQLite ACID Compliance Engine.
 
 Guarantees full ACID (Atomicity, Consistency, Isolation, Durability) properties:
 - Atomicity: Transaction scope context manager with guaranteed rollback on exceptions.
@@ -31,6 +31,17 @@ class PositionHistory(SQLModel, table=True):
     gdop: float = Field(default=0.0)
     zone: str = Field(default="Unknown")
     room: str = Field(default="Unknown")
+    # Dual-source extensions: differentiate simulation from physical ESP32 measurements
+    source: str = Field(default="real", index=True)  # "simulation" or "real"
+    floor: int = Field(default=0)
+    true_x: Optional[float] = Field(default=None)  # Ground-truth X (simulation only)
+    true_y: Optional[float] = Field(default=None)  # Ground-truth Y (simulation only)
+    error_m: Optional[float] = Field(default=None)  # Ground-truth error in meters (simulation only)
+    algorithm: str = Field(default="trilateration")  # "ml_regressor", "damped_gauss_newton", "trilateration"
+    status: str = Field(default="current")  # "current", "degraded", "unavailable", "proximity_fallback"
+    selected_anchors: Optional[str] = Field(default=None)  # JSON-serialized list of anchor IDs used
+    raw_readings: Optional[str] = Field(default=None)  # JSON-serialized raw anchor readings
+    selection_rationale: Optional[str] = Field(default=None)  # Description of anchor selection criteria
 
 
 class Asset(SQLModel, table=True):
@@ -60,6 +71,50 @@ class GeofenceAlert(SQLModel, table=True):
     severity: str = Field(default="LOW", index=True)
     message: str = Field(default="")
     acknowledged: int = Field(default=0)
+
+
+def migrate_positions_table(engine):
+    """Safe, idempotent migration for SQLite positions table.
+
+    Adds new dual-source and simulation metadata columns if they do not yet exist,
+    preserving all existing records and schema constraints.
+    """
+    try:
+        with engine.connect() as conn:
+            # Check existing columns
+            res = conn.execute(text("PRAGMA table_info(positions);")).fetchall()
+            existing_cols = {row[1] for row in res}
+            if not existing_cols:
+                # Table does not exist yet; SQLModel.metadata.create_all will create it.
+                return
+
+            columns_to_add = [
+                ("source", "VARCHAR DEFAULT 'real'"),
+                ("floor", "INTEGER DEFAULT 0"),
+                ("true_x", "FLOAT"),
+                ("true_y", "FLOAT"),
+                ("error_m", "FLOAT"),
+                ("algorithm", "VARCHAR DEFAULT 'trilateration'"),
+                ("status", "VARCHAR DEFAULT 'current'"),
+                ("selected_anchors", "TEXT"),
+                ("raw_readings", "TEXT"),
+                ("selection_rationale", "TEXT"),
+            ]
+
+            for col_name, col_type in columns_to_add:
+                if col_name not in existing_cols:
+                    conn.execute(text(f"ALTER TABLE positions ADD COLUMN {col_name} {col_type};"))
+                    logger.info(f"Database Migration: Added column '{col_name}' to 'positions' table.")
+
+            # Create index on source for performant partition queries
+            try:
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_positions_source ON positions (source);"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_positions_tag_ts ON positions (tag_id, timestamp_ms);"))
+            except Exception:
+                pass
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Positions table migration check: {e}")
 
 
 def create_db_engine(db_path_or_url: str):
@@ -111,6 +166,9 @@ def create_db_engine(db_path_or_url: str):
                 logger.warning(f"Failed to apply SQLite PRAGMAs: {e}")
             finally:
                 cursor.close()
+
+        # Run safe idempotent schema migration
+        migrate_positions_table(engine)
 
     return engine
 
