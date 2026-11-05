@@ -50,6 +50,12 @@ if /i "%TARGET_CMD%"=="--dashboard" goto do_dashboard
 if /i "%TARGET_CMD%"=="pipeline" goto do_dashboard
 if /i "%TARGET_CMD%"=="--pipeline" goto do_dashboard
 
+if /i "%TARGET_CMD%"=="tutorial" goto do_tutorial
+if /i "%TARGET_CMD%"=="--tutorial" goto do_tutorial
+if /i "%TARGET_CMD%"=="onboard" goto do_tutorial
+if /i "%TARGET_CMD%"=="--onboard" goto do_tutorial
+if /i "%TARGET_CMD%"=="quest" goto do_tutorial
+
 if /i "%TARGET_CMD%"=="doctor" goto do_doctor
 if /i "%TARGET_CMD%"=="--doctor" goto do_doctor
 
@@ -98,6 +104,11 @@ echo [PIPELINE] Running Autonomous Environment Doctor and Pre-flight Diagnostics
 "!PY_EXE!" control.py --doctor
 goto handle_exit
 
+:do_tutorial
+echo [PIPELINE] Launching System Commissioning and Setup Wizard...
+"!PY_EXE!" tutorial_gui.py
+goto handle_exit
+
 :do_setup
 echo [PIPELINE] Launching ESP32 Wireless Provisioner and Flasher GUI...
 "!PY_EXE!" setup.py
@@ -142,6 +153,7 @@ echo ======================================================================
 echo   launch.bat                    Launch interactive Operations Console
 echo   launch.bat dashboard          Autostart dashboard and self-healing pipeline
 echo   launch.bat pipeline           Autostart dashboard and self-healing pipeline
+echo   launch.bat tutorial           Launch System Commissioning and Setup Wizard
 echo   launch.bat doctor             Run autonomous diagnostics and auto-healing
 echo   launch.bat setup              Launch ESP32 Wireless Provisioner and Flasher GUI
 echo   launch.bat collector          Launch Experiment Controller and Collector GUI

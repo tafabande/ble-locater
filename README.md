@@ -111,6 +111,21 @@ Verified against the **Analytical Ground-Truth Benchmark**:
 - **Node.js**: 18+ (Dashboard runtime)
 - **Python**: 3.10+ (Positioning engine & ML pipeline)
 
+### 📋 Option 0: Guided System Commissioning Wizard (Recommended for New Facilities)
+For initial installation, research deployment, or new facility onboarding, execute the guided commissioning wizard:
+```cmd
+launch.bat tutorial
+# or
+python control.py tutorial
+```
+This launches the **RTLS Platform Commissioning Wizard**, providing autonomous pre-flight diagnostics, live subsystem verification, and guided execution across all 6 deployment phases:
+1. Host Environment & Socket Verification (Ports 8000, 8443, 5005)
+2. ESP32 Anchor Provisioning & Beacon Configuration (Physical or Virtual Mesh)
+3. 2D Cartesian Spatial Framework & 4-Corner Topology
+4. Empirical Telemetry & Ground-Truth Calibration Survey
+5. Super Learner Regression Ensemble & Accuracy Benchmarks
+6. RTLS Positioning Engine & Operations Dashboard Deployment
+
 ### Option A: One-Click Launch (Desktop Operations Console)
 Run the desktop launch script to start the backend engine and dashboard:
 ```cmd

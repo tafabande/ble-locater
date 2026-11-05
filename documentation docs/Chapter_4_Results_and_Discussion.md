@@ -168,6 +168,7 @@ $$\text{Table 4.6: Comprehensive 33-Session Empirical Tracking Performance Ranki
 | 33 | `dataset_2026-09-28_124346.csv` | $(5.0, 5.0)$ | 42 | $2.4500\,\text{m}$ | $2.3100\,\text{m}$ | $3.9200\,\text{m}$ | Fold 2 |
 
 Inspection of Table 4.6 demonstrates that test accuracy is heavily governed by geometric placement within the convex hull of the 4 anchors:
+
 1. **Geometric Interior ($(2.5, 2.5)\,\text{m}$)**: Ranks 1 through 22 all reside at the testbed center, where GDOP is minimized ($\approx 1.41$) and symmetric radio path links provide balanced signal attenuation. Median errors in this region range from **$0.0398\,\text{m}$ to $0.4500\,\text{m}$**.
 2. **Intermediate Interior ($(3.0, 2.0)\,\text{m}$, $(4.0, 3.0)\,\text{m}$)**: Ranks 23 through 26 achieve median errors between **$0.58\,\text{m}$ and $0.95\,\text{m}$**, maintaining robust sub-meter tracking.
 3. **Perimeter and Corner Points ($(5.0, 5.0)\,\text{m}$, $(4.0, 1.0)\,\text{m}$)**: Ranks 27 through 33 exhibit higher errors ($1.15\,\text{m}$ to $2.31\,\text{m}$), directly attributable to Geometric Dilution of Precision (GDOP) expansion at the convex hull boundary and severe near-field anchor proximity fading.
@@ -210,6 +211,7 @@ $$\text{Table 4.6c: Spatial Error Tier Stratification across 1,961 Evaluation Wi
 | **Severe Error** | $> 2.50\,\text{m}$ | $240$ | $12.24\%$ | $100.00\%$ | Perimeter anchor near-field fading & geometric singularity |
 
 Disaggregating positioning accuracy by physical coordinate locations reveals a critical structural phenomenon:
+
 1. **Central Testbed Interior ($(2.5, 2.5)\,\text{m}$)**: Across $22$ sessions comprising $1,326$ observation windows, the champion ExtraTrees model achieves a **median error of $0.0910\,\text{m}$** (mean $0.1508\,\text{m}$, P90 $0.2580\,\text{m}$), with **$98.3\%$ of predictions falling within $0.50\,\text{m}$**. Symmetrical multi-anchor geometry and optimal GDOP ($\approx 1.41$) enable near-millimeter tracking stability.
 2. **Intermediate Interior Points ($(2.0, 3.0)\,\text{m}$, $(4.0, 3.0)\,\text{m}$)**: Windows maintain solid sub-meter tracking with mean errors of $0.8999\,\text{m}$ and $1.2991\,\text{m}$.
 3. **Perimeter and Corner Points ($(1.0, 1.0)\,\text{m}$, $(5.0, 5.0)\,\text{m}$, $(2.5, 5.0)\,\text{m}$)**: Mean errors rise to $3.2885\,\text{m}$, $3.2176\,\text{m}$, and $2.7438\,\text{m}$.
@@ -222,6 +224,7 @@ Disaggregating positioning accuracy by physical coordinate locations reveals a c
 In mission-critical operational facilities (e.g., patient wards, restricted industrial vaults, automated storage bays), coarse symbolic zone identification is required even when multipath degrades fine-grained Cartesian coordinate estimates.
 
 A dedicated discrete zone classifier was trained to predict tag containment across discrete operational zones (`Assembly Floor`, `Storage Bay`, `Corridor Access`, `Restricted Boundary`). Evaluating a Bagging Classifier architecture under 5-fold session cross-validation yielded:
+
 - **Overall Classification Accuracy**: $\mathbf{92.15\%}$ ($1,807$ of $1,961$ observation windows correctly assigned)
 - **Weighted F1-Score**: $\mathbf{0.9216}$ (Precision: $0.9224$, Recall: $0.9215$)
 
@@ -293,18 +296,18 @@ $$\text{Table 4.8b: Closed-Loop Simulation Calibration & Hardware-in-the-Loop RT
 | :--- | :---: | :---: | :---: | :--- |
 | **Sample Size / Scope** | $1,961$ physical windows | $50$ continuous multi-path paths | — | Scaled representative verification |
 | **Mean Absolute Error** | $0.8853\,\text{m}$ | $0.8751\,\text{m}$ | $-0.0102\,\text{m}$ | $\mathbf{\le 1.2\%}$ Relative Deviation (High Fidelity) |
-| **Median 2D Error ($p50$)**| $0.4059\,\text{m}$ | $0.4059\,\text{m}$ | $0.0000\,\text{m}$ | Exact CDF percentile alignment |
-| **75th Percentile Error ($p75$)**| $1.4552\,\text{m}$| $1.4552\,\text{m}$| $0.0000\,\text{m}$ | Exact CDF percentile alignment |
-| **90th Percentile Error ($p90$)**| $2.6690\,\text{m}$| $2.6690\,\text{m}$| $0.0000\,\text{m}$ | Exact CDF percentile alignment |
+| **Median 2D Error ($p50$)** | $0.4059\,\text{m}$ | $0.4059\,\text{m}$ | $0.0000\,\text{m}$ | Exact CDF percentile alignment |
+| **75th Percentile Error ($p75$)** | $1.4552\,\text{m}$ | $1.4552\,\text{m}$ | $0.0000\,\text{m}$ | Exact CDF percentile alignment |
+| **90th Percentile Error ($p90$)** | $2.6690\,\text{m}$ | $2.6690\,\text{m}$ | $0.0000\,\text{m}$ | Exact CDF percentile alignment |
 | **Sub-1.50m Accuracy** | $76.08\%$ | $76.08\%$ | $0.00\%$ | High-precision tracking bound verified |
-| **Model Determination ($R^2$)**| — | $0.5838$ | — | Positive empirical correlation |
+| **Model Determination ($R^2$)** | — | $0.5838$ | — | Positive empirical correlation |
 
-3. **Autonomous Algorithmic Fallback Matrix**:
+1. **Autonomous Algorithmic Fallback Matrix**:
    The operator console implements an autonomous 4-stage graceful degradation ladder to ensure uninterrupted operational continuity:
    $$\boxed{\text{Stage 1: Damped Gauss-Newton } (M \ge 3)} \longrightarrow \boxed{\text{Stage 2: Bimodal Projection } (M = 2)} \longrightarrow \boxed{\text{Stage 3: Cell-of-Origin Proximity } (M = 1)} \longrightarrow \boxed{\text{Stage 4: Stale Velocity Hold } (M = 0)}$$
    Under collinear receiver configurations ($|\det(H^T H)| < 10^{-6}$), the engine automatically detects geometric singularity ($\text{GDOP} > 10.0$), logging operator warnings and falling back to robust proximity centroids without generating `NaN` or infinite coordinate values.
 
-4. **Automated GDOP Qualitative Indexing**:
+2. **Automated GDOP Qualitative Indexing**:
    The console continuously evaluates the Dilution of Precision matrix, categorizing geometric tracking confidence in real time:
    $$\text{GDOP} = \sqrt{\operatorname{Tr}\left((H^T H)^{-1}\right)}$$
    - **Excellent** ($\text{GDOP} \le 2.5$): Symmetrical anchor constellation; optimal interior tracking.
@@ -328,6 +331,7 @@ $$\text{Table 4.9: Formal Hypotheses Testing Matrix}$$
 | $\mathbf{H_4}$ | 2D kinematic Kalman filtering dampens stationary coordinate jitter ($\ge 40\%$) within a $<5\,\text{ms}$ software execution budget. | Stationary $J_{\text{RMS}}$ jitter radius across 22 benchmark sessions and CPU execution profiling. | Mean stationary jitter reduction: $\mathbf{40.8\%}$ (up to $\mathbf{70.2\%}$ peak).<br>Kalman update: $\mathbf{0.062\,\text{ms}}$ (full pipeline software execution $1.809\,\text{ms}$ median). | **CONFIRMED** |
 
 ### Statistical Significance Testing ($H_1$ & $H_3$)
+
 A paired two-sample $t$-test conducted between the champion direct coordinate regressor (`Extra Trees (Coord)`) and the champion ranging multilateration regressor (`Extra Trees Ranging`) across all $N = 1,961$ synchronized observation windows yields a test statistic of $t = -3.106$ with an asymptotic $p$-value of **$p = 0.00192$ ($p < 0.01$)**. A non-parametric Wilcoxon signed-rank test on the paired 2D positioning errors confirms this result ($W = 900,350.0$, **$p = 0.01416$, $p < 0.05$**).
 
 Furthermore, a Wilcoxon signed-rank test comparing the machine learning coordinate regressor against the uncalibrated classical multilateration baseline across all 33 out-of-fold test sessions yields $W = 54.0$ with an asymptotic $p$-value of **$p = 0.0019$ ($p < 0.01$)**. These tests confirm that the superior positioning accuracy of the machine learning architecture is statistically significant, robust to non-normal error distributions, and not an artifact of random sampling noise.
@@ -353,6 +357,7 @@ To preserve strict academic integrity, this dissertation explicitly documents po
 ## 4.7 Chapter Summary
 
 The quantitative experiments presented in this chapter demonstrate:
+
 1. Feature-engineered gradient boosted regression reduces 1D distance estimation error by $72.4\%$ compared to calibrated logarithmic path loss physics ($1.2734\,\text{m}$ vs. $4.6139\,\text{m}$ MAE on $N = 7,471$ held-out windows).
 2. Strict out-of-fold session cross-validation (`GroupKFold`, $K=5$) on $1,961$ multi-anchor observation windows establishes a realistic generalization median 2D positioning error of **$0.4059\,\text{m}$** (with $69.96\%$ of predictions achieving sub-meter accuracy), eliminating the artificial optimism of naive in-sample replay ($0.0244\,\text{m}$ median).
 3. Direct non-linear coordinate regression statistically outperforms two-stage ranging multilateration ($0.8853\,\text{m}$ vs. $0.9107\,\text{m}$ mean error, paired $t = -3.106$, $p = 0.00192$), avoiding error compounding through intermediate trilateration geometry.

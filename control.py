@@ -81,6 +81,8 @@ class ApplicationLauncher:
         "amber": "#F59E0B",       # Amber 500
         "blue": "#3B82F6",        # Blue 500
         "blue_hover": "#2563EB",
+        "purple": "#8B5CF6",
+        "purple_hover": "#7C3AED",
     }
 
     def __init__(self, root: tk.Tk) -> None:
@@ -169,13 +171,45 @@ class ApplicationLauncher:
             relief="flat", cursor="hand2", padx=12, pady=6,
             command=self.launch_benchmark,
         )
-        self.btn_benchmark.pack(side="right")
+        self.btn_benchmark.pack(side="right", padx=(8, 0))
+
+        self.btn_tutorial = tk.Button(
+            btn_box, text="📋  SYSTEM SETUP & COMMISSIONING",
+            bg="#8B5CF6", fg="#FFFFFF", font=("Segoe UI", 9, "bold"),
+            relief="flat", cursor="hand2", padx=12, pady=6,
+            command=self.launch_tutorial,
+        )
+        self.btn_tutorial.pack(side="right")
 
         # Main Container
         main = tk.Frame(self.root, bg=self.THEME["bg"])
         main.pack(fill="both", expand=True, padx=24, pady=16)
 
         # 2x2 Grid of Application Cards
+        # Guided System Commissioning & Setup Wizard Banner
+        onboard_banner = tk.Frame(main, bg=self.THEME["panel"], padx=16, pady=10)
+        onboard_banner.pack(fill="x", pady=(0, 12))
+
+        ob_left = tk.Frame(onboard_banner, bg=self.THEME["panel"])
+        ob_left.pack(side="left", fill="both", expand=True)
+
+        tk.Label(
+            ob_left, text="🛰️  SYSTEM COMMISSIONING & ONBOARDING WIZARD",
+            bg=self.THEME["panel"], fg=self.THEME["purple"], font=("Segoe UI", 9, "bold")
+        ).pack(anchor="w")
+
+        tk.Label(
+            ob_left, text="First-time setup or new facility? Follow the 6-phase guided commissioning sequence: Host Pre-Flight -> Anchor Provisioning -> Spatial Framework -> Telemetry Survey -> ML Studio -> RTLS Deployment.",
+            bg=self.THEME["panel"], fg=self.THEME["subtext"], font=("Segoe UI", 8)
+        ).pack(anchor="w", pady=(2, 0))
+
+        tk.Button(
+            onboard_banner, text="▶  OPEN SETUP WIZARD",
+            bg=self.THEME["purple"], fg="#FFFFFF", font=("Segoe UI", 8, "bold"),
+            relief="flat", cursor="hand2", padx=12, pady=5,
+            command=self.launch_tutorial,
+        ).pack(side="right")
+
         apps_frame = tk.Frame(main, bg=self.THEME["bg"])
         apps_frame.pack(fill="x", pady=(0, 12))
         apps_frame.columnconfigure(0, weight=1, uniform="app")
@@ -403,6 +437,11 @@ class ApplicationLauncher:
         self.root.after(4000, self._check_ecosystem_readiness)
 
     # Application Launchers
+    def launch_tutorial(self) -> None:
+        self._log("Launching Gamified Setup Tutorial and Interactive Onboarding Quest...")
+        script = BASE_DIR / "tutorial_gui.py"
+        subprocess.Popen([PYTHON_EXE, str(script)], cwd=str(BASE_DIR))
+
     def launch_admin(self) -> None:
         self._log("Launching Standalone System Administrator GUI...")
         script = BASE_DIR / "admin_gui.py"
@@ -777,6 +816,7 @@ def main() -> None:
             "  python control.py --test             Run automated test suite with retries\n"
             "  python control.py dashboard          Autostart dashboard and self-healing pipeline\n"
             "  python control.py --pipeline         Autostart dashboard and self-healing pipeline\n"
+            "  python control.py tutorial           Launch System Commissioning & Onboarding Wizard\n"
             "  python control.py doctor             Run autonomous diagnostics and auto-healing\n"
             "  python control.py setup              Launch ESP32 Wireless Provisioner & Flasher GUI\n"
             "  python control.py collector          Launch Visual Data Collector GUI\n"
@@ -800,6 +840,11 @@ def main() -> None:
         print("Launching autonomous self-healing RTLS Dashboard Pipeline...")
         success = launch_full_pipeline(print, open_browser=True)
         sys.exit(0 if success else 1)
+
+    if any(a in ("--tutorial", "tutorial", "--onboard", "onboard", "quest") for a in cli_args):
+        import tutorial_gui
+        tutorial_gui.main()
+        return
 
     if any(a in ("--doctor", "doctor") for a in cli_args):
         print("Running autonomous pre-flight diagnostics and healing...")

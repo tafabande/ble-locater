@@ -26,6 +26,15 @@ The application architecture is refactored into a **decoupled ecosystem of speci
 
 ## 🚀 Quick Start & Application Launch Options
 
+### Option 0: 📋 Guided System Commissioning Wizard (Recommended for New Facilities)
+Deploying an RTLS installation involves multiple synchronized subsystems (socket allocation, ESP32 anchor mesh, spatial coordinate topography, empirical survey telemetry, ML model training, and dashboard hosting). The **Guided Commissioning Wizard** coordinates this sequence through an intuitive 6-phase verification workflow with live auto-detection and execution tools:
+```cmd
+launch.bat tutorial
+# or
+python control.py tutorial
+```
+You can also launch it directly anytime by clicking the **`📋 SYSTEM SETUP & COMMISSIONING`** button in the Operations Console (`control.py`).
+
 ### Option 1: Application Launcher & Control Centre (Recommended)
 Double-click `launch.bat` or run:
 ```cmd
@@ -37,6 +46,7 @@ This opens the dedicated **Application Control Centre**, where you can launch an
 
 | Application | Launch Command | Purpose |
 |---|---|---|
+| **📋 Commissioning Wizard** | `launch.bat tutorial` | 6-phase guided deployment wizard with live subsystem verification and automated pre-flight |
 | **📍 Live Tracking Dashboard** | `launch.bat dashboard` (`http://localhost:8443`) | Standalone frontend operations dashboard (served via `Dashboard for Tag Movement` or FastAPI) |
 | **🛠️ ESP32 Setup & Flasher** | `python setup.py` | Wireless Wi-Fi provisioning, hardware MAC interrogation, and ROM flashing |
 | **📡 Data Acquisition Controller** | `python controller.py` | Visual 2D room surveyor, big Start/Pause/Stop ribbon, and Wi-Fi UDP stream receiver |
