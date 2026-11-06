@@ -322,7 +322,7 @@ class ModelTrainerApp:
             header_box,
             text="Zero-leakage StratifiedGroupKFold evaluation comparing ML algorithms against Physics Baselines.",
             bg=t["panel"], fg=t["subtext"],
-            font=("Segoe UI", 8.5)
+            font=("Segoe UI", 9)
         ).pack(anchor="w", pady=(2, 0))
 
         form = tk.Frame(scroll_frame, bg=t["panel"], padx=18)
@@ -334,7 +334,7 @@ class ModelTrainerApp:
 
         step1_top = tk.Frame(step1_card, bg=t["card"])
         step1_top.pack(fill="x", pady=(0, 6))
-        tk.Label(step1_top, text="STEP 1: SELECT TRAINING SCENARIO", bg=t["card"], fg=t["text"], font=("Segoe UI", 9.5, "bold")).pack(side="left")
+        tk.Label(step1_top, text="STEP 1: SELECT TRAINING SCENARIO", bg=t["card"], fg=t["text"], font=("Segoe UI", 10, "bold")).pack(side="left")
         self.preset_badge = tk.Label(
             step1_top,
             text="BEST FIT ACTIVE",
@@ -383,7 +383,7 @@ class ModelTrainerApp:
                 "(Bagging Ensemble, 0.8751m MAE) using 66-feature multipath dispersion histograms "
                 "and obstacle factor compensation with zero-leakage session partitioning."
             ),
-            bg=t["card_nested"], fg=t["gold"], font=("Segoe UI", 8.5),
+            bg=t["card_nested"], fg=t["gold"], font=("Segoe UI", 9),
             justify="left", wraplength=450, padx=8, pady=6,
             highlightthickness=1, highlightbackground=t["border_subtle"]
         )
@@ -393,7 +393,7 @@ class ModelTrainerApp:
         step2_card = tk.Frame(form, bg=t["card"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         step2_card.pack(fill="x", pady=(0, 10))
 
-        tk.Label(step2_card, text="STEP 2: OBSERVATIONS DATASET (CSV)", bg=t["card"], fg=t["text"], font=("Segoe UI", 9.5, "bold")).pack(anchor="w", pady=(0, 6))
+        tk.Label(step2_card, text="STEP 2: OBSERVATIONS DATASET (CSV)", bg=t["card"], fg=t["text"], font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 6))
 
         path_box = tk.Frame(step2_card, bg=t["card"])
         path_box.pack(fill="x")
@@ -431,7 +431,7 @@ class ModelTrainerApp:
         self.audit_lbl = tk.Label(
             step2_card, text="Scanning observations dataset...",
             bg=t["card_nested"], fg=t["green"],
-            font=("Segoe UI", 8.5), justify="left", wraplength=450,
+            font=("Segoe UI", 9), justify="left", wraplength=450,
             padx=8, pady=6, highlightthickness=1, highlightbackground=t["border_subtle"]
         )
         self.audit_lbl.pack(fill="x", pady=(8, 0))
@@ -439,7 +439,7 @@ class ModelTrainerApp:
         # ── STEP 3: RUN PIPELINE PRIMARY BUTTON ───────────────────────────────
         self.btn_run_train = tk.Button(
             form, text="RUN BEST FIT PIPELINE (CHAMPION)",
-            bg=t["primary"], fg="#FFFFFF", font=("Segoe UI", 10.5, "bold"),
+            bg=t["primary"], fg="#FFFFFF", font=("Segoe UI", 11, "bold"),
             relief="flat", cursor="hand2", padx=16, pady=12,
             activebackground=t["primary_hover"], activeforeground="#FFFFFF",
             highlightthickness=1, highlightbackground=t["border_focus"],
@@ -458,7 +458,7 @@ class ModelTrainerApp:
             form,
             text="▼  Show Advanced Research & Filtering Options",
             bg=t["card"], fg=t["subtext"],
-            font=("Segoe UI", 8.5, "bold"),
+            font=("Segoe UI", 9, "bold"),
             relief="flat", cursor="hand2", pady=7,
             highlightthickness=1, highlightbackground=t["border"],
             command=self._toggle_advanced_options
@@ -471,18 +471,18 @@ class ModelTrainerApp:
         adv_box = tk.Frame(self.adv_container, bg=t["card"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         adv_box.pack(fill="x", pady=(0, 12))
 
-        tk.Label(adv_box, text="ADVANCED RESEARCH CONFIGURATION", bg=t["card"], fg=t["text"], font=("Segoe UI", 9.5, "bold")).pack(anchor="w", pady=(0, 8))
+        tk.Label(adv_box, text="ADVANCED RESEARCH CONFIGURATION", bg=t["card"], fg=t["text"], font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 8))
 
         # Split Strategy & Scope
         split_row = tk.Frame(adv_box, bg=t["card"])
         split_row.pack(fill="x", pady=(0, 6))
-        tk.Label(split_row, text="Evaluation Split Mode", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(anchor="w")
+        tk.Label(split_row, text="Evaluation Split Mode", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w")
         ttk.Combobox(split_row, textvariable=self.eval_mode_var, values=["balanced_session", "strict_session", "random"], state="readonly").pack(fill="x", pady=(2, 6))
 
-        tk.Label(split_row, text="Training Scope", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(anchor="w")
+        tk.Label(split_row, text="Training Scope", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w")
         ttk.Combobox(split_row, textvariable=self.training_mode_var, values=["both", "regression", "classification"], state="readonly").pack(fill="x", pady=(2, 6))
 
-        tk.Label(split_row, text="Feature Source", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(anchor="w")
+        tk.Label(split_row, text="Feature Source", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w")
         ttk.Combobox(split_row, textvariable=self.feature_source_var, values=["existing", "raw"], state="readonly").pack(fill="x", pady=(2, 6))
 
         # Checkboxes
@@ -490,58 +490,58 @@ class ModelTrainerApp:
             adv_box, text="Drop Duplicate RF Frames",
             variable=self.drop_duplicates_var,
             bg=t["card"], fg=t["text"], selectcolor=t["entry_bg"],
-            activebackground=t["card"], activeforeground=t["text"], font=("Segoe UI", 8.5)
+            activebackground=t["card"], activeforeground=t["text"], font=("Segoe UI", 9)
         ).pack(anchor="w", pady=(2, 2))
 
         tk.Checkbutton(
             adv_box, text="Run Hyperparameter Tuning (Grid / Bayesian)",
             variable=self.tune_var,
             bg=t["card"], fg=t["text"], selectcolor=t["entry_bg"],
-            activebackground=t["card"], activeforeground=t["text"], font=("Segoe UI", 8.5)
+            activebackground=t["card"], activeforeground=t["text"], font=("Segoe UI", 9)
         ).pack(anchor="w", pady=(2, 8))
 
         # Window & Stride
         win_row = tk.Frame(adv_box, bg=t["card"])
         win_row.pack(fill="x", pady=(4, 6))
-        tk.Label(win_row, text="Window Size (ms):", bg=t["card"], fg=t["text"], font=("Segoe UI", 8.5)).pack(side="left", padx=(0, 4))
+        tk.Label(win_row, text="Window Size (ms):", bg=t["card"], fg=t["text"], font=("Segoe UI", 9)).pack(side="left", padx=(0, 4))
         self._create_high_contrast_entry(win_row, self.window_size_var, width=8).pack(side="left")
-        tk.Label(win_row, text="Stride (ms):", bg=t["card"], fg=t["text"], font=("Segoe UI", 8.5)).pack(side="left", padx=(12, 4))
+        tk.Label(win_row, text="Stride (ms):", bg=t["card"], fg=t["text"], font=("Segoe UI", 9)).pack(side="left", padx=(12, 4))
         self._create_high_contrast_entry(win_row, self.stride_var, width=8).pack(side="left")
 
         # Outlier & Missing Data
         out_row = tk.Frame(adv_box, bg=t["card"])
         out_row.pack(fill="x", pady=(4, 6))
-        tk.Label(out_row, text="Outlier Method", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(anchor="w")
+        tk.Label(out_row, text="Outlier Method", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w")
         ttk.Combobox(out_row, textvariable=self.outlier_method_var, values=["isolation_forest", "iqr", "zscore", "mad", "none"], state="readonly").pack(fill="x", pady=(2, 6))
 
-        tk.Label(out_row, text="Missing Data Strategy", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(anchor="w")
+        tk.Label(out_row, text="Missing Data Strategy", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w")
         ttk.Combobox(out_row, textvariable=self.missing_data_var, values=["drop", "interpolate", "fill"], state="readonly").pack(fill="x", pady=(2, 6))
 
         # Distance & RSSI bounds
         dist_row = tk.Frame(adv_box, bg=t["card"])
         dist_row.pack(fill="x", pady=(4, 6))
-        tk.Label(dist_row, text="Dist Min (m):", bg=t["card"], fg=t["text"], font=("Segoe UI", 8.5)).pack(side="left", padx=(0, 4))
+        tk.Label(dist_row, text="Dist Min (m):", bg=t["card"], fg=t["text"], font=("Segoe UI", 9)).pack(side="left", padx=(0, 4))
         self._create_high_contrast_entry(dist_row, self.distance_min_var, width=6).pack(side="left")
-        tk.Label(dist_row, text="Max:", bg=t["card"], fg=t["text"], font=("Segoe UI", 8.5)).pack(side="left", padx=(10, 4))
+        tk.Label(dist_row, text="Max:", bg=t["card"], fg=t["text"], font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
         self._create_high_contrast_entry(dist_row, self.distance_max_var, width=6).pack(side="left")
 
         rssi_row = tk.Frame(adv_box, bg=t["card"])
         rssi_row.pack(fill="x", pady=(4, 6))
-        tk.Label(rssi_row, text="RSSI Min (dBm):", bg=t["card"], fg=t["text"], font=("Segoe UI", 8.5)).pack(side="left", padx=(0, 4))
+        tk.Label(rssi_row, text="RSSI Min (dBm):", bg=t["card"], fg=t["text"], font=("Segoe UI", 9)).pack(side="left", padx=(0, 4))
         self._create_high_contrast_entry(rssi_row, self.rssi_min_var, width=6).pack(side="left")
-        tk.Label(rssi_row, text="Max:", bg=t["card"], fg=t["text"], font=("Segoe UI", 8.5)).pack(side="left", padx=(10, 4))
+        tk.Label(rssi_row, text="Max:", bg=t["card"], fg=t["text"], font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
         self._create_high_contrast_entry(rssi_row, self.rssi_max_var, width=6).pack(side="left")
 
         # Anchors, Motion, Obstacle
         filter_box = tk.Frame(adv_box, bg=t["card"])
         filter_box.pack(fill="x", pady=(4, 0))
-        tk.Label(filter_box, text="Anchors (blank = all)", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(anchor="w")
+        tk.Label(filter_box, text="Anchors (blank = all)", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w")
         self._create_high_contrast_entry(filter_box, self.anchors_var).pack(fill="x", pady=(2, 4))
 
-        tk.Label(filter_box, text="Motion Modes (e.g. stationary,moving)", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(anchor="w")
+        tk.Label(filter_box, text="Motion Modes (e.g. stationary,moving)", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w")
         self._create_high_contrast_entry(filter_box, self.motion_var).pack(fill="x", pady=(2, 4))
 
-        tk.Label(filter_box, text="Obstacle Types (e.g. None,Human body)", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(anchor="w")
+        tk.Label(filter_box, text="Obstacle Types (e.g. None,Human body)", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w")
         self._create_high_contrast_entry(filter_box, self.obstacle_var).pack(fill="x", pady=(2, 4))
 
         # ── Right Column: Console Log & Live Progress ─────────────────────────
@@ -562,7 +562,7 @@ class ModelTrainerApp:
             r_top,
             text="Pipeline Idle",
             bg=t["panel"], fg=t["subtext"],
-            font=("Segoe UI", 8.5)
+            font=("Segoe UI", 9)
         )
         self.telemetry_lbl.pack(side="right")
 
@@ -572,18 +572,18 @@ class ModelTrainerApp:
         # High-contrast Terminal Text
         self.log_text = tk.Text(
             right, bg=t["terminal_bg"], fg=t["terminal_fg"],
-            insertbackground=t["cyan"], font=("Consolas", 9.5),
+            insertbackground=t["cyan"], font=("Consolas", 10),
             relief="flat", wrap="word", padx=10, pady=10,
             highlightthickness=1, highlightbackground=t["border"]
         )
         self.log_text.pack(fill="both", expand=True)
 
         # Tag styles for colorized terminal output
-        self.log_text.tag_config("stage", foreground=t["cyan"], font=("Consolas", 9.5, "bold"))
-        self.log_text.tag_config("success", foreground=t["green"], font=("Consolas", 9.5, "bold"))
-        self.log_text.tag_config("warn", foreground=t["amber"], font=("Consolas", 9.5, "bold"))
-        self.log_text.tag_config("error", foreground=t["rose"], font=("Consolas", 9.5, "bold"))
-        self.log_text.tag_config("highlight", foreground=t["gold"], font=("Consolas", 9.5, "bold"))
+        self.log_text.tag_config("stage", foreground=t["cyan"], font=("Consolas", 10, "bold"))
+        self.log_text.tag_config("success", foreground=t["green"], font=("Consolas", 10, "bold"))
+        self.log_text.tag_config("warn", foreground=t["amber"], font=("Consolas", 10, "bold"))
+        self.log_text.tag_config("error", foreground=t["rose"], font=("Consolas", 10, "bold"))
+        self.log_text.tag_config("highlight", foreground=t["gold"], font=("Consolas", 10, "bold"))
 
         # Console toolbar
         console_tools = tk.Frame(right, bg=t["panel"])
@@ -756,15 +756,15 @@ class ModelTrainerApp:
             toolbar,
             text="MODEL PERFORMANCE & TOURNAMENT METRICS",
             bg=t["panel"], fg=t["text"],
-            font=("Segoe UI", 10.5, "bold")
+            font=("Segoe UI", 11, "bold")
         ).pack(side="left")
 
         # Action Buttons
-        tk.Button(toolbar, text="Full Benchmark Studio", bg=t["primary"], fg="#FFFFFF", font=("Segoe UI", 8.5, "bold"), relief="flat", cursor="hand2", padx=12, pady=5, command=self._open_benchmark_studio).pack(side="right", padx=4)
-        tk.Button(toolbar, text="Offline HTML Report", bg=t["card"], fg=t["cyan"], font=("Segoe UI", 8.5, "bold"), relief="flat", cursor="hand2", padx=12, pady=5, highlightthickness=1, highlightbackground=t["border"], command=self._open_html_report).pack(side="right", padx=4)
-        tk.Button(toolbar, text="Export Model", bg=t["card"], fg=t["green"], font=("Segoe UI", 8.5, "bold"), relief="flat", cursor="hand2", padx=12, pady=5, highlightthickness=1, highlightbackground=t["border"], command=self._export_to_production).pack(side="right", padx=4)
-        tk.Button(toolbar, text="Refresh", bg=t["card"], fg=t["text"], font=("Segoe UI", 8.5), relief="flat", cursor="hand2", padx=10, pady=5, highlightthickness=1, highlightbackground=t["border"], command=self.refresh_dashboard).pack(side="right", padx=4)
-        tk.Button(toolbar, text="Copy Summary", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8.5), relief="flat", cursor="hand2", padx=10, pady=5, highlightthickness=1, highlightbackground=t["border"], command=self._copy_summary).pack(side="right", padx=4)
+        tk.Button(toolbar, text="Full Benchmark Studio", bg=t["primary"], fg="#FFFFFF", font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2", padx=12, pady=5, command=self._open_benchmark_studio).pack(side="right", padx=4)
+        tk.Button(toolbar, text="Offline HTML Report", bg=t["card"], fg=t["cyan"], font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2", padx=12, pady=5, highlightthickness=1, highlightbackground=t["border"], command=self._open_html_report).pack(side="right", padx=4)
+        tk.Button(toolbar, text="Export Model", bg=t["card"], fg=t["green"], font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2", padx=12, pady=5, highlightthickness=1, highlightbackground=t["border"], command=self._export_to_production).pack(side="right", padx=4)
+        tk.Button(toolbar, text="Refresh", bg=t["card"], fg=t["text"], font=("Segoe UI", 9), relief="flat", cursor="hand2", padx=10, pady=5, highlightthickness=1, highlightbackground=t["border"], command=self.refresh_dashboard).pack(side="right", padx=4)
+        tk.Button(toolbar, text="Copy Summary", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9), relief="flat", cursor="hand2", padx=10, pady=5, highlightthickness=1, highlightbackground=t["border"], command=self._copy_summary).pack(side="right", padx=4)
 
         # ── KPI Cards (5 distinct stat boxes with high contrast) ──────────────
         kpi_row = tk.Frame(p, bg=t["bg"])
@@ -802,7 +802,7 @@ class ModelTrainerApp:
             lead_frame,
             text="SUPER LEARNER TOURNAMENT LEADERBOARD",
             bg=t["panel"], fg=t["text"],
-            font=("Segoe UI", 9.5, "bold")
+            font=("Segoe UI", 10, "bold")
         ).pack(anchor="w")
 
         cols = ("rank", "name", "params", "mae", "rmse", "r2", "score")
@@ -833,7 +833,7 @@ class ModelTrainerApp:
             dist_frame,
             text="PER-DISTANCE ACCURACY BREAKDOWN",
             bg=t["panel"], fg=t["text"],
-            font=("Segoe UI", 9.5, "bold")
+            font=("Segoe UI", 10, "bold")
         ).pack(anchor="w")
 
         dist_cols = ("dist", "mae", "rating")
@@ -856,7 +856,7 @@ class ModelTrainerApp:
             conc_frame,
             text="SCIENTIFIC DISSERTATION CONCLUSION & ATTRIBUTION",
             bg=t["panel"], fg=t["gold"],
-            font=("Segoe UI", 9.5, "bold")
+            font=("Segoe UI", 10, "bold")
         ).pack(anchor="w")
 
         self.conclusion_lbl = tk.Label(
@@ -867,7 +867,7 @@ class ModelTrainerApp:
                 "• KEY INFLUENTIAL PARAMETERS: Temporal smoothing (rssi_rolling_mean_10w: 47.1%), Tag elevation (height_m: 26.4%), and Obstacle factor (23.9%).\n"
                 "• ACCURACY GUARANTEE: 58.5% of estimations are within 1.0m, and 81.4% are within 1.5m. Zero GPU required (< 1.8 ms inference, 100% offline)."
             ),
-            bg=t["panel"], fg=t["text"], font=("Consolas", 8.5), justify="left"
+            bg=t["panel"], fg=t["text"], font=("Consolas", 9), justify="left"
         )
         self.conclusion_lbl.pack(anchor="w", pady=(6, 0))
 
@@ -916,7 +916,7 @@ class ModelTrainerApp:
         tk.Label(
             h_left,
             text="Clear real-world distance ranges, physical error limits, and actionable deployment advice — zero ML jargon.",
-            bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 8.5)
+            bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 9)
         ).pack(anchor="w", pady=(2, 0))
 
         h_right = tk.Frame(header, bg=t["panel"])
@@ -938,7 +938,7 @@ class ModelTrainerApp:
         tk.Label(
             scope_card,
             text="SYSTEM SCOPE: PRE-TRIANGULATION SINGLE-ANCHOR RANGING RESULTS",
-            bg=t["panel"], fg=t["gold"], font=("Segoe UI", 9.5, "bold")
+            bg=t["panel"], fg=t["gold"], font=("Segoe UI", 10, "bold")
         ).pack(anchor="w")
 
         tk.Label(
@@ -949,11 +949,11 @@ class ModelTrainerApp:
                 "or multilateration is performed. Sub-meter precision at this ranging stage ensures that the downstream 2D (x, y) "
                 "triangulation solver converges accurately without high geometric dilution of precision (GDOP)."
             ),
-            bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 8.5), justify="left", wraplength=980
+            bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 9), justify="left", wraplength=980
         ).pack(anchor="w", pady=(4, 0))
 
         # ── 2. Error Range & Accuracy Overview Cards (4 Grid Cards) ───────────
-        tk.Label(content, text="HOW ACCURATE IS THIS SYSTEM IN REAL LIFE?", bg=t["bg"], fg=t["text"], font=("Segoe UI", 10.5, "bold")).pack(anchor="w", pady=(0, 8))
+        tk.Label(content, text="HOW ACCURATE IS THIS SYSTEM IN REAL LIFE?", bg=t["bg"], fg=t["text"], font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 8))
 
         grid1 = tk.Frame(content, bg=t["bg"])
         grid1.pack(fill="x", pady=(0, 14))
@@ -963,53 +963,53 @@ class ModelTrainerApp:
         # Card 1: Average Accuracy
         card1 = tk.Frame(grid1, bg=t["card"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         card1.grid(row=0, column=0, sticky="nsew", padx=4)
-        tk.Label(card1, text="AVERAGE REAL-WORLD ERROR", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 7.5, "bold")).pack(anchor="w")
+        tk.Label(card1, text="AVERAGE REAL-WORLD ERROR", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8, "bold")).pack(anchor="w")
         self.pe_avg_val = tk.Label(card1, text="±0.87 meters", bg=card1.cget("bg"), fg=t["green"], font=("Segoe UI", 14, "bold"))
         self.pe_avg_val.pack(anchor="w", pady=(2, 4))
         tk.Label(
             card1,
             text="Within an arm's reach (~2.8 ft). The tracker pinpoints which desk, doorway, or quadrant you are closest to.",
-            bg=card1.cget("bg"), fg=t["text"], font=("Segoe UI", 8.5), justify="left", wraplength=220
+            bg=card1.cget("bg"), fg=t["text"], font=("Segoe UI", 9), justify="left", wraplength=220
         ).pack(anchor="w")
 
         # Card 2: 80% Confidence Zone
         card2 = tk.Frame(grid1, bg=t["card"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         card2.grid(row=0, column=1, sticky="nsew", padx=4)
-        tk.Label(card2, text="80% CONFIDENCE ZONE", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 7.5, "bold")).pack(anchor="w")
+        tk.Label(card2, text="80% CONFIDENCE ZONE", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8, "bold")).pack(anchor="w")
         self.pe_conf_val = tk.Label(card2, text="Under 1.5 meters", bg=card2.cget("bg"), fg=t["cyan"], font=("Segoe UI", 14, "bold"))
         self.pe_conf_val.pack(anchor="w", pady=(2, 4))
         tk.Label(
             card2,
             text="81.4% of all position readings are within 1.5m (~5 ft). Highly reliable for room-level presence and check-ins.",
-            bg=card2.cget("bg"), fg=t["text"], font=("Segoe UI", 8.5), justify="left", wraplength=220
+            bg=card2.cget("bg"), fg=t["text"], font=("Segoe UI", 9), justify="left", wraplength=220
         ).pack(anchor="w")
 
         # Card 3: High Precision Near Field
         card3 = tk.Frame(grid1, bg=t["card"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         card3.grid(row=0, column=2, sticky="nsew", padx=4)
-        tk.Label(card3, text="CLOSE-RANGE ACCURACY (< 1.5m)", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 7.5, "bold")).pack(anchor="w")
+        tk.Label(card3, text="CLOSE-RANGE ACCURACY (< 1.5m)", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8, "bold")).pack(anchor="w")
         self.pe_close_val = tk.Label(card3, text="±0.28 to ±0.45m", bg=card3.cget("bg"), fg=t["gold"], font=("Segoe UI", 14, "bold"))
         self.pe_close_val.pack(anchor="w", pady=(2, 4))
         tk.Label(
             card3,
             text="Sharpest accuracy when near an anchor beacon. Pinpoints bedside, doorway, or terminal passing within ~1 foot.",
-            bg=card3.cget("bg"), fg=t["text"], font=("Segoe UI", 8.5), justify="left", wraplength=220
+            bg=card3.cget("bg"), fg=t["text"], font=("Segoe UI", 9), justify="left", wraplength=220
         ).pack(anchor="w")
 
         # Card 4: Worst-Case Drift
         card4 = tk.Frame(grid1, bg=t["card"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         card4.grid(row=0, column=3, sticky="nsew", padx=4)
-        tk.Label(card4, text="WORST-CASE SCENARIOS", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 7.5, "bold")).pack(anchor="w")
+        tk.Label(card4, text="WORST-CASE SCENARIOS", bg=t["card"], fg=t["subtext"], font=("Segoe UI", 8, "bold")).pack(anchor="w")
         self.pe_worst_val = tk.Label(card4, text="±1.8m to ±2.2m", bg=card4.cget("bg"), fg=t["subtext"], font=("Segoe UI", 14, "bold"))
         self.pe_worst_val.pack(anchor="w", pady=(2, 4))
         tk.Label(
             card4,
             text="Occurs only when signals are blocked by thick concrete walls, human crowds, or at extreme 6+ meter distances.",
-            bg=card4.cget("bg"), fg=t["text"], font=("Segoe UI", 8.5), justify="left", wraplength=220
+            bg=card4.cget("bg"), fg=t["text"], font=("Segoe UI", 9), justify="left", wraplength=220
         ).pack(anchor="w")
 
         # ── 3. Real-World Distance Range Breakdown ────────────────────────────
-        tk.Label(content, text="ACCURACY AT DIFFERENT PHYSICAL DISTANCES", bg=t["bg"], fg=t["text"], font=("Segoe UI", 10.5, "bold")).pack(anchor="w", pady=(0, 8))
+        tk.Label(content, text="ACCURACY AT DIFFERENT PHYSICAL DISTANCES", bg=t["bg"], fg=t["text"], font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 8))
 
         dist_table_card = tk.Frame(content, bg=t["panel"], padx=16, pady=12, highlightthickness=1, highlightbackground=t["border"])
         dist_table_card.pack(fill="x", pady=(0, 14))
@@ -1027,13 +1027,13 @@ class ModelTrainerApp:
             row.pack(fill="x", pady=2)
 
             tk.Label(row, text=dist_span, bg=row_bg, fg=t["text"], font=("Segoe UI", 9, "bold"), width=14, anchor="w").pack(side="left")
-            tk.Label(row, text=f"• {env_desc}", bg=row_bg, fg=t["subtext"], font=("Segoe UI", 8.5), width=24, anchor="w").pack(side="left")
-            tk.Label(row, text=err_txt, bg=row_bg, fg=badge_col, font=("Consolas", 8.5, "bold"), width=28, anchor="w").pack(side="left")
-            tk.Label(row, text=badge, bg=row_bg, fg=badge_col, font=("Segoe UI", 7.5, "bold"), width=20, anchor="w").pack(side="left")
-            tk.Label(row, text=advice, bg=row_bg, fg=t["text"], font=("Segoe UI", 8.5), anchor="w").pack(side="left", fill="x", expand=True)
+            tk.Label(row, text=f"• {env_desc}", bg=row_bg, fg=t["subtext"], font=("Segoe UI", 9), width=24, anchor="w").pack(side="left")
+            tk.Label(row, text=err_txt, bg=row_bg, fg=badge_col, font=("Consolas", 9, "bold"), width=28, anchor="w").pack(side="left")
+            tk.Label(row, text=badge, bg=row_bg, fg=badge_col, font=("Segoe UI", 8, "bold"), width=20, anchor="w").pack(side="left")
+            tk.Label(row, text=advice, bg=row_bg, fg=t["text"], font=("Segoe UI", 9), anchor="w").pack(side="left", fill="x", expand=True)
 
         # ── 4. The Balanced Sweet Spot Recommendation ─────────────────────────
-        tk.Label(content, text="THE BALANCED SWEET SPOT: WHY THIS MODEL IS RECOMMENDED", bg=t["bg"], fg=t["text"], font=("Segoe UI", 10.5, "bold")).pack(anchor="w", pady=(0, 8))
+        tk.Label(content, text="THE BALANCED SWEET SPOT: WHY THIS MODEL IS RECOMMENDED", bg=t["bg"], fg=t["text"], font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 8))
 
         balance_card = tk.Frame(content, bg=t["card"], padx=18, pady=16, highlightthickness=1, highlightbackground=t["border"])
         balance_card.pack(fill="x", pady=(0, 14))
@@ -1044,7 +1044,7 @@ class ModelTrainerApp:
                 "Champion Model: Bagging Ensemble (200 Decision Trees)\n"
                 "In our tournament of competing algorithms, this model achieved the best real-world balance between speed, memory, and noise resistance:"
             ),
-            bg=t["card"], fg=t["gold"], font=("Segoe UI", 9.5, "bold"), justify="left"
+            bg=t["card"], fg=t["gold"], font=("Segoe UI", 10, "bold"), justify="left"
         )
         self.pe_champ_desc.pack(anchor="w", pady=(0, 10))
 
@@ -1056,38 +1056,38 @@ class ModelTrainerApp:
         # Pillar 1: Lightning Fast
         p1 = tk.Frame(b_grid, bg=t["card_nested"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         p1.grid(row=0, column=0, sticky="nsew", padx=4)
-        tk.Label(p1, text="ULTRA-FAST INFERENCE", bg=p1.cget("bg"), fg=t["text"], font=("Segoe UI", 8.5, "bold")).pack(anchor="w")
+        tk.Label(p1, text="ULTRA-FAST INFERENCE", bg=p1.cget("bg"), fg=t["text"], font=("Segoe UI", 9, "bold")).pack(anchor="w")
         tk.Label(p1, text="< 1.8 milliseconds", bg=p1.cget("bg"), fg=t["green"], font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(2, 4))
         tk.Label(
             p1,
             text="Computes positions in real time on any basic laptop or mini PC with < 8MB RAM. No costly GPU or cloud needed.",
-            bg=p1.cget("bg"), fg=t["subtext"], font=("Segoe UI", 8.5), justify="left", wraplength=260
+            bg=p1.cget("bg"), fg=t["subtext"], font=("Segoe UI", 9), justify="left", wraplength=260
         ).pack(anchor="w")
 
         # Pillar 2: Bouncing Signal Filter
         p2 = tk.Frame(b_grid, bg=t["card_nested"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         p2.grid(row=0, column=1, sticky="nsew", padx=4)
-        tk.Label(p2, text="BLUETOOTH BOUNCE FILTER", bg=p2.cget("bg"), fg=t["text"], font=("Segoe UI", 8.5, "bold")).pack(anchor="w")
+        tk.Label(p2, text="BLUETOOTH BOUNCE FILTER", bg=p2.cget("bg"), fg=t["text"], font=("Segoe UI", 9, "bold")).pack(anchor="w")
         tk.Label(p2, text="200-Tree Consensus Voting", bg=p2.cget("bg"), fg=t["cyan"], font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(2, 4))
         tk.Label(
             p2,
             text="Radio waves bounce like echoes in a hall. 200 small decision trees vote together to average out multipath spikes.",
-            bg=p2.cget("bg"), fg=t["subtext"], font=("Segoe UI", 8.5), justify="left", wraplength=260
+            bg=p2.cget("bg"), fg=t["subtext"], font=("Segoe UI", 9), justify="left", wraplength=260
         ).pack(anchor="w")
 
         # Pillar 3: Outperforms Classical Math
         p3 = tk.Frame(b_grid, bg=t["card_nested"], padx=14, pady=12, highlightthickness=1, highlightbackground=t["border"])
         p3.grid(row=0, column=2, sticky="nsew", padx=4)
-        tk.Label(p3, text="64% BETTER THAN FORMULAS", bg=p3.cget("bg"), fg=t["text"], font=("Segoe UI", 8.5, "bold")).pack(anchor="w")
+        tk.Label(p3, text="64% BETTER THAN FORMULAS", bg=p3.cget("bg"), fg=t["text"], font=("Segoe UI", 9, "bold")).pack(anchor="w")
         tk.Label(p3, text="0.87m vs 2.45m Error", bg=p3.cget("bg"), fg=t["gold"], font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(2, 4))
         tk.Label(
             p3,
             text="Classic radio physics formulas assume empty air and miss by 2.45m in real rooms. Our ML model cuts error to 0.87m.",
-            bg=p3.cget("bg"), fg=t["subtext"], font=("Segoe UI", 8.5), justify="left", wraplength=260
+            bg=p3.cget("bg"), fg=t["subtext"], font=("Segoe UI", 9), justify="left", wraplength=260
         ).pack(anchor="w")
 
         # ── 5. Actionable Deployment Recommendations ──────────────────────────
-        tk.Label(content, text="PRACTICAL DEPLOYMENT & INSTALLATION RECOMMENDATIONS", bg=t["bg"], fg=t["text"], font=("Segoe UI", 10.5, "bold")).pack(anchor="w", pady=(0, 8))
+        tk.Label(content, text="PRACTICAL DEPLOYMENT & INSTALLATION RECOMMENDATIONS", bg=t["bg"], fg=t["text"], font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 8))
 
         recs_card = tk.Frame(content, bg=t["panel"], padx=18, pady=14, highlightthickness=1, highlightbackground=t["border"])
         recs_card.pack(fill="x", pady=(0, 14))
@@ -1103,9 +1103,9 @@ class ModelTrainerApp:
         for icon, title, desc in tips:
             t_row = tk.Frame(recs_card, bg=t["panel"])
             t_row.pack(fill="x", pady=4)
-            tk.Label(t_row, text=icon, bg=t["panel"], fg=t["gold"], font=("Segoe UI", 9.5, "bold")).pack(side="left", padx=(0, 6))
-            tk.Label(t_row, text=f"{title}:", bg=t["panel"], fg=t["text"], font=("Segoe UI", 8.5, "bold")).pack(side="left", padx=(0, 6))
-            tk.Label(t_row, text=desc, bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 8.5)).pack(side="left", fill="x", expand=True)
+            tk.Label(t_row, text=icon, bg=t["panel"], fg=t["gold"], font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 6))
+            tk.Label(t_row, text=f"{title}:", bg=t["panel"], fg=t["text"], font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 6))
+            tk.Label(t_row, text=desc, bg=t["panel"], fg=t["subtext"], font=("Segoe UI", 9)).pack(side="left", fill="x", expand=True)
 
         # ── 6. Navigation Actions ─────────────────────────────────────────────
         nav_row = tk.Frame(content, bg=t["bg"])
@@ -1146,7 +1146,7 @@ class ModelTrainerApp:
         tk.Button(
             toolbar, text="Open Reports Folder",
             bg=t["card"], fg=t["text"],
-            font=("Segoe UI", 8.5), relief="flat", cursor="hand2",
+            font=("Segoe UI", 9), relief="flat", cursor="hand2",
             padx=10, pady=4, highlightthickness=1, highlightbackground=t["border"],
             command=self._open_reports_folder
         ).pack(side="right", padx=4)
@@ -1154,7 +1154,7 @@ class ModelTrainerApp:
         tk.Button(
             toolbar, text="Reload Plot",
             bg=t["card"], fg=t["cyan"],
-            font=("Segoe UI", 8.5), relief="flat", cursor="hand2",
+            font=("Segoe UI", 9), relief="flat", cursor="hand2",
             padx=10, pady=4, highlightthickness=1, highlightbackground=t["border"],
             command=self._reload_plot
         ).pack(side="right", padx=4)
@@ -1174,7 +1174,7 @@ class ModelTrainerApp:
         box = tk.Frame(parent, bg=self.THEME["panel"], padx=14, pady=12, highlightthickness=1, highlightbackground=self.THEME["border"])
         box.grid(row=0, column=col, sticky="nsew", padx=3)
 
-        tk.Label(box, text=title, bg=self.THEME["panel"], fg=self.THEME["subtext"], font=("Segoe UI", 7.5, "bold")).pack(anchor="w")
+        tk.Label(box, text=title, bg=self.THEME["panel"], fg=self.THEME["subtext"], font=("Segoe UI", 8, "bold")).pack(anchor="w")
         lbl = tk.Label(box, text=init_val, bg=self.THEME["panel"], fg=color, font=("Segoe UI", 13, "bold"))
         lbl.pack(anchor="w", pady=(4, 0))
         return lbl
